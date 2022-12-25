@@ -1,0 +1,26 @@
+Utils:
+    setup.py: Creates map discretizations, passenger arrivals
+        Modules:
+            Map
+            TripDemands
+    mdp.py: Handles state transitions
+        Modules:
+            State
+                Car
+                Trip
+                Plug
+                ChargingLoad
+            Action
+                Travel
+                Charge
+            MarkovDecisionProcess
+    neural.py: Constructs neural network models of varies types
+        Modules:
+            Net
+            ModelFull
+            ModelFactory
+    train.py: Provide varies types of modeling framework and loss functions
+        Modules:
+            MetricFactory
+            SolverFactory
+Pipeline.py: Pick a setup -> Train models -> Compute performance metrics -> Generate plots and tables
