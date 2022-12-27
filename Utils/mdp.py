@@ -101,6 +101,10 @@ class ChargingLoad(State):
     def set_load(self, load):
         self.load = load
 
+class Timestamp(State):
+    def __init__(self, id):
+        super().__init__(id)
+
 ## This module stores information of an action
 ## Action Types:
 ##      1. Travel Action
@@ -161,6 +165,17 @@ class Charge(Action):
     def get_type(self):
         return "charged"
 
+## This module allows users to query rewards for each atomic action
+class Reward:
+    def __init__(self, data_dir = "payoff.txt"):
+        self.data_dir = data_dir
+    
+    def load_external_data(self):
+        pass
+    
+    def query(self, action, timestamp):
+        pass
+
 ## This module defines the Markov decision process for state transitions
 ## Functionalities:
 ##      1. Construct all state types at the beginning
@@ -178,9 +193,10 @@ class Charge(Action):
 ##      region_battery_car_num: The number of cars of each battery level at each region deployed initially. Assume all cars start with dest == curr_region, is_filled = 0. (region, battery) -> num
 ##      region_rate_plug_num: The number of charging plugs of each rate at each region. (region, rate) -> num
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, region_battery_car_num, region_rate_plug_num, battery_offset = 1):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, region_battery_car_num, region_rate_plug_num, battery_offset = 1):
         self.map = map
         self.trip_demands = trip_demands
+        self.reward_query = reward_query
         self.time_horizon = time_horizon
         self.connection_patience = connection_patience
         self.pickup_patience = pickup_patience
@@ -197,13 +213,16 @@ class MarkovDecisionProcess:
         self.num_trip_states = len(self.regions) ** 2 * (self.connection_patience + 1)
         self.num_plug_states = len(self.regions) * num_charging_rates
         self.num_chargingload_states = 2
-        self.num_total_states = self.num_car_states + self.num_trip_states + self.num_plug_states + self.num_chargingload_states
+        self.num_total_states = self.num_car_states + self.num_trip_states + self.num_plug_states + self.num_chargingload_states + 1
         ## Variables keeping track of states
         self.state_dict = {}
         self.state_to_id = {}
         self.state_counts = torch.zeros(self.num_total_states)
         ## Populate state variables
         self.define_all_states()
+        ## Store a copy of previous state counts for reverting actions
+        self.state_counts_prev = self.state_counts.clone()
+        self.prev_ts = 0
         ## Keep track of available car types
         self.available_car_types = self.get_all_available_car_types()
         self.available_existing_car_types = None
@@ -211,10 +230,31 @@ class MarkovDecisionProcess:
         ## Keeping track of current timestamp
         self.reset_timestamp()
     
+    ## Return the total number of cars in the system
+    def get_num_cars(self):
+        return np.sum(self.region_battery_car_num)
+    
     ## Reset timestamp to 0 and regenerate trip arrivals
     def reset_timestamp(self):
         self.curr_ts = 0
         self.trip_arrivals = self.trip_demands.generate_arrivals()
+    
+    ## Revert the action performed on the states
+    def revert_action(self):
+        self.state_counts = self.state_counts_prev.clone()
+        self.get_all_available_existing_car_types()
+        self.curr_ts = self.prev_ts
+    
+    ## Set the current state to be the base-state in case of rollback
+    def step_action(self):
+        self.state_counts_prev = self.state_counts.clone()
+        self.prev_ts = self.curr_ts
+    
+    def set_states(self, state_counts, ts):
+        self.state_counts = state_counts.clone()
+        self.get_all_available_existing_car_types()
+        self.curr_ts = ts
+        self.prev_ts = ts
     
     ## Construct all states at the beginning
     ##  Car states: |region| x |region| x |battery level| x 2 + |region| x |battery level| x 2
@@ -280,6 +320,12 @@ class MarkovDecisionProcess:
             self.state_to_id["charging_load"][type] = curr_id
             self.state_dict[curr_id] = load
             curr_id += 1
+        
+        ## Define timestamp state
+        self.state_to_id["timestamp"] = curr_id
+        time = Timestamp(id = curr_id)
+        self.state_dict[curr_id] = time
+        self.state_counts[curr_id] = 0
     
     ## Atomic state transitions within a timestamp
     ##  The action, given by a solver, is performed on each individual car
@@ -313,14 +359,14 @@ class MarkovDecisionProcess:
     ##              Original car type - 1
     ##              New car type (idling) + 1
     ## Return if the action has been successfully processed. False if the action is not feasible
-    def transit_within_timestamp(self, action):
+    def transit_within_timestamp(self, action, car_id = None):
         if action.get_type() == "pickup":
-            return self.transit_travel_within_timestamp(action, "pickup")
+            return self.transit_travel_within_timestamp(action, "pickup", car_id = car_id)
         elif action.get_type() == "rerouting":
-            return self.transit_travel_within_timestamp(action, "rerouting")
+            return self.transit_travel_within_timestamp(action, "rerouting", car_id = car_id)
         elif action.get_type() == "idling":
-            return self.transit_travel_within_timestamp(action, "idling")
-        return self.transit_charged_within_timestamp(action)
+            return self.transit_travel_within_timestamp(action, "idling", car_id = car_id)
+        return self.transit_charged_within_timestamp(action, car_id = car_id)
     
     ## Atomic state transitions for pickup action within timestamp
     def transit_travel_within_timestamp(self, action, type, car_id = None):
@@ -444,6 +490,8 @@ class MarkovDecisionProcess:
     ##  More likely used by matching-based solvers
     def transit_group_within_timestamp(self, car_type_id_lst, action_lst):
         assert len(car_type_id_lst) == len(action_lst)
+        ## Save a copy of state counts in case of rollback
+        state_counts_init = self.state_counts.clone()
         ## Iterate through both lists
         for car_type_id, action in zip(car_type_id_lst, action_lst):
             if action.get_type() == "charged":
@@ -451,6 +499,7 @@ class MarkovDecisionProcess:
             else:
                 atomic_action_success = self.transit_travel_within_timestamp(action, type = action.get_type(), car_id = car_type_id)
             if not atomic_action_success:
+                self.state_counts = state_counts_init
                 return False
         return True
     
@@ -510,6 +559,9 @@ class MarkovDecisionProcess:
         ## Set peak charging load
         peak_load_id = self.state_to_id["charging_load"]["peak"]
         state_counts_new[peak_load_id] = self.state_counts[peak_load_id]
+        ## Set timestamp
+        time_id = self.state_to_id["timestamp"]
+        state_counts_new[time_id] = self.curr_ts + 1
         ## Update state counts
         self.state_counts = state_counts_new
         ## Increment timestamp by 1

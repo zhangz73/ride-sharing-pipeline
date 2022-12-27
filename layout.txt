@@ -10,9 +10,11 @@ Utils:
                 Trip
                 Plug
                 ChargingLoad
+                Timestamp
             Action
                 Travel
                 Charge
+            Reward
             MarkovDecisionProcess
     neural.py: Constructs neural network models of varies types
         Modules:
