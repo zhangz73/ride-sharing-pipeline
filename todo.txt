@@ -1,0 +1,1 @@
+- Modify the approach to store charging rate of cars

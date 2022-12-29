@@ -10,7 +10,57 @@ def clean_data():
     pass
 
 def main(args):
-    pass
+    ## Setup
+    map = setup.Map(**args["map"])
+    time_horizon = args["mdp"]["time_horizon"]
+    trip_demands = setup.TripDemands(time_horizon = time_horizon, **args["trip_demand"])
+    reward_query = mdp.Reward(**args["reward"])
+    markov_decision_process = mdp.MarkovDecisionProcess(map, trip_demands, reward_query, **args["mdp"])
+    solver_factory = train.SolverFactory(type = "dp", markov_decision_process = markov_decision_process)
+    solver = solver_factory.get_solver()
+    ## Training
+    solver.train()
+    print(solver.optimal_values)
+#    for t in range(time_horizon):
+#        print(t, solver.optimal_states[t])
+    ## Evaluation
+    ## TODO: Implement it!!!
+
+test_args = {
+    "map": {
+        "map_system": "graph",
+        "num_nodes": 2,
+        "graph_edge_lst": [(0, 0), (0, 1), (1, 0), (1, 1)]
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "constant",
+        "parameter_fname": "trip_demand_test.tsv",
+        "data": None
+    },
+    "reward": {
+        "reward_fname": "payoff_test.tsv"
+    },
+    "mdp": {
+        "time_horizon": 5,
+        "connection_patience": 0,
+        "pickup_patience": 0,
+        "num_battery_levels": 3,
+        "battery_jump": 0.3,
+        "charging_rates": [2],
+        "battery_offset": 0,
+        "region_battery_car_fname": "region_battery_car_test.tsv",
+        "region_rate_plug_fname": "region_rate_plug_test.tsv"
+    },
+    "solver": {
+        "type": "dp"
+    },
+    "metric": [],
+    "report": {
+        "plot": [],
+        "table": []
+    }
+}
 
 args = {
     "map": {
@@ -21,8 +71,22 @@ args = {
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_lst": None,
+        "parameter_fname": "trip_demand.tsv",
         "data": None
+    },
+    "reward": {
+        "reward_fname": "payoff.tsv"
+    },
+    "mdp": {
+        "time_horizon": 5,
+        "connection_patience": 2,
+        "pickup_patience": 3,
+        "num_battery_levels": 3,
+        "battery_jump": 0.5,
+        "charging_rates": [5, 6],
+        "battery_offset": 1,
+        "region_battery_car_fname": "region_battery_car.tsv",
+        "region_rate_plug_fname": "region_rate_plug.tsv"
     },
     "solver": {
         "type": "rl"
@@ -46,3 +110,5 @@ args = {
         "table": []
     }
 }
+
+main(test_args)

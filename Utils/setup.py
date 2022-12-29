@@ -70,7 +70,7 @@ class Map:
             src, dst = edge
             if src not in self.map:
                 self.map[src] = []
-            self.map[src].append(src)
+            self.map[src].append(dst)
     
     def construct_grid_system(self):
         pass
@@ -138,7 +138,7 @@ class Map:
             for tup in self.steps_to_loc:
                 src, dst = tup
                 n_steps = self.steps_to_loc[(src, dst)]
-                for region in self.map[src]:
+                for region in self.map[dst]:
                     self.steps_to_loc[(src, region)] = min(self.steps_to_loc[(src, region)], n_steps + 1)
     
     ## Compute the distance between every region-region pair for the grid system
@@ -192,13 +192,13 @@ class TripDemands:
     ##      3. Trip Destination: The origin of the passenger trip request
     ## smooth_time_window and smooth_region_window is only used when there are no trip requests
     ##  at a specific region at a specific timestamp.
-    def __init__(self, time_horizon, parameter_source = "given", arrival_type = "poisson", parameter_df = None, data = None, start_ts = "00:00:00", end_ts = "23:59:59", smooth_time_window = 3, smooth_region_window = 3):
+    def __init__(self, time_horizon, parameter_source = "given", arrival_type = "poisson", parameter_fname = "trip_demand.tsv", data = None, start_ts = "00:00:00", end_ts = "23:59:59", smooth_time_window = 3, smooth_region_window = 3):
         assert parameter_source in ["given", "inferred"]
         assert arrival_type in ["constant", "poisson", "data-driven"]
         self.time_horizon = time_horizon
         self.parameter_source = parameter_source
         self.arrival_type = arrival_type
-        self.parameter_df = parameter_df
+        self.parameter_fname = parameter_fname
         self.input_data = data
         self.start_ts = start_ts
         self.end_ts = end_ts
@@ -211,8 +211,7 @@ class TripDemands:
             assert data is not None
             self.infer_parameters()
         if parameter_source == "given":
-            assert parameter_df is not None
-            self.data = parameter_df
+            self.data = pd.read_csv(f"Data/{self.parameter_fname}", sep = "\t")
     
     ## Infer parameters from the data
     ## Procedures:
@@ -231,11 +230,6 @@ class TripDemands:
         self.data = self.input_data[["T", "Origin", "Destination"]]
         self.data["Count"] = 1
         self.data = self.data.groupby(["T", "Origin", "Destination"]).sum().reset_index()
-        ## Aggregate to time level
-        arrival_count_per_ts = self.data[["T", "Count"]].groupby(["T"]).sum().reset_index()
-        arrival_count_per_ts["T_Count"] = arrival_count_per_ts["Count"]
-        ## Merge arrival count per ts to data
-        self.data = self.data.merge(arrival_count_per_ts[["T", "T_Count"]], on = "T")
     
     ## Smooth the parameters for sparse timestamps and regions
     def smooth_parameters(self):
@@ -251,11 +245,11 @@ class TripDemands:
 
     ## Generate 1 trial of the constant arrival process
     def generate_constant_arrivals(self):
-        return self.data["T", "Origin", "Destination", "Count"].copy()
+        return self.data[["T", "Origin", "Destination", "Count"]].copy()
     
     ## Generate 1 trial of poisson arrival process
     def generate_poisson_arrivals(self):
-        ret = self.data["T", "Origin", "Destination", "Count"].copy()
+        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
         ret["Count"] = np.random.poisson(lam = ret["Count"])
         return ret
     

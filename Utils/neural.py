@@ -155,7 +155,7 @@ class ModelFactory:
     def load_model(self, descriptor, update = True, include_ts = False, ts = None):
         name = descriptor
         if include_ts:
-            if ts = None:
+            if ts is None:
                 ts = self.get_latest_ts()
             if ts is not None:
                 name += "__" + ts

@@ -1,0 +1,16 @@
+T	Type	Pickup	Origin	Destination	Region	Rate	Payoff
+0	Travel	1	0	1			1
+0	Travel	1	1	0			1
+0	Charge				0	2	-0.5
+1	Travel	1	0	1			1
+1	Travel	1	1	0			1
+1	Charge				0	2	-0.5
+2	Travel	1	0	1			1
+2	Travel	1	1	0			1
+2	Charge				0	2	-0.5
+3	Travel	1	0	1			1
+3	Travel	1	1	0			1
+3	Charge				0	2	-0.5
+4	Travel	1	0	1			1
+4	Travel	1	1	0			1
+4	Charge				0	2	-0.5
