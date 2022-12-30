@@ -19,10 +19,7 @@
         "pickup_patience": 3,
         "num_battery_levels": 3,
         "battery_jump": 0.5,
-        "charging_rates": [
-            5,
-            6
-        ],
+        "charging_rates": [5, 6],
         "battery_offset": 1,
         "region_battery_car_fname": "region_battery_car.tsv",
         "region_rate_plug_fname": "region_rate_plug.tsv"
@@ -33,21 +30,18 @@
     "neural": {
         "model_name": "discretized_feedforward",
         "input_dim": 10,
-        "hidden_dim_lst": [
-            10,
-            10
-        ],
-        "activation_lst": [
-            "relu",
-            "relu"
-        ],
+        "hidden_dim_lst": [10, 10],
+        "activation_lst": ["relu", "relu"],
         "output_dim": 1,
         "batch_norm": false,
         "lr": 0.01,
         "decay": 0.1,
         "scheduler_step": 10000,
         "solver": "Adam",
-        "retrain": false
+        "retrain": false,
+        "descriptor": "RL",
+        "dir": ".",
+        "training_loss": "total_payoff"
     },
     "metric": [],
     "report": {

@@ -1,16 +1,23 @@
+import copy
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import Utils.neural as neural
 
 ## This module computes different types of losses and performance metrics
 class MetricFactory:
     def __init__(self):
         pass
     
-    def get_surrogate_loss(self):
+    def get_surrogate_loss(self, total_payoff_lst):
         pass
 
-    def get_total_payoff(self):
-        pass
+    def get_total_payoff(self, total_payoff_lst):
+        return torch.sum(total_payoff_lst)
+    
+    def get_total_payoff_loss(self, total_payoff_lst):
+        return -torch.sum(total_payoff_lst)
 
 ## This module implements different types of solvers to the MDP problem
 ## Solvers:
@@ -26,6 +33,9 @@ class Solver:
         assert type in ["sequential", "group"]
         self.type = type
         self.markov_decision_process = markov_decision_process
+        ## Save some commonly used variables from MDP
+        self.time_horizon = self.markov_decision_process.time_horizon
+        self.reward_query = self.markov_decision_process.reward_query
         self.all_actions = self.markov_decision_process.get_all_actions()
         self.action_lst = [self.all_actions[k] for k in self.all_actions.keys()]
     
@@ -39,25 +49,99 @@ class Solver:
 
 ## This module is a child-class of Solver for the reinforcement learning solver
 class RL_Solver(Solver):
-    def __init__(self, markov_decision_process = None, action_lst = None):
+    def __init__(self, markov_decision_process = None, model_name = "discretized_feedforward", input_dim = 10, hidden_dim_lst = [10, 10], activation_lst = ["relu", "relu"], output_dim = 1, batch_norm = False, lr = 1e-2, decay = 0.1, scheduler_step = 10000, solver = "Adam", retrain = False, descriptor = None, dir = ".", device = "cpu", training_loss = "total_payoff", num_episodes = 100, ckpt_freq = 100):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
+        assert training_loss in ["total_payoff", "surrogate"]
+        self.training_loss = training_loss
+        discretized_len = self.time_horizon
+        input_dim = len(self.markov_decision_process.state_counts)
+        output_dim = len(self.action_lst)
+        self.model_factory = neural.ModelFactory(model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver, retrain, discretized_len, descriptor, dir, device)
+        self.model = self.model_factory.get_model()
+        self.optimizer, self.scheduler = self.model_factory.prepare_optimizer()
+        self.metric_factory = MetricFactory()
+        self.num_episodes = num_episodes
+        self.ckpt_freq = ckpt_freq
+        self.payoff_map = torch.zeros((self.time_horizon, len(self.action_lst)))
+        self.construct_payoff_map()
+        self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
     
-    def prepare_model(self):
-        pass
+    def get_model(self):
+        return self.model_factory.get_model()
     
-    def train(self, num_episodes = 100, ckpt_freq = 100):
-        pass
+    def get_loss(self, total_payoff_lst):
+        if self.training_loss == "total_payoff":
+            return self.metric_factory.get_total_payoff_loss(total_payoff_lst)
+        elif self.training_loss == "surrogate":
+            return self.metric_factory.get_surrogate_loss(total_payoff_lst)
     
-    def predict(self, state_counts):
-        pass
+    def construct_payoff_map(self):
+        for t in range(self.time_horizon):
+            for action_id in self.all_actions:
+                action = self.all_actions[action_id]
+                self.payoff_map[t, action_id] = self.reward_query.query(action, t)
+    
+    def train(self):
+        loss_arr = []
+        for day in tqdm(range(self.num_episodes)):
+            self.markov_decision_process.reset_states()
+            self.optimizer.zero_grad()
+            total_payoff_loss_lst = torch.zeros(self.time_horizon)
+            for t in range(self.time_horizon):
+                num_cars = self.markov_decision_process.get_available_car_counts()
+                curr_action_lst = []
+                total_payoff_loss = 0
+                for car in range(num_cars):
+                    state_counts = self.markov_decision_process.state_counts
+                    output = self.predict(state_counts, t)
+                    total_payoff_loss += torch.sum(self.payoff_map[t,:] * output)
+#                    sorted_action_id_lst = self.predict(state_counts, t)
+#                    feasible_action_applied = False
+#                    action_idx = 0
+#                    while action_idx < len(sorted_action_id_lst) and not feasible_action_applied:
+#                        action_id = sorted_action_id_lst[action_idx]
+#                        action = self.all_actions[int(action_id)]
+#                        feasible_action_applied = self.markov_decision_process.transit_within_timestamp(action)
+#                        action_idx += 1
+#                        if feasible_action_applied:
+#                            curr_action_lst.append(action)
+#                            total_payoff_loss += self.payoff_map[t, action_id]
+#                    assert feasible_action_applied
+                total_payoff_loss_lst[t] = total_payoff_loss
+                self.markov_decision_process.transit_across_timestamp()
+            ## Compute loss
+            loss = self.get_loss(total_payoff_loss_lst)
+            loss.backward()
+            loss_arr.append(float(loss.data))
+            self.optimizer.step()
+            self.scheduler.step()
+            ## Checkpoint
+            if day > 0 and day % self.ckpt_freq == 0:
+                self.model_factory.update_model(self.model, update_ts = False)
+                descriptor = f"_episode={day}"
+                self.model_factory.save_to_file(descriptor, include_ts = True)
+        ## Save final model
+        self.model_factory.update_model(self.model, update_ts = False)
+        self.model_factory.save_to_file(descriptor = "", include_ts = True)
+        return loss_arr
+    
+    def predict(self, state_counts, ts):
+        model = self.get_model()
+        output = model((ts, state_counts))
+        #sorted_action_id_lst = torch.argsort(output, descending = True)
+        ## Eliminate infeasible actions
+        for action_id in range(len(output)):
+            self.markov_decision_process_pg.set_states(state_counts, ts)
+            action = self.all_actions[action_id]
+            if not self.markov_decision_process_pg.transit_within_timestamp(action):
+                output[action_id] = 0
+        output = output / torch.sum(output)
+        return output
 
 ## This module is a child-class of Solver for the dynamic programming solver
 class DP_Solver(Solver):
     def __init__(self, markov_decision_process = None):
         super().__init__(type = "group", markov_decision_process = markov_decision_process)
-        ## Save some commonly used variables from MDP
-        self.time_horizon = self.markov_decision_process.time_horizon
-        self.reward_query = self.markov_decision_process.reward_query
         ## Auxiliary variables
         self.feasible_state_transitions = {}
         ## A list of length time_horizon, storing state_counts
@@ -108,11 +192,6 @@ class DP_Solver(Solver):
             self.optimal_atomic_actions.append(opt_action)
             self.optimal_values.append(opt_value)
         self.optimal_values.append(0)
-        ## Debugging Print
-#        for t in range(self.time_horizon - 1):
-#            action_id = self.optimal_atomic_actions[t][1][0]
-#            action = self.markov_decision_process.all_actions[action_id]
-#            print(t, action.describe())
     
     ## Construct a graph of feasible state transitions
     def build_graph(self):
@@ -156,7 +235,7 @@ class DP_Solver(Solver):
                     self.markov_decision_process.set_states(val, t - 1)
                     self.markov_decision_process.transit_across_timestamp()
                     ## Record the current payoff
-                    payoff = self.atomic_actions_to_payoff(list(tup[1]), t - 1)
+                    payoff = self.reward_query.atomic_actions_to_payoff(list(tup[1]), t - 1)
                     curr_state_counts = self.markov_decision_process.state_counts.numpy()
                     if key not in self.feasible_state_transitions[t - 1][tuple(prev_state_counts)]:
                         self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
@@ -165,14 +244,6 @@ class DP_Solver(Solver):
                         if payoff > prev_payoff:
                             self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
                     self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
-    
-    ## Compute the total payoff given a list of atomic actions and a timestamp
-    def atomic_actions_to_payoff(self, action_lst, ts):
-        total_payoff = 0
-        for action in action_lst:
-            curr_payoff = self.reward_query.query(action, ts)
-            total_payoff += curr_payoff
-        return total_payoff
     
     ## Return a tuple of (car_type_id_lst, action_lst)
     def predict(self, state_counts):
@@ -213,6 +284,15 @@ class ReportFactory:
     
     def get_plot(self):
         pass
+    
+    def get_training_loss_plot(self, loss_arr, loss_name, figname):
+        plt.plot(loss_arr)
+        plt.xlabel("Training Episodes")
+        plt.ylabel("Loss")
+        plt.title(loss_name)
+        plt.savefig(f"Plots/{figname}.png")
+        plt.clf()
+        plt.close()
     
     def get_table(self):
         pass

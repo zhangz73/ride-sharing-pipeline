@@ -23,7 +23,7 @@ class Net(nn.Module):
         for i in range(1, len(hidden_dim_lst)):
             self.layer_lst.append(nn.Linear(hidden_dim_lst[i - 1], hidden_dim_lst[i]))
             self.bn.append(nn.BatchNorm1d(hidden_dim_lst[i],momentum=0.1))
-        self.layer_lst.append(nn.Linear(hidden_dim_lst[-1], hidden_dim_lst))
+        self.layer_lst.append(nn.Linear(hidden_dim_lst[-1], output_dim))
 
     def forward(self, x):
         for i in range(len(self.layer_lst) - 1):
@@ -62,6 +62,7 @@ class ModelFactory:
     def __init__(self, model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver = "Adam", retrain = False, discretized_len = 1, descriptor = None, dir = ".", device = "cpu"):
         assert solver in ["Adam", "SGD", "RMSprop"]
         assert model_name in ["discretized_feedforward", "rnn"]
+        assert len(hidden_dim_lst) == len(activation_lst)
         self.model_name = model_name
         self.input_dim = input_dim
         self.hidden_dim_lst = hidden_dim_lst
@@ -74,12 +75,15 @@ class ModelFactory:
         self.solver = solver
         self.retrain = retrain
         self.discretized_len = discretized_len
+        self.descriptor = descriptor
+        self.dir = dir
+        self.device = device
         ## The timestamp when the latest model is stored into self.model
         self.model_ts = self.get_curr_ts()
         self.model = None
         if not retrain:
             self.model = self.load_latest(self.descriptor)
-        if model is None:
+        if self.model is None:
             if model_name == "discretized_feedforward":
                 self.model = self.discretized_feedforward()
                 self.model = ModelFull(self.model, is_discretized = True)
@@ -94,8 +98,8 @@ class ModelFactory:
     ## Note that we can construct a single shallow network by setting discretized_len = 1
     def discretized_feedforward(self):
         model_list = nn.ModuleList()
-        for _ in range(this.discretized_len):
-            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, this.batch_norm)
+        for _ in range(self.discretized_len):
+            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm)
             model_list.append(model)
         return model_list
     
@@ -128,11 +132,11 @@ class ModelFactory:
     
     ## Save the model to file named according to the given descriptor
     ## Append the current timestamp to the model if include_ts = True
-    def save_to_file(self, descriptor, include_ts = False):
+    def save_to_file(self, descriptor = "", include_ts = False):
         ## Need to convert model to CPU device before saving
         ##  otherwise it cannot be loaded without GPU devices
         model_save = self.model.cpu()
-        name = descriptor
+        name = self.descriptor + descriptor
         if include_ts:
             name += "__" + self.model_ts
         torch.save(model_save, f"{self.dir}/Models/{name}.pt")
@@ -156,7 +160,7 @@ class ModelFactory:
         name = descriptor
         if include_ts:
             if ts is None:
-                ts = self.get_latest_ts()
+                ts = self.get_latest_ts(descriptor)
             if ts is not None:
                 name += "__" + ts
                 self.model_ts = ts

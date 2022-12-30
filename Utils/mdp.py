@@ -228,6 +228,14 @@ class Reward:
         if tmp_df.shape[0] > 0:
             return tmp_df.iloc[0]["Payoff"]
         return 0
+    
+    ## Compute the total payoff given a list of atomic actions and a timestamp
+    def atomic_actions_to_payoff(self, action_lst, ts):
+        total_payoff = 0
+        for action in action_lst:
+            curr_payoff = self.query(action, ts)
+            total_payoff += curr_payoff
+        return total_payoff
 
 ## This module defines the Markov decision process for state transitions
 ## Functionalities:
@@ -283,6 +291,7 @@ class MarkovDecisionProcess:
         ## Store a copy of previous state counts for reverting actions
         self.state_counts_prev = self.state_counts.clone()
         self.prev_ts = 0
+        self.state_counts_init = self.state_counts.clone()
         ## Variables keeping track of available car types
         self.available_car_types = self.get_all_available_car_types()
         self.available_existing_car_types = None
@@ -291,6 +300,12 @@ class MarkovDecisionProcess:
         self.all_actions = {}
         self.action_to_id = {}
         self.construct_all_actions()
+    
+    ## Reset all states to the initial one
+    def reset_states(self):
+        self.state_counts = self.state_counts_init.clone()
+        self.state_counts_prev = self.state_counts.clone()
+        self.reset_timestamp()
     
     ## Describe the state_counts
     def describe_state_counts(self, state_counts = None, indent = "\t"):
@@ -748,6 +763,8 @@ class MarkovDecisionProcess:
         state_counts_new[time_id] = self.curr_ts + 1
         ## Update state counts
         self.state_counts = state_counts_new
+        ## Recompute existing available cars
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
         ## Increment timestamp by 1
         self.curr_ts += 1
     
