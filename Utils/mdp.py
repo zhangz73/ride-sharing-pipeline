@@ -573,7 +573,7 @@ class MarkovDecisionProcess:
             else:
                 car_not_filled = not car.is_filled()
             ## Check all feasibility
-            if close_to_dest and enough_battery and can_reach_origin and car_not_filled and has_someone_to_pickup:
+            if close_to_dest and enough_battery and car_not_filled and has_someone_to_pickup:
                 self.state_counts[id] -= 1
                 ## Compute target car type
                 if type != "idling":
