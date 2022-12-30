@@ -14,10 +14,10 @@ class MetricFactory:
         pass
 
     def get_total_payoff(self, total_payoff_lst):
-        return torch.sum(total_payoff_lst)
+        return torch.mean(total_payoff_lst)
     
     def get_total_payoff_loss(self, total_payoff_lst):
-        return -torch.sum(total_payoff_lst)
+        return -torch.mean(total_payoff_lst)
 
 ## This module implements different types of solvers to the MDP problem
 ## Solvers:

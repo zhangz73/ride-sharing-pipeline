@@ -9,11 +9,11 @@
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "constant",
-        "parameter_fname": "TripDemand/trip_demand_test.tsv",
+        "parameter_fname": "TripDemand/trip_demand_1car2region.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_test.tsv"
+        "reward_fname": "Payoff/payoff_1car2region.tsv"
     },
     "mdp": {
         "time_horizon": 5,
@@ -25,8 +25,8 @@
             2
         ],
         "battery_offset": 0,
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_test.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_test.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"
     },
     "solver": {
         "type": "rl"
