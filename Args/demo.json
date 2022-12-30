@@ -7,11 +7,11 @@
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "trip_demand.tsv",
+        "parameter_fname": "TripDemand/trip_demand.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "payoff.tsv"
+        "reward_fname": "Payoff/payoff.tsv"
     },
     "mdp": {
         "time_horizon": 5,
@@ -21,8 +21,8 @@
         "battery_jump": 0.5,
         "charging_rates": [5, 6],
         "battery_offset": 1,
-        "region_battery_car_fname": "region_battery_car.tsv",
-        "region_rate_plug_fname": "region_rate_plug.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug.tsv"
     },
     "solver": {
         "type": "rl"

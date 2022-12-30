@@ -38,9 +38,13 @@ def main(args):
         ## Printing out the first optimal actions in each timestamp
         print("Optimal Actions:")
         for t in range(time_horizon - 1):
-            action_id = solver.optimal_atomic_actions[t][1][0]
-            action = markov_decision_process.all_actions[action_id]
-            print(f"\tt = {t}", action.describe())
+            tup = solver.optimal_atomic_actions[t][1]
+            if len(tup) > 0:
+                action_id = tup[0]
+                action = markov_decision_process.all_actions[action_id]
+                print(f"\tt = {t}", action.describe())
+            else:
+                print(f"\tt = {t}", "No new actions applied")
     #    for t in range(time_horizon):
     #        print(t, solver.optimal_states[t])
     elif solver_type == "rl":
@@ -52,7 +56,7 @@ def main(args):
     ## TODO: Implement it!!!
     
 
-with open("Args/1car_2region_rl.json", "r") as f:
+with open("Args/1car_3region_dp.json", "r") as f:
     args = json.load(f)
 
 main(args)

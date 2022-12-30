@@ -580,7 +580,11 @@ class MarkovDecisionProcess:
                     car_query_type = "general"
                 else:
                     car_query_type = "idling"
-                target_car_state = (dest, car.get_curr_region(), car.get_battery(), car.is_filled(), car_query_type)
+                if type == "pickup":
+                    car_filled_status = 1
+                else:
+                    car_filled_status = 0
+                target_car_state = (dest, car.get_curr_region(), car.get_battery(), car_filled_status, car_query_type)
                 target_car_id = self.state_to_id["car"][target_car_state]
                 self.state_counts[target_car_id] += 1
                 ## Update trip counts
@@ -702,7 +706,7 @@ class MarkovDecisionProcess:
                         state_counts_new[trip_id_new] = tmp_df.iloc[0]["Count"]
                     else:
                         state_counts_new[trip_id_new] = 0
-        ## Make movements for occupied cars
+        ## Make movements for traveling cars
         for dest in self.regions:
             for curr_region in self.regions:
                 for battery in range(self.num_battery_levels):
