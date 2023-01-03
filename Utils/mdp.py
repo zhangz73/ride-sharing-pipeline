@@ -294,8 +294,7 @@ class MarkovDecisionProcess:
         self.state_counts_init = self.state_counts.clone()
         ## Variables keeping track of available car types
         self.available_car_types = self.get_all_available_car_types()
-        self.available_existing_car_types = None
-        self.get_all_available_existing_car_types()
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
         ## Variables keeping track of all actions
         self.all_actions = {}
         self.action_to_id = {}
@@ -305,6 +304,7 @@ class MarkovDecisionProcess:
     def reset_states(self):
         self.state_counts = self.state_counts_init.clone()
         self.state_counts_prev = self.state_counts.clone()
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
     
     ## Describe the state_counts
@@ -374,7 +374,7 @@ class MarkovDecisionProcess:
     ## Revert the action performed on the states
     def revert_action(self):
         self.state_counts = self.state_counts_prev.clone()
-        self.get_all_available_existing_car_types()
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.curr_ts = self.prev_ts
     
     ## Set the current state to be the base-state in case of rollback
@@ -384,7 +384,7 @@ class MarkovDecisionProcess:
     
     def set_states(self, state_counts, ts):
         self.state_counts = state_counts.clone()
-        self.get_all_available_existing_car_types()
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.curr_ts = ts
         self.prev_ts = ts
     
@@ -513,17 +513,17 @@ class MarkovDecisionProcess:
     ##              Original car type - 1
     ##              New car type (idling) + 1
     ## Return if the action has been successfully processed. False if the action is not feasible
-    def transit_within_timestamp(self, action, car_id = None):
+    def transit_within_timestamp(self, action, car_id = None, debug = False):
         if action.get_type() == "pickup":
-            return self.transit_travel_within_timestamp(action, "pickup", car_id = car_id)
+            return self.transit_travel_within_timestamp(action, "pickup", car_id = car_id, debug = debug)
         elif action.get_type() == "rerouting":
-            return self.transit_travel_within_timestamp(action, "rerouting", car_id = car_id)
+            return self.transit_travel_within_timestamp(action, "rerouting", car_id = car_id, debug = debug)
         elif action.get_type() == "idling":
-            return self.transit_travel_within_timestamp(action, "idling", car_id = car_id)
+            return self.transit_travel_within_timestamp(action, "idling", car_id = car_id, debug = debug)
         return self.transit_charged_within_timestamp(action, car_id = car_id)
     
     ## Atomic state transitions for pickup action within timestamp
-    def transit_travel_within_timestamp(self, action, type, car_id = None):
+    def transit_travel_within_timestamp(self, action, type, car_id = None, debug = False):
         origin, dest = action.get_origin(), action.get_dest()
         car_type_idx = 0
         if car_id is None:

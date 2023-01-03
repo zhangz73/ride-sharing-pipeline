@@ -1,0 +1,63 @@
+{
+    "map": {
+        "map_system": "graph",
+        "num_nodes": 3,
+        "graph_edge_lst": [
+            [0, 0], [0, 1], [1, 0], [1, 1], [1, 2], [2, 1], [2, 2]
+        ]
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "constant",
+        "parameter_fname": "TripDemand/trip_demand_1car3region.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1car3region.tsv"
+    },
+    "mdp": {
+        "time_horizon": 6,
+        "connection_patience": 0,
+        "pickup_patience": 0,
+        "num_battery_levels": 4,
+        "battery_jump": 0.3,
+        "charging_rates": [3],
+        "battery_offset": 0,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car3region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car3region.tsv"
+    },
+    "solver": {
+        "type": "ppo"
+    },
+    "neural": {
+        "value_model_name": "discretized_feedforward",
+        "value_hidden_dim_lst": [50, 50, 50],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
+        "value_batch_norm": false,
+        "value_lr": 1e-1,
+        "value_decay": 0.1,
+        "value_scheduler_step": 200,
+        "value_solver": "Adam",
+        "value_retrain": false,
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [50, 50, 50],
+        "policy_activation_lst": ["tanh", "relu", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 1e-1,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 200,
+        "policy_solver": "Adam",
+        "policy_retrain": false,
+        "descriptor": "PPO",
+        "dir": ".",
+        "num_itr": 100,
+        "num_episodes": 5,
+        "ckpt_freq": 100,
+        "benchmarking_policy": "uniform"
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}

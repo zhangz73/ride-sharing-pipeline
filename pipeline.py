@@ -19,7 +19,7 @@ else:
 def clean_data():
     pass
 
-def main(args):
+def main(args, json_name = ""):
     ## Setup
     map = setup.Map(**args["map"])
     time_horizon = args["mdp"]["time_horizon"]
@@ -29,8 +29,11 @@ def main(args):
     solver_type = args["solver"]["type"]
     if solver_type == "dp":
         solver = train.DP_Solver(markov_decision_process = markov_decision_process)
-    elif solver_type == "rl":
-        solver = train.RL_Solver(markov_decision_process = markov_decision_process, device = DEVICE, **args["neural"])
+    elif solver_type == "policy_iteration":
+        solver = train.PolicyIteration_Solver(markov_decision_process = markov_decision_process, device = DEVICE, **args["neural"])
+    elif solver_type == "ppo":
+        solver = train.PPO_Solver(markov_decision_process = markov_decision_process, device = DEVICE, **args["neural"])
+    
     ## Training
     if solver_type == "dp":
         solver.train()
@@ -47,16 +50,34 @@ def main(args):
                 print(f"\tt = {t}", "No new actions applied")
     #    for t in range(time_horizon):
     #        print(t, solver.optimal_states[t])
-    elif solver_type == "rl":
+    elif solver_type == "policy_iteration":
         loss_arr = solver.train()
         report_factory = train.ReportFactory()
         if "training_loss" in args["report"]["plot"]:
             report_factory.get_training_loss_plot(loss_arr, "Total Payoff Loss", "train_loss")
+    elif solver_type == "ppo":
+        value_loss_arr, policy_loss_arr = solver.train()
+        report_factory = train.ReportFactory()
+        report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
+        report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
+        value_loss, policy_loss, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
+#        print(f"Value Loss = {value_loss}")
+        print(f"Policy Loss = {policy_loss}")
+        print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+        print(payoff_lst)
+#        print(markov_decision_process.describe_state_counts())
+        for tup in action_lst:
+            curr_state_counts, action, t, car_idx = tup
+            print(f"t = {t}, car = {car_idx}:")
+            print(markov_decision_process.describe_state_counts(curr_state_counts))
+            print(f"action = {action.describe()}")
+        
     ## Evaluation
     ## TODO: Implement it!!!
     
+JSON_NAME = "1car_2region_ppo"
 
-with open("Args/1car_3region_dp.json", "r") as f:
+with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
 
-main(args)
+main(args, json_name = JSON_NAME)

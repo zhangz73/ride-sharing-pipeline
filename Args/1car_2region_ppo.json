@@ -29,23 +29,33 @@
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"
     },
     "solver": {
-        "type": "rl"
+        "type": "ppo"
     },
     "neural": {
-        "model_name": "discretized_feedforward",
-        "hidden_dim_lst": [10, 10],
-        "activation_lst": ["relu", "relu"],
-        "batch_norm": false,
-        "lr": 0.01,
-        "decay": 0.1,
-        "scheduler_step": 10000,
-        "solver": "Adam",
-        "retrain": false,
-        "descriptor": "RL",
+        "value_model_name": "discretized_feedforward",
+        "value_hidden_dim_lst": [50, 50, 50],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
+        "value_batch_norm": false,
+        "value_lr": 1e-1,
+        "value_decay": 0.1,
+        "value_scheduler_step": 200,
+        "value_solver": "Adam",
+        "value_retrain": false,
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [50, 50, 50],
+        "policy_activation_lst": ["tanh", "relu", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 1e-1,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 200,
+        "policy_solver": "Adam",
+        "policy_retrain": false,
+        "descriptor": "PPO",
         "dir": ".",
-        "training_loss": "total_payoff",
-        "num_episodes": 100,
-        "ckpt_freq": 100
+        "num_itr": 100,
+        "num_episodes": 50,
+        "ckpt_freq": 100,
+        "benchmarking_policy": "uniform"
     },
     "metric": ["total_payoff"],
     "report": {

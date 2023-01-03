@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 ## This module defines a single feed-forward neural network
 class Net(nn.Module):
-    def __init__(self, input_dim, hidden_dim_lst, activation_lst, output_dim = 1, batch_norm = False):
+    def __init__(self, input_dim, hidden_dim_lst, activation_lst, output_dim = 1, batch_norm = False, prob = False):
         super(Net, self).__init__()
         for act in activation_lst:
             assert act in ["relu", "softmax", "tanh"]
@@ -17,6 +17,7 @@ class Net(nn.Module):
         self.bn = nn.ModuleList()
         self.batch_norm = batch_norm
         self.activation_lst = activation_lst
+        self.prob = prob
 
         self.layer_lst.append(nn.Linear(input_dim, hidden_dim_lst[0]))
         self.bn.append(nn.BatchNorm1d(hidden_dim_lst[0],momentum=0.1))
@@ -33,10 +34,13 @@ class Net(nn.Module):
             if self.activation_lst[i] == "relu":
                 x = F.relu(x)
             elif self.activation_lst[i] == "softmax":
-                x = F.softmax(x)
+                x = F.softmax(x, dim = 0)
             elif self.activation_lst[i] == "tanh":
-                x = F.tanh(x)
-        return self.layer_lst[-1](x)
+                x = torch.tanh(x)
+        x = self.layer_lst[-1](x)
+        if self.prob:
+            x = F.softmax(x, dim = 0)
+        return x
 
 ## This module wraps time-discretized neural models and the non time-discretized models into a uniform format
 class ModelFull(nn.Module):
@@ -59,7 +63,7 @@ class ModelFactory:
     ## descriptor is used only when retrain = False, so that it loads the latest model
     ##  attached to the given descriptor
     ## dir specifies the current working directory. It will be "." unless we are on Google Colab
-    def __init__(self, model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver = "Adam", retrain = False, discretized_len = 1, descriptor = None, dir = ".", device = "cpu"):
+    def __init__(self, model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver = "Adam", retrain = False, discretized_len = 1, descriptor = None, dir = ".", device = "cpu", prob = False):
         assert solver in ["Adam", "SGD", "RMSprop"]
         assert model_name in ["discretized_feedforward", "rnn"]
         assert len(hidden_dim_lst) == len(activation_lst)
@@ -78,6 +82,7 @@ class ModelFactory:
         self.descriptor = descriptor
         self.dir = dir
         self.device = device
+        self.prob = prob
         ## The timestamp when the latest model is stored into self.model
         self.model_ts = self.get_curr_ts()
         self.model = None
@@ -99,7 +104,7 @@ class ModelFactory:
     def discretized_feedforward(self):
         model_list = nn.ModuleList()
         for _ in range(self.discretized_len):
-            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm)
+            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm, self.prob)
             model_list.append(model)
         return model_list
     

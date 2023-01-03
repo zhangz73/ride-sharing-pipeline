@@ -1,0 +1,55 @@
+{
+    "map": {
+        "map_system": "graph",
+        "num_nodes": 2,
+        "graph_edge_lst": [
+            [0, 0], [0, 1], [1, 0], [1, 1]
+        ]
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "constant",
+        "parameter_fname": "TripDemand/trip_demand_1car2region.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1car2region.tsv"
+    },
+    "mdp": {
+        "time_horizon": 5,
+        "connection_patience": 0,
+        "pickup_patience": 0,
+        "num_battery_levels": 3,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            2
+        ],
+        "battery_offset": 0,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"
+    },
+    "solver": {
+        "type": "policy_iteration"
+    },
+    "neural": {
+        "model_name": "discretized_feedforward",
+        "hidden_dim_lst": [10, 10],
+        "activation_lst": ["relu", "relu"],
+        "batch_norm": false,
+        "lr": 0.01,
+        "decay": 0.1,
+        "scheduler_step": 10000,
+        "solver": "Adam",
+        "retrain": false,
+        "descriptor": "PolicyIteration",
+        "dir": ".",
+        "training_loss": "total_payoff",
+        "num_episodes": 100,
+        "ckpt_freq": 100
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}
