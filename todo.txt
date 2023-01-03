@@ -1,1 +1,3 @@
-- Modify the approach to store charging rate of cars
+Stage 2 Implementations
+ - Implement grid and hexagon systems
+ - Apply real data
