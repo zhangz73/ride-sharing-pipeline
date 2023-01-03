@@ -251,14 +251,18 @@ class PPO_Solver(Solver):
             ## Save loss data
             value_loss_arr.append(float(total_value_loss.data))
             policy_loss_arr.append(float(total_policy_loss.data))
-#            ## Checkpoint
-#            if itr > 0 and itr % self.ckpt_freq == 0:
-#                self.value_model_factory.update_model(self.value_model, update_ts = False)
-#                descriptor = f"_itr={itr}"
-#                self.value_model_factory.save_to_file(descriptor, include_ts = True)
-#        ## Save final model
-#        self.value_model_factory.update_model(self.value_model, update_ts = False)
-#        self.value_model_factory.save_to_file(descriptor = "_value", include_ts = True)
+            ## Checkpoint
+            if itr > 0 and itr % self.ckpt_freq == 0:
+                self.value_model_factory.update_model(self.value_model, update_ts = False)
+                self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+                descriptor = f"_itr={itr}"
+                self.value_model_factory.save_to_file(descriptor, include_ts = True)
+                self.policy_model_factory.save_to_file(descriptor, include_ts = True)
+        ## Save final model
+        self.value_model_factory.update_model(self.value_model, update_ts = False)
+        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+        self.value_model_factory.save_to_file(include_ts = True)
+        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr
     
     def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
