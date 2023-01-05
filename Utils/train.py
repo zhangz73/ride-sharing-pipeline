@@ -186,30 +186,55 @@ class PPO_Solver(Solver):
             total_value_loss /= self.num_episodes
         return total_value_loss
     
-    def get_max_value_loss(self, state_action_advantage_lst_episodes):
+    def get_max_value_loss(self, state_action_advantage_lst_episodes, debug = False, dct = {}):
         total_value_loss = 0
-        dct = {}
         for day in range(self.num_episodes):
             state_num = len(state_action_advantage_lst_episodes[day])
             payoff = 0
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t = tup
+                action = self.all_actions[int(action_id)]
                 payoff += self.payoff_map[t, int(action_id)]
                 key = tuple(curr_state_counts.numpy())
                 if key not in dct:
                     dct[key] = payoff
                 else:
-                    dct[key] = max(payoff, dct[key])
-                value_model_output = self.value_model((t, curr_state_counts))
+#                    if i == 3:
+#                        print(payoff, action.describe(), dct[key], torch.max(payoff, dct[key]))
+                    curr_payoff = dct[key]
+                    max_payoff = torch.max(payoff, dct[key])
+                    dct[key] = max_payoff
+                if t == 3 and dct[key] > 1:
+                    print(action.describe(), dct[key], state_num, i, payoff)
+                    print(key)
+                    print(self.markov_decision_process.describe_state_counts(curr_state_counts))
+#                print(f"t = {t}")
+#                print(self.markov_decision_process.describe_state_counts(curr_state_counts))
+#                print(action.describe(), dct[key], self.payoff_map[t, int(action_id)], payoff)
+#                print("")
+#                if action.get_type() == "charged" and t == 2:
+#                    next_state_counts, next_id, _, _ = state_action_advantage_lst_episodes[day][i+1]
+#                    next_action = self.all_actions[int(next_id)]
+#                    print(tuple(next_state_counts.numpy()))
+#                    print(next_action.describe(), payoff, self.payoff_map[i+1, int(next_id)])
+#                    print(payoff, dct[key])
+#                    print(key)
+#                    print(self.markov_decision_process.describe_state_counts(curr_state_counts))
+#                    for j in range(state_num):
+#                        tup = state_action_advantage_lst_episodes[day][j]
+#                        _, action_id, _, t = tup
+#                        curr_action = self.all_actions[int(action_id)]
+#                        print(t, curr_action.describe())
+#                    print("")
         for key in dct:
             payoff = dct[key]
             t = int(key[-1])
             curr_state_counts = torch.tensor(list(key))
             value_model_output = self.value_model((t, curr_state_counts))
             total_value_loss += (value_model_output - payoff) ** 2
-        total_value_loss /= self.num_episodes
-        return total_value_loss
+        total_value_loss /= len(dct.keys())
+        return total_value_loss, dct
     
     def train(self):
         value_loss_arr = []
@@ -217,6 +242,7 @@ class PPO_Solver(Solver):
         self.value_model.train()
         self.policy_model.train()
         ## Policy Iteration
+        dct_outer = {}
         for itr in tqdm(range(self.num_itr)):
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
@@ -224,11 +250,13 @@ class PPO_Solver(Solver):
 #                value_loss, policy_loss, _ = self.evaluate(train = True)
 #                total_value_loss += value_loss / self.num_episodes
 #                total_policy_loss += policy_loss / self.num_episodes
-                state_action_advantage_lst = self.evaluate(train = True, return_data = True)
+                state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False)
                 state_action_advantage_lst_episodes.append(state_action_advantage_lst)
             ## Update models
             self.value_optimizer.zero_grad()
-            total_value_loss = self.get_max_value_loss(state_action_advantage_lst_episodes)
+#            total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
+            total_value_loss, dct = self.get_max_value_loss(state_action_advantage_lst_episodes, dct = dct_outer)
+            dct_outer = dct.copy()
             total_value_loss.backward()
             self.value_optimizer.step()
             self.value_scheduler.step()
@@ -259,16 +287,17 @@ class PPO_Solver(Solver):
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
         ## Save final model
-        self.value_model_factory.update_model(self.value_model, update_ts = False)
-        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
-        self.value_model_factory.save_to_file(include_ts = True)
-        self.policy_model_factory.save_to_file(include_ts = True)
+#        self.value_model_factory.update_model(self.value_model, update_ts = False)
+#        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+#        self.value_model_factory.save_to_file(include_ts = True)
+#        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr
     
     def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
         output = self.policy_model((ts, state_counts))
         if remove_infeasible:
-            output = self.remove_infeasible_actions(state_counts, ts, output)
+            ret = self.remove_infeasible_actions(state_counts, ts, output)
+            output = output * ret
         output = output / torch.sum(output)
         if prob:
             return output
@@ -276,12 +305,13 @@ class PPO_Solver(Solver):
     
     def remove_infeasible_actions(self, state_counts, ts, output):
         ## Eliminate infeasible actions
+        ret = torch.ones(len(output))
         for action_id in range(len(output)):
             self.markov_decision_process_pg.set_states(state_counts, ts)
             action = self.all_actions[action_id]
             if not self.markov_decision_process_pg.transit_within_timestamp(action):
-                output[action_id] = 0
-        return output
+                ret[action_id] = 0
+        return ret
     
     def policy_benchmark_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
         if self.benchmarking_policy == "uniform":
@@ -290,13 +320,14 @@ class PPO_Solver(Solver):
             ## TODO: Implement it!!!
             policy_output = torch.ones(self.policy_output_dim)
         if remove_infeasible:
-            policy_output = self.remove_infeasible_actions(state_counts, ts, policy_output)
+            ret = self.remove_infeasible_actions(state_counts, ts, policy_output)
+            policy_output = policy_output * ret
         policy_output = policy_output / torch.sum(policy_output)
         if prob:
             return policy_output
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False):
         if not train:
             self.value_model.eval()
             self.policy_model.eval()
@@ -320,7 +351,12 @@ class PPO_Solver(Solver):
                 if not train:
                     print(t, action_id_prob)
                 if train:
-                    action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
+                    if not explore:
+                        action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
+                    else:
+                        prob_arr = action_id_prob > 0
+                        prob_arr = prob_arr / np.sum(prob_arr)
+                        action_id = np.random.choice(len(action_id_prob), p = prob_arr)
                 else:
                     action_id = np.argmax(action_id_prob)
                 action = self.all_actions[int(action_id)]
