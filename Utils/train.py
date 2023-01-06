@@ -200,33 +200,9 @@ class PPO_Solver(Solver):
                 if key not in dct:
                     dct[key] = payoff
                 else:
-#                    if i == 3:
-#                        print(payoff, action.describe(), dct[key], torch.max(payoff, dct[key]))
                     curr_payoff = dct[key]
                     max_payoff = torch.max(payoff, dct[key])
                     dct[key] = max_payoff
-                if t == 3 and dct[key] > 1:
-                    print(action.describe(), dct[key], state_num, i, payoff)
-                    print(key)
-                    print(self.markov_decision_process.describe_state_counts(curr_state_counts))
-#                print(f"t = {t}")
-#                print(self.markov_decision_process.describe_state_counts(curr_state_counts))
-#                print(action.describe(), dct[key], self.payoff_map[t, int(action_id)], payoff)
-#                print("")
-#                if action.get_type() == "charged" and t == 2:
-#                    next_state_counts, next_id, _, _ = state_action_advantage_lst_episodes[day][i+1]
-#                    next_action = self.all_actions[int(next_id)]
-#                    print(tuple(next_state_counts.numpy()))
-#                    print(next_action.describe(), payoff, self.payoff_map[i+1, int(next_id)])
-#                    print(payoff, dct[key])
-#                    print(key)
-#                    print(self.markov_decision_process.describe_state_counts(curr_state_counts))
-#                    for j in range(state_num):
-#                        tup = state_action_advantage_lst_episodes[day][j]
-#                        _, action_id, _, t = tup
-#                        curr_action = self.all_actions[int(action_id)]
-#                        print(t, curr_action.describe())
-#                    print("")
         for key in dct:
             payoff = dct[key]
             t = int(key[-1])
@@ -234,7 +210,7 @@ class PPO_Solver(Solver):
             value_model_output = self.value_model((t, curr_state_counts))
             total_value_loss += (value_model_output - payoff) ** 2
         total_value_loss /= len(dct.keys())
-        return total_value_loss, dct
+        return total_value_loss
     
     def train(self):
         value_loss_arr = []
@@ -255,8 +231,7 @@ class PPO_Solver(Solver):
             ## Update models
             self.value_optimizer.zero_grad()
 #            total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
-            total_value_loss, dct = self.get_max_value_loss(state_action_advantage_lst_episodes, dct = dct_outer)
-            dct_outer = dct.copy()
+            total_value_loss = self.get_max_value_loss(state_action_advantage_lst_episodes)
             total_value_loss.backward()
             self.value_optimizer.step()
             self.value_scheduler.step()
@@ -286,11 +261,11 @@ class PPO_Solver(Solver):
                 descriptor = f"_itr={itr}"
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
-        ## Save final model
-#        self.value_model_factory.update_model(self.value_model, update_ts = False)
-#        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
-#        self.value_model_factory.save_to_file(include_ts = True)
-#        self.policy_model_factory.save_to_file(include_ts = True)
+        # Save final model
+        self.value_model_factory.update_model(self.value_model, update_ts = False)
+        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+        self.value_model_factory.save_to_file(include_ts = True)
+        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr
     
     def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
@@ -362,7 +337,7 @@ class PPO_Solver(Solver):
                 action = self.all_actions[int(action_id)]
                 if return_action:
                     action_lst.append((curr_state_counts, action, t, car_idx))
-                res = self.markov_decision_process.transit_within_timestamp(action, debug = not train and t == 0)
+                res = self.markov_decision_process.transit_within_timestamp(action)
                 if car_idx == num_available_cars - 1:
                     self.markov_decision_process.transit_across_timestamp()
                 next_state_counts = self.markov_decision_process.state_counts.clone()

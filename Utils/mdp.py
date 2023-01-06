@@ -293,7 +293,7 @@ class MarkovDecisionProcess:
         self.prev_ts = 0
         self.state_counts_init = self.state_counts.clone()
         ## Variables keeping track of available car types
-        self.available_car_types = self.get_all_available_car_types()
+        self.available_car_types, self.state_is_available_car = self.get_all_available_car_types()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         ## Variables keeping track of all actions
         self.all_actions = {}
@@ -773,6 +773,7 @@ class MarkovDecisionProcess:
         self.curr_ts += 1
     
     ## Check if a given car is available
+    ## Currently not used
     def is_available_car(self, car):
         car_is_filled = car.is_filled()
         curr_region = car.get_curr_region()
@@ -783,25 +784,29 @@ class MarkovDecisionProcess:
     ## Get a list of the ids of all available car types
     def get_all_available_car_types(self):
         ret = []
+        state_is_available_car = torch.zeros(len(self.state_counts))
         for car_type in self.state_to_id["car"]:
             id = self.state_to_id["car"][car_type]
             car = self.state_dict[id]
             if car_type[4] == "general" and self.is_available_car(car):
                 ret.append(id)
-        return ret
+                state_is_available_car[id] = 1
+        return ret, state_is_available_car
     
     ## Get a list of the ids of all available car types that are non-empty
     def get_all_available_existing_car_types(self):
-        ret = []
-        for id in self.available_car_types:
-            if self.state_counts[id] > 0:
-                ret.append(id)
-        self.available_existing_car_types = ret
-        return ret
+#        ret = []
+#        for id in self.available_car_types:
+#            if self.state_counts[id] > 0:
+#                ret.append(id)
+#        self.available_existing_car_types = ret
+        ret = (self.state_counts * self.state_is_available_car > 0).nonzero(as_tuple = True)[0]
+        return list(ret.numpy())
 
     ## Get a count of all available cars
     def get_available_car_counts(self):
-        cnt = 0
-        for id in self.available_car_types:
-            cnt += int(self.state_counts[id])
-        return cnt
+#        cnt = 0
+#        for id in self.available_car_types:
+#            cnt += int(self.state_counts[id])
+        cnt = torch.sum(self.state_counts[self.available_car_types])
+        return int(cnt.data)
