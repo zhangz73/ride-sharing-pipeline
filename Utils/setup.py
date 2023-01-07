@@ -69,6 +69,12 @@ class Map:
         ## Populate the steps_to_loc and next_moves objects
         self.compute_cell_steps()
         self.compute_next_moves()
+        
+        ## Compute the max travel steps between any two regions
+        self.max_travel_steps = 0
+        for origin in self.map:
+            for dest in self.map:
+                self.max_travel_steps = max(self.max_travel_steps, self.steps_to_location(origin, dest))
     
     def assert_valid_lon_lat_range(self):
         assert self.lon_range[0] is not None
@@ -79,6 +85,10 @@ class Map:
     ## Get the list of all regions
     def get_regions(self):
         return list(self.map.keys())
+    
+    ## Get the max travel steps
+    def get_max_travel_steps(self):
+        return self.max_travel_steps
     
     ## Clean up duplicates from the map
     def remove_map_duplicates(self):

@@ -48,8 +48,8 @@ def main(args, json_name = ""):
                 print(f"\tt = {t}", action.describe())
             else:
                 print(f"\tt = {t}", "No new actions applied")
-    #    for t in range(time_horizon):
-    #        print(t, solver.optimal_states[t])
+        for t in range(time_horizon):
+            print(t, markov_decision_process.describe_state_counts(solver.optimal_states[t]))
     elif solver_type == "policy_iteration":
         loss_arr = solver.train()
         report_factory = train.ReportFactory()
@@ -75,7 +75,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "1car_2region_ppo"
+JSON_NAME = "1car_3region_dp"
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

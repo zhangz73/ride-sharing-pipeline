@@ -38,8 +38,8 @@ class Solver:
         self.reward_query = self.markov_decision_process.reward_query
         self.all_actions = self.markov_decision_process.get_all_actions()
         self.action_lst = [self.all_actions[k] for k in self.all_actions.keys()]
-        self.payoff_map = torch.zeros((self.time_horizon, len(self.action_lst)))
-        self.construct_payoff_map()
+        self.payoff_map = self.markov_decision_process.payoff_map
+        self.payoff_schedule_dct = self.markov_decision_process.payoff_schedule_dct
     
     def train(self, **kargs):
         return None
@@ -48,12 +48,6 @@ class Solver:
     ## Group Solvers: return a list of actions and a list of corresponding car_type ids
     def predict(self, state_counts):
         return None
-    
-    def construct_payoff_map(self):
-        for t in range(self.time_horizon):
-            for action_id in self.all_actions:
-                action = self.all_actions[action_id]
-                self.payoff_map[t, action_id] = self.reward_query.query(action, t)
 
 ## This module is a child-class of Solver for the policy iteration solver
 class PolicyIteration_Solver(Solver):
@@ -400,7 +394,7 @@ class DP_Solver(Solver):
         ## Traverse the graph backward and populate max values
         for t in range(self.time_horizon - 2, -1, -1):
             for curr_state_counts in self.feasible_state_transitions[t]:
-                max_value = 0
+                max_value = -np.inf
                 opt_action = None
                 for tup in self.feasible_state_transitions[t][curr_state_counts]:
                     next_state_counts, curr_payoff = self.feasible_state_transitions[t][curr_state_counts][tup]
@@ -437,13 +431,13 @@ class DP_Solver(Solver):
                 available_car_id_lst = self.markov_decision_process.get_all_available_existing_car_types()
                 available_car_cnts = [prev_state_counts[id] for id in available_car_id_lst]
                 car_idx = 0
-                tmp = [([], [], torch.tensor(prev_state_counts))]
+                tmp = [([], [], torch.tensor(prev_state_counts), 0)]
                 ## Apply atomic actions to each available car
                 while car_idx < len(available_car_id_lst) and available_car_cnts[car_idx] > 0:
                     ## Apply the action to each of the scenarios
                     ## I.e. Construct an action graph of cars at the current timestamp
                     for tup in tmp:
-                        car_type_id_lst_tmp, action_lst_tmp, curr_state_counts = tup[0], tup[1], tup[2]
+                        car_type_id_lst_tmp, action_lst_tmp, curr_state_counts, payoff = tup[0], tup[1], tup[2], tup[3]
                         curr = []
                         ## Try all feasible actions
                         for action in self.action_lst:
@@ -453,7 +447,8 @@ class DP_Solver(Solver):
                                 next_state_counts = self.markov_decision_process.state_counts
                                 car_type_id_lst_curr = list(car_type_id_lst_tmp) + [car_idx]
                                 action_lst_curr = list(action_lst_tmp) + [action]
-                                curr.append((car_type_id_lst_curr, action_lst_curr, next_state_counts))
+                                payoff_curr = self.markov_decision_process.get_payoff_curr_ts()
+                                curr.append((car_type_id_lst_curr, action_lst_curr, next_state_counts, payoff_curr))
                         tmp = curr
                     available_car_cnts[car_idx] -= 1
                     if available_car_cnts[car_idx] == 0:
@@ -462,19 +457,22 @@ class DP_Solver(Solver):
                 for tup in tmp:
                     val = tup[2]
                     key = (tup[0], tup[1])
+                    payoff = tup[3]
                     action_id_lst = [self.markov_decision_process.action_to_id[x] for x in tup[1]]
                     key = (tuple(tup[0]), tuple(action_id_lst))
-                    self.markov_decision_process.set_states(val, t - 1)
+                    self.markov_decision_process.set_states(val, t - 1, payoff)
                     self.markov_decision_process.transit_across_timestamp()
                     ## Record the current payoff
-                    payoff = self.reward_query.atomic_actions_to_payoff(list(tup[1]), t - 1)
+                    payoff = float(self.markov_decision_process.get_payoff_curr_ts()) #self.reward_query.atomic_actions_to_payoff(list(tup[1]), t - 1)
+                    ## Zero out the payoff
+                    self.markov_decision_process.reset_payoff_curr_ts()
                     curr_state_counts = self.markov_decision_process.state_counts.numpy()
                     if key not in self.feasible_state_transitions[t - 1][tuple(prev_state_counts)]:
                         self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
                     else:
                         prev_payoff = self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key][1]
                         if payoff > prev_payoff:
-                            self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
+                            self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff, payoff_schedule_dct)
                     self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
     
     ## Return a tuple of (car_type_id_lst, action_lst)

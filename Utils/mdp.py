@@ -28,7 +28,7 @@ class State:
 
 ## This module is a child-class of State that is used to decribe car types
 class Car(State):
-    def __init__(self, id, dest, curr_region, battery, is_filled, type = "general", charged_rate = 0, battery_per_step = 1):
+    def __init__(self, id, dest, curr_region, battery, is_filled, type = "general", charged_rate = 0, battery_per_step = 1, time_to_dest = 0):
         super().__init__(id)
         assert type in ["general", "idling", "charged"]
         self.id = id
@@ -40,9 +40,12 @@ class Car(State):
         self.filled = is_filled
         self.battery_p_step = battery_per_step
         self.charged_rate = charged_rate
+        self.time_to_dest = time_to_dest
     
     def get_dest(self):
-        return self.dest
+        if len(self.all_stops) == 0:
+            return self.dest
+        return self.all_stops[0]
     
     def get_curr_region(self):
         return self.curr_region
@@ -50,14 +53,17 @@ class Car(State):
     def get_battery(self):
         return self.battery
     
+    def get_time_to_dest(self):
+        return self.time_to_dest
+    
     def battery_per_step(self):
         return self.battery_p_step
     
     def is_filled(self):
         return self.filled
     
-    def add_stop(self):
-        pass
+    def add_stop(self, stop):
+        self.all_stops.append(stop)
     
     def get_all_stops(self):
         return self.all_stops
@@ -72,7 +78,10 @@ class Car(State):
 #        self.set_charged_rate(0)
     
     def describe(self):
-        msg = f"Car: current region {self.curr_region}, destination {self.dest}, battery {self.battery}, filled {self.filled}"
+        if not self.filled:
+            msg = f"Car: current region {self.curr_region}, destination {self.dest}, battery {self.battery}, filled {self.filled}"
+        else:
+            msg = f"Car: time to destination {self.time_to_dest}, destination {self.dest}, battery {self.battery}, filled {self.filled}"
         return msg
 
 ## This module is a child-class of State that is used to decribe trip types
@@ -273,8 +282,9 @@ class MarkovDecisionProcess:
         self.load_initial_data()
         ## Auxiliary variables
         self.regions = self.map.get_regions()
+        self.max_travel_time = self.map.get_max_travel_steps()
         self.num_charging_rates = len(self.charging_rates)
-        self.num_car_states = len(self.regions) ** 2 * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * 2
+        self.num_car_states = len(self.regions) ** 2 * self.num_battery_levels * 1 + len(self.regions) * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * (self.pickup_patience + self.max_travel_time + 1)
         self.num_trip_states = len(self.regions) ** 2 * (self.connection_patience + 1)
         self.num_plug_states = len(self.regions) * self.num_charging_rates
         self.num_chargingload_states = 2
@@ -298,7 +308,17 @@ class MarkovDecisionProcess:
         ## Variables keeping track of all actions
         self.all_actions = {}
         self.action_to_id = {}
+        self.action_desc_to_id = {}
         self.construct_all_actions()
+        self.action_lst = [self.all_actions[k] for k in self.all_actions.keys()]
+        ## Variables keeping track of per timestamp payoffs
+        self.payoff_map = torch.zeros((self.time_horizon, len(self.action_lst)))
+        self.construct_payoff_map()
+        ## TODO: Populate it at each state transition epoch
+        self.payoff_curr_ts = 0
+        self.payoff_schedule_dct = {}
+        for t in range(self.time_horizon):
+            self.payoff_schedule_dct[t] = 0 #{"pickup": 0, "reroute": 0, "charge": 0, "idle": 0}
     
     ## Reset all states to the initial one
     def reset_states(self):
@@ -306,6 +326,7 @@ class MarkovDecisionProcess:
         self.state_counts_prev = self.state_counts.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
+        self.payoff_curr_ts = 0
     
     ## Describe the state_counts
     def describe_state_counts(self, state_counts = None, indent = "\t"):
@@ -349,6 +370,7 @@ class MarkovDecisionProcess:
                     action = Travel(id = curr_id, origin = origin, dest = dest, is_filled = is_filled)
                     self.all_actions[curr_id] = action
                     self.action_to_id[action] = curr_id
+                    self.action_desc_to_id[("travel", origin, dest, is_filled)] = curr_id
                     curr_id += 1
         ## Construct all charge actions
         for region in self.regions:
@@ -356,7 +378,15 @@ class MarkovDecisionProcess:
                 action = Charge(id = curr_id, region = region, rate = rate)
                 self.all_actions[curr_id] = action
                 self.action_to_id[action] = curr_id
+                self.action_desc_to_id[("charge", region, rate)] = curr_id
                 curr_id += 1
+    
+    ## Construct a map of payoffs (per timestamp) for atomic actions
+    def construct_payoff_map(self):
+        for t in range(self.time_horizon):
+            for action_id in self.all_actions:
+                action = self.all_actions[action_id]
+                self.payoff_map[t, action_id] = self.reward_query.query(action, t)
     
     ## Return the list of all possible actions
     def get_all_actions(self):
@@ -366,25 +396,41 @@ class MarkovDecisionProcess:
     def get_num_cars(self):
         return np.sum(self.region_battery_car_num)
     
+    ## Return the payoff at the current timestamp
+    def get_payoff_curr_ts(self):
+        return self.payoff_curr_ts
+    
+    ## Zero out the payoff at the current timestamp
+    def reset_payoff_curr_ts(self):
+        self.payoff_curr_ts = 0
+    
     ## Reset timestamp to 0 and regenerate trip arrivals
     def reset_timestamp(self):
         self.curr_ts = 0
         self.trip_arrivals = self.trip_demands.generate_arrivals()
+        self.payoff_curr_ts = 0
+#        self.payoff_schedule_dct = {}
+#        for t in range(self.time_horizon):
+#            self.payoff_schedule_dct[t] = 0
     
     ## Revert the action performed on the states
+    ## Deprecated!!!
     def revert_action(self):
         self.state_counts = self.state_counts_prev.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.curr_ts = self.prev_ts
     
     ## Set the current state to be the base-state in case of rollback
+    ## Deprecated!!!
     def step_action(self):
         self.state_counts_prev = self.state_counts.clone()
         self.prev_ts = self.curr_ts
     
-    def set_states(self, state_counts, ts):
+    ## Set the states and payoff_schedule_dct according to the given ones
+    def set_states(self, state_counts, ts, payoff_curr_ts = 0):
         self.state_counts = state_counts.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
+        self.payoff_curr_ts = payoff_curr_ts
         self.curr_ts = ts
         self.prev_ts = ts
     
@@ -395,16 +441,26 @@ class MarkovDecisionProcess:
     ##  Charging Load states: 2 (peak & current)
     def define_all_states(self):
         curr_id = 0
-        ## Define car states -- General type
+        ## Define car states -- General type for empty cars
         self.state_to_id["car"] = {}
         for dest in self.regions:
             for curr_region in self.regions:
                 for battery in range(self.num_battery_levels):
-                    for is_filled in [0, 1]:
-                        car = Car(curr_id, dest, curr_region, battery, is_filled, type = "general")
-                        self.state_to_id["car"][(dest, curr_region, battery, is_filled, "general")] = curr_id
-                        self.state_dict[curr_id] = car
-                        curr_id += 1
+                    #for is_filled in [0, 1]:
+                    car = Car(curr_id, dest, curr_region, battery, 0, type = "general")
+                    self.state_to_id["car"][(dest, curr_region, battery, 0, "general")] = curr_id
+                    self.state_dict[curr_id] = car
+                    curr_id += 1
+        
+        ## Define car states -- General type for filled cars
+        for dest in self.regions:
+            for eta in range(self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    #for is_filled in [0, 1]:
+                    car = Car(curr_id, dest, dest, battery, 1, type = "general", time_to_dest = eta)
+                    self.state_to_id["car"][(dest, eta, battery, 1, "general")] = curr_id
+                    self.state_dict[curr_id] = car
+                    curr_id += 1
         
         ## Populate state counts for initial car deployment
         for region in self.regions:
@@ -541,12 +597,13 @@ class MarkovDecisionProcess:
             car = self.state_dict[id]
             ## Compute time to arrival and compare it with pickup patience
             #total_time_to_arrival = self.map.steps_to_location(car.get_curr_region(), car.get_dest()) + self.map.steps_to_location(origin, dest)
-            total_time_to_arrival = self.map.steps_to_location(origin, dest)
             if type in ["pickup"]:
-                time_to_arrival = self.map.steps_to_location(car.get_curr_region(), car.get_dest())
-                close_to_dest = car.get_curr_region() == origin #time_to_arrival <= self.pickup_patience #
+                time_to_arrival = car.get_time_to_dest() #self.map.steps_to_location(car.get_curr_region(), car.get_dest())
+                total_time_to_arrival = time_to_arrival + self.map.steps_to_location(origin, dest)
+                close_to_dest = time_to_arrival <= self.pickup_patience #
             elif type in ["idling", "rerouting"]:
                 close_to_dest = car.get_curr_region() == origin
+                total_time_to_arrival = self.map.steps_to_location(origin, dest)
             else:
                 close_to_dest = True
             ## Has someone to be picked up
@@ -569,7 +626,7 @@ class MarkovDecisionProcess:
             can_reach_origin = car.get_dest() == origin or not car.is_filled()
             ## Check if car is filled
             if type == "pickup":
-                car_not_filled = not car.is_filled()#True
+                car_not_filled = True
             else:
                 car_not_filled = not car.is_filled()
             ## Check all feasibility
@@ -582,11 +639,35 @@ class MarkovDecisionProcess:
                     car_query_type = "idling"
                 if type == "pickup":
                     car_filled_status = 1
+                    target_car_state = (dest, total_time_to_arrival, car.get_battery(), 1, car_query_type)
                 else:
                     car_filled_status = 0
-                target_car_state = (dest, car.get_curr_region(), car.get_battery(), car_filled_status, car_query_type)
+                    target_car_state = (dest, car.get_curr_region(), car.get_battery(), 0, car_query_type)
                 target_car_id = self.state_to_id["car"][target_car_state]
                 self.state_counts[target_car_id] += 1
+                ## Update payment scheduling dct
+                action_id = self.action_desc_to_id[("travel", origin, dest, car_filled_status)]
+                if type == "pickup":
+                    ## First reroute
+                    if not car.is_filled():
+                        curr_region = car.get_curr_region()
+                        time_len = self.map.steps_to_location(curr_region, origin)
+                        reroute_action_id = self.action_desc_to_id[("travel", curr_region, origin, 0)]
+                        reroute_payoff = self.payoff_map[self.curr_ts, reroute_action_id]
+                        self.payoff_curr_ts += reroute_payoff
+#                        for t in range(time_len):
+#                            ts = self.curr_ts + t
+#                            self.payoff_schedule_dct[ts] += reroute_payoff / time_len
+                    ## Then take new passengers
+                    pickup_payoff = self.payoff_map[self.curr_ts, action_id]
+                    self.payoff_curr_ts += pickup_payoff
+#                    for t in range(car.get_time_to_dest(), total_time_to_arrival):
+#                        ts = self.curr_ts + t
+#                        time_len = total_time_to_arrival - car.get_time_to_dest()
+#                        self.payoff_schedule_dct[ts] += pickup_payoff / time_len
+                else:
+                    next_region = self.map.next_cell_to_move(car.get_curr_region(), dest)
+#                    self.payoff_schedule_dct[self.curr_ts] += self.payoff_map[self.curr_ts, action_id]
                 ## Update trip counts
                 if type == "pickup":
                     stag_time = self.connection_patience
@@ -706,27 +787,44 @@ class MarkovDecisionProcess:
                         state_counts_new[trip_id_new] = tmp_df.iloc[0]["Count"]
                     else:
                         state_counts_new[trip_id_new] = 0
-        ## Make movements for traveling cars
+        ## Make movements for traveling empty cars
         for dest in self.regions:
             for curr_region in self.regions:
                 for battery in range(self.num_battery_levels):
-                    for is_filled in [0, 1]:
-                        car_id_curr = self.state_to_id["car"][(dest, curr_region, battery, is_filled, "general")]
-                        car_curr = self.state_dict[car_id_curr]
-                        if self.state_counts[car_id_curr] > 0:
-                            next_region = self.map.next_cell_to_move(curr_region, dest)
-                            if next_region == curr_region:
-                                next_battery = battery
-                            else:
-                                next_battery = battery - car_curr.battery_per_step()
-                            next_state = (dest, next_region, next_battery, is_filled, "general")
-                            if next_state in self.state_to_id["car"]:
-                                car_id_next = self.state_to_id["car"][next_state]
-                                state_counts_new[car_id_next] += self.state_counts[car_id_curr]
+                    #for is_filled in [0, 1]:
+                    car_id_curr = self.state_to_id["car"][(dest, curr_region, battery, 0, "general")]
+                    car_curr = self.state_dict[car_id_curr]
+                    if self.state_counts[car_id_curr] > 0:
+                        ## Update payoff
+                        next_region = self.map.next_cell_to_move(curr_region, dest)
+                        curr_action_id = self.action_desc_to_id[("travel", curr_region, next_region, 0)]
+                        self.payoff_curr_ts += self.payoff_map[self.curr_ts, curr_action_id] * self.state_counts[car_id_curr]
+                        ## Update states
+                        if next_region == curr_region:
+                            next_battery = battery
+                        else:
+                            next_battery = battery - car_curr.battery_per_step()
+                        next_state = (dest, next_region, next_battery, 0, "general")
+                        if next_state in self.state_to_id["car"]:
+                            car_id_next = self.state_to_id["car"][next_state]
+                            state_counts_new[car_id_next] += self.state_counts[car_id_curr]
+        ## Make movements for traveling filled cars
+        for dest in self.regions:
+            for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    #for is_filled in [0, 1]:
+                    car_id_curr = self.state_to_id["car"][(dest, eta, battery, 1, "general")]
+                    car_curr = self.state_dict[car_id_curr]
+                    if self.state_counts[car_id_curr] > 0:
+                        next_battery = battery - car_curr.battery_per_step()
+                        next_state = (dest, eta - 1, next_battery, 1, "general")
+                        if next_state in self.state_to_id["car"]:
+                            car_id_next = self.state_to_id["car"][next_state]
+                            state_counts_new[car_id_next] += self.state_counts[car_id_curr]
         ## Drop-off passengers
         for region in self.regions:
             for battery in range(self.num_battery_levels):
-                car_id_filled = self.state_to_id["car"][(region, region, battery, 1, "general")]
+                car_id_filled = self.state_to_id["car"][(region, 0, battery, 1, "general")]
                 car_id_empty = self.state_to_id["car"][(region, region, battery, 0, "general")]
                 state_counts_new[car_id_empty] += state_counts_new[car_id_filled]
                 state_counts_new[car_id_filled] = 0
@@ -746,6 +844,9 @@ class MarkovDecisionProcess:
                     car_curr = self.state_dict[car_id_curr]
                     next_battery += rate
                     next_battery = min(next_battery, self.num_battery_levels - 1)
+                    ## Update payoff
+                    curr_action_id = self.action_desc_to_id[("charge", region, rate)]
+                    self.payoff_curr_ts += self.payoff_map[self.curr_ts, curr_action_id] * self.state_counts[car_id_curr]
 #                        ## Unplug the cars
 #                        car_curr.unplug()
                     car_id_general = self.state_to_id["car"][(region, region, next_battery, 0, "general")]
@@ -773,12 +874,12 @@ class MarkovDecisionProcess:
         self.curr_ts += 1
     
     ## Check if a given car is available
-    ## Currently not used
     def is_available_car(self, car):
         car_is_filled = car.is_filled()
         curr_region = car.get_curr_region()
         dest = car.get_dest()
-        close_to_dest = self.map.steps_to_location(curr_region, dest) <= self.pickup_patience
+        eta = car.get_time_to_dest()
+        close_to_dest = eta <= self.pickup_patience
         return not car_is_filled or (car_is_filled and close_to_dest)
 
     ## Get a list of the ids of all available car types
