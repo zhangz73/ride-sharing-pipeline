@@ -1,0 +1,37 @@
+{
+    "map": {
+        "map_system": "graph",
+        "num_nodes": 3,
+        "graph_edge_lst": [
+            [0, 0], [0, 1], [1, 0], [1, 1], [1, 2], [2, 1], [2, 2]
+        ]
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "constant",
+        "parameter_fname": "TripDemand/trip_demand_1car3region_patience.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1car3region_patience.tsv"
+    },
+    "mdp": {
+        "time_horizon": 6,
+        "connection_patience": 0,
+        "pickup_patience": 1,
+        "num_battery_levels": 5,
+        "battery_jump": 0.3,
+        "charging_rates": [3],
+        "battery_offset": 0,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car3region_patience.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car3region_patience.tsv"
+    },
+    "solver": {
+        "type": "dp"
+    },
+    "metric": [],
+    "report": {
+        "plot": [],
+        "table": []
+    }
+}

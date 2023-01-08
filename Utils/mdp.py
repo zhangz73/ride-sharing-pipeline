@@ -598,7 +598,10 @@ class MarkovDecisionProcess:
             ## Compute time to arrival and compare it with pickup patience
             #total_time_to_arrival = self.map.steps_to_location(car.get_curr_region(), car.get_dest()) + self.map.steps_to_location(origin, dest)
             if type in ["pickup"]:
-                time_to_arrival = car.get_time_to_dest() #self.map.steps_to_location(car.get_curr_region(), car.get_dest())
+                if car.is_filled():
+                    time_to_arrival = car.get_time_to_dest() #self.map.steps_to_location(car.get_curr_region(), car.get_dest()) #
+                else:
+                    time_to_arrival = self.map.steps_to_location(car.get_curr_region(), origin)
                 total_time_to_arrival = time_to_arrival + self.map.steps_to_location(origin, dest)
                 close_to_dest = time_to_arrival <= self.pickup_patience #
             elif type in ["idling", "rerouting"]:

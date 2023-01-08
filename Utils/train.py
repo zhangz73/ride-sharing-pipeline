@@ -472,7 +472,23 @@ class DP_Solver(Solver):
                     else:
                         prev_payoff = self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key][1]
                         if payoff > prev_payoff:
-                            self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff, payoff_schedule_dct)
+                            self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
+                    self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
+                if len(tmp) == 0:
+                    ## Load the state value after applying no actions at all
+                    self.markov_decision_process.set_states(torch.tensor(prev_state_counts), t - 1, 0)
+                    self.markov_decision_process.transit_across_timestamp()
+                    payoff = float(self.markov_decision_process.get_payoff_curr_ts())
+                    ## Zero out the payoff
+                    self.markov_decision_process.reset_payoff_curr_ts()
+                    curr_state_counts = self.markov_decision_process.state_counts.numpy()
+                    key = ((),())
+                    if key not in self.feasible_state_transitions[t - 1][tuple(prev_state_counts)]:
+                        self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
+                    else:
+                        prev_payoff = self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key][1]
+                        if payoff > prev_payoff:
+                            self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
                     self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
     
     ## Return a tuple of (car_type_id_lst, action_lst)
@@ -480,6 +496,23 @@ class DP_Solver(Solver):
         ts_id = self.markov_decision_process.state_to_id["timestamp"]
         ts = state_counts[ts_id]
         return self.optimal_atomic_actions[ts]
+    
+    ## Print a readable version of the constructed feasible state transition graph
+    ## Mostly for debugging purpose
+    def describe_feasible_state_transitions(self):
+        for t in range(self.time_horizon - 1):
+            print(f"t = {t}:")
+            for curr_state_counts in self.feasible_state_transitions[t]:
+                opt_action_tup = self.feasible_state_transitions[t][curr_state_counts]["opt_action"]
+                if opt_action_tup is not None and len(opt_action_tup[1]) > 0:
+                    opt_action_id = opt_action_tup[1][0]
+                    opt_value = self.feasible_state_transitions[t][curr_state_counts]["value"]
+                    action = self.all_actions[opt_action_id]
+                    print(action.describe(), f"action_id = {opt_action_id}, max_value = {opt_value}")
+                else:
+                    print("None")
+                print(self.markov_decision_process.describe_state_counts(torch.tensor(curr_state_counts)))
+                
 
 ## This module is a child-class of Solver for the greedy solver
 ## TODO: Define the exact behaviors of the greedy solver
