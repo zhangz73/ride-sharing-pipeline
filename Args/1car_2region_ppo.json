@@ -52,9 +52,9 @@
         "policy_retrain": true,
         "descriptor": "PPO",
         "dir": ".",
-        "num_itr": 10,
-        "num_episodes": 100,
-        "ckpt_freq": 100,
+        "num_itr": 20,
+        "num_episodes": 500,
+        "ckpt_freq": 1000,
         "benchmarking_policy": "uniform"
     },
     "metric": ["total_payoff"],

@@ -56,14 +56,16 @@ def main(args, json_name = ""):
         if "training_loss" in args["report"]["plot"]:
             report_factory.get_training_loss_plot(loss_arr, "Total Payoff Loss", "train_loss")
     elif solver_type == "ppo":
-        value_loss_arr, policy_loss_arr = solver.train()
+        value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True)
         report_factory = train.ReportFactory()
         report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
         report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
+        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}")
         value_loss, policy_loss, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
 #        print(f"Value Loss = {value_loss}")
         print(f"Policy Loss = {policy_loss}")
-        print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+        print(f"Total Payoff = {float(payoff_lst[-1].data)}")
+        #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
         print(payoff_lst)
 #        print(markov_decision_process.describe_state_counts())
         for tup in action_lst:
@@ -75,7 +77,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "1car_3region_patience_dp"
+JSON_NAME = "1car_2region_ppo"
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
