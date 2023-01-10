@@ -121,7 +121,7 @@ class PolicyIteration_Solver(Solver):
         return output
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform"):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         ## Store some commonly used variables
         self.value_input_dim = len(self.markov_decision_process.state_counts)
@@ -133,6 +133,8 @@ class PPO_Solver(Solver):
         self.num_episodes = num_episodes
         self.ckpt_freq = ckpt_freq
         self.benchmarking_policy = benchmarking_policy
+        self.eps = eps
+        self.policy_syncing_freq = policy_syncing_freq
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
@@ -243,11 +245,12 @@ class PPO_Solver(Solver):
                     tup = state_action_advantage_lst_episodes[day][i]
                     curr_state_counts, action_id, next_state_counts, t, _ = tup
                     advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t)
-                    ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = 0.4)
+                    ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                     total_policy_loss += loss_curr[0]
                 total_policy_loss /= self.num_episodes
-            self.benchmark_policy_model = copy.deepcopy(self.policy_model)
+            if itr % self.policy_syncing_freq == 0:
+                self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             total_policy_loss.backward()
             self.policy_optimizer.step()
             self.policy_scheduler.step()
@@ -266,9 +269,10 @@ class PPO_Solver(Solver):
                 _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = 0)
                 payoff_val = float(payoff_lst[-1].data)
                 payoff_arr.append(payoff_val)
+        self.benchmark_policy_model = copy.deepcopy(self.policy_model)
         # Save final model
 #        self.value_model_factory.update_model(self.value_model, update_ts = False)
-#        self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+#        self.policy_model_factory.update_model(self.benchmark_policy_model, update_ts = False)
 #        self.value_model_factory.save_to_file(include_ts = True)
 #        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr, payoff_arr
@@ -313,7 +317,7 @@ class PPO_Solver(Solver):
     def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False):
         if not train:
             self.value_model.eval()
-            self.policy_model.eval()
+            self.benchmark_policy_model.eval()
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)
@@ -330,7 +334,7 @@ class PPO_Solver(Solver):
             for car_idx in range(num_available_cars):
                 ## Perform state transitions
                 curr_state_counts = self.markov_decision_process.state_counts.clone()
-                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True).detach().numpy()
+                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True).detach().numpy()
 #                if not train:
 #                    print(t, action_id_prob)
                 if train:
