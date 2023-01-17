@@ -121,7 +121,7 @@ class PolicyIteration_Solver(Solver):
         return output
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         ## Store some commonly used variables
         self.value_input_dim = len(self.markov_decision_process.state_counts)
@@ -132,6 +132,10 @@ class PPO_Solver(Solver):
         self.num_itr = num_itr
         self.num_episodes = num_episodes
         self.ckpt_freq = ckpt_freq
+        self.value_epoch = value_epoch
+        self.policy_epoch = policy_epoch
+        self.value_batch = value_batch
+        self.policy_batch = policy_batch
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.policy_syncing_freq = policy_syncing_freq
@@ -167,16 +171,19 @@ class PPO_Solver(Solver):
         prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = True)
 #         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
         prob_benchmark = prob_benchmark_output[action_id]
-        ratio = prob / prob_benchmark
-        if clipped:
-            clipped_ratio = torch.min(torch.max(ratio, torch.tensor(1 - eps)), torch.tensor(1 + eps))
+        if prob > 0:
+            ratio = prob / prob_benchmark
+            if clipped:
+                clipped_ratio = torch.min(torch.max(ratio, torch.tensor(1 - eps)), torch.tensor(1 + eps))
+            else:
+                clipped_ratio = ratio
         else:
-            clipped_ratio = ratio
+            ratio, clipped_ratio = 0
         return ratio, clipped_ratio
     
     def get_value_loss(self, state_action_advantage_lst_episodes):
         total_value_loss = 0
-        for day in range(self.num_episodes):
+        for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
             payoff = 0
             for i in range(state_num - 1, -1, -1):
@@ -191,7 +198,7 @@ class PPO_Solver(Solver):
     
     def get_max_value_loss(self, state_action_advantage_lst_episodes, debug = False, dct = {}):
         total_value_loss = 0
-        for day in range(self.num_episodes):
+        for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
 #            payoff = 0
             for i in range(state_num - 1, -1, -1):
@@ -227,45 +234,55 @@ class PPO_Solver(Solver):
         if debug:
             with open("debugging_log.txt", "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-        for itr in tqdm(range(self.num_itr)):
+        for itr in range(self.num_itr):
+            print(f"Iteration #{itr}:")
             if debug:
                 with open("debugging_log.txt", "a") as f:
                     f.write(f"Itr = {itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
-            for day in range(self.num_episodes):
+            print("\tGathering data...")
+            for day in tqdm(range(self.num_episodes)):
 #                value_loss, policy_loss, _ = self.evaluate(train = True)
 #                total_value_loss += value_loss / self.num_episodes
 #                total_policy_loss += policy_loss / self.num_episodes
                 state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = debug and day == 0)
                 state_action_advantage_lst_episodes.append(state_action_advantage_lst)
             ## Update models
-            self.value_optimizer.zero_grad()
-            total_value_loss = self.get_max_value_loss(state_action_advantage_lst_episodes)
-#             total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
-            total_value_loss.backward()
-            self.value_optimizer.step()
-            self.value_scheduler.step()
+            ## Update value models
+            print("\tUpdating value models...")
+            for _ in tqdm(range(self.value_epoch)):
+                batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
+                self.value_optimizer.zero_grad()
+                total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
+#                 total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
+                total_value_loss.backward()
+                self.value_optimizer.step()
+                self.value_scheduler.step()
             
-            total_policy_loss = 0
-            self.policy_optimizer.zero_grad()
-            for day in range(self.num_episodes):
-                state_num = len(state_action_advantage_lst_episodes[day])
-                for i in range(state_num):
-                    tup = state_action_advantage_lst_episodes[day][i]
-                    curr_state_counts, action_id, next_state_counts, t, _ = tup
-                    if i < state_num - 1:
-                        next_t = t
-                    else:
-                        next_t = t + 1
-                    advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
-                    ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
-                    loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                    total_policy_loss += loss_curr[0]
-                total_policy_loss /= self.num_episodes
-            total_policy_loss.backward()
-            self.policy_optimizer.step()
-            self.policy_scheduler.step()
+            ## Update policy models
+            print("\tUpdating policy models...")
+            for _ in tqdm(range(self.policy_epoch)):
+                batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
+                total_policy_loss = 0
+                self.policy_optimizer.zero_grad()
+                for day in batch_idx:
+                    state_num = len(state_action_advantage_lst_episodes[day])
+                    for i in range(state_num):
+                        tup = state_action_advantage_lst_episodes[day][i]
+                        curr_state_counts, action_id, next_state_counts, t, _ = tup
+                        if i < state_num - 1:
+                            next_t = t
+                        else:
+                            next_t = t + 1
+                        advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
+                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
+                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+                        total_policy_loss += loss_curr[0]
+                    total_policy_loss /= self.num_episodes
+                total_policy_loss.backward()
+                self.policy_optimizer.step()
+                self.policy_scheduler.step()
             if itr % self.policy_syncing_freq == 0:
                 self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             ## Save loss data
