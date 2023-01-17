@@ -151,17 +151,21 @@ class PPO_Solver(Solver):
     def get_policy_model(self):
         return self.policy_model_factory.get_model()
     
-    def get_advantange(self, curr_state_counts, next_state_counts, action_id, ts):
+    def get_advantange(self, curr_state_counts, next_state_counts, action_id, ts, next_ts):
         payoff = self.payoff_map[ts, action_id]
         curr_value = self.value_model((ts, curr_state_counts))
-        next_value = self.value_model((ts, next_state_counts))
+        ## TODO: Fix the bug in ts
+        if next_ts < self.time_horizon - 1:
+            next_value = self.value_model((next_ts, next_state_counts))
+        else:
+            next_value = 0
         return payoff + next_value - curr_value
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2):
         prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True)
         prob = prob_output[action_id]
         prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = True)
-#        prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
+#         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
         prob_benchmark = prob_benchmark_output[action_id]
         ratio = prob / prob_benchmark
         if clipped:
@@ -212,7 +216,7 @@ class PPO_Solver(Solver):
         total_value_loss /= len(dct.keys())
         return total_value_loss
     
-    def train(self, return_payoff = False):
+    def train(self, return_payoff = False, debug = False):
         value_loss_arr = []
         policy_loss_arr = []
         payoff_arr = []
@@ -220,19 +224,25 @@ class PPO_Solver(Solver):
         self.policy_model.train()
         ## Policy Iteration
         dct_outer = {}
+        if debug:
+            with open("debugging_log.txt", "w") as f:
+                f.write("------------ Debugging output for day 0 ------------\n")
         for itr in tqdm(range(self.num_itr)):
+            if debug:
+                with open("debugging_log.txt", "a") as f:
+                    f.write(f"Itr = {itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
             for day in range(self.num_episodes):
 #                value_loss, policy_loss, _ = self.evaluate(train = True)
 #                total_value_loss += value_loss / self.num_episodes
 #                total_policy_loss += policy_loss / self.num_episodes
-                state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False)
+                state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = debug and day == 0)
                 state_action_advantage_lst_episodes.append(state_action_advantage_lst)
             ## Update models
             self.value_optimizer.zero_grad()
-#            total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
-            total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
+            total_value_loss = self.get_max_value_loss(state_action_advantage_lst_episodes)
+#             total_value_loss = self.get_value_loss(state_action_advantage_lst_episodes)
             total_value_loss.backward()
             self.value_optimizer.step()
             self.value_scheduler.step()
@@ -244,16 +254,20 @@ class PPO_Solver(Solver):
                 for i in range(state_num):
                     tup = state_action_advantage_lst_episodes[day][i]
                     curr_state_counts, action_id, next_state_counts, t, _ = tup
-                    advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t)
+                    if i < state_num - 1:
+                        next_t = t
+                    else:
+                        next_t = t + 1
+                    advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
                     ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                     total_policy_loss += loss_curr[0]
                 total_policy_loss /= self.num_episodes
-            if itr % self.policy_syncing_freq == 0:
-                self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             total_policy_loss.backward()
             self.policy_optimizer.step()
             self.policy_scheduler.step()
+            if itr % self.policy_syncing_freq == 0:
+                self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             ## Save loss data
             value_loss_arr.append(float(total_value_loss.data))
             policy_loss_arr.append(float(total_policy_loss.data))
@@ -276,6 +290,15 @@ class PPO_Solver(Solver):
 #        self.value_model_factory.save_to_file(include_ts = True)
 #        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr, payoff_arr
+
+    def policy_describe(self, action_id_prob):
+        ret = ""
+        for action_id in range(len(action_id_prob)):
+            prob = action_id_prob[action_id]
+            action_msg = self.all_actions[action_id].describe()
+            msg = f"{action_msg}: {prob}"
+            ret += f"\t\t{msg}\n"
+        return ret
     
     def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False):
         if not use_benchmark:
@@ -314,7 +337,7 @@ class PPO_Solver(Solver):
             return policy_output
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False, debug = False):
         if not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -337,6 +360,13 @@ class PPO_Solver(Solver):
                 action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True).detach().numpy()
 #                if not train:
 #                    print(t, action_id_prob)
+                if debug:
+                    with open("debugging_log.txt", "a") as f:
+                        msg = self.policy_describe(action_id_prob)
+                        payoff = self.markov_decision_process.get_payoff_curr_ts()
+                        f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}:\n")
+                        f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
+                        f.write(msg)
                 if train:
                     if not explore:
                         action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
@@ -358,7 +388,11 @@ class PPO_Solver(Solver):
                     state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, payoff))
                 ## Compute loss
                 if not return_data:
-                    advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t)
+                    if car_idx < num_available_cars - 1:
+                        next_t = t
+                    else:
+                        next_t = t + 1
+                    advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
                     ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = False)
                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                     policy_loss += loss_curr[0]

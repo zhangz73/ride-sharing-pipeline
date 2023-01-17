@@ -610,15 +610,16 @@ class MarkovDecisionProcess:
             else:
                 close_to_dest = True
             ## Has someone to be picked up
-            if type == "pickup":
-                has_someone_to_pickup = False
-                for stag_time in range(self.connection_patience, -1, -1):
-                    trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
-                    if self.state_counts[trip_id] > 0:
-                        has_someone_to_pickup = True
-                        break
-            else:
-                has_someone_to_pickup = True
+            has_someone_to_pickup = False
+            for stag_time in range(self.connection_patience, -1, -1):
+                trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                if self.state_counts[trip_id] > 0:
+                    has_someone_to_pickup = True
+                    break
+            if type != "pickup":
+                has_someone_to_pickup = not has_someone_to_pickup
+#             else:
+#                 has_someone_to_pickup = True
             ## Compute the battery required for travel
             if type != "idling":
                 battery_required = car.battery_per_step() * total_time_to_arrival + self.battery_offset

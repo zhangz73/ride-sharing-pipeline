@@ -25,6 +25,10 @@ class Net(nn.Module):
             self.layer_lst.append(nn.Linear(hidden_dim_lst[i - 1], hidden_dim_lst[i]))
             self.bn.append(nn.BatchNorm1d(hidden_dim_lst[i],momentum=0.1))
         self.layer_lst.append(nn.Linear(hidden_dim_lst[-1], output_dim))
+        if self.prob:
+            for i in range(len(self.layer_lst)):
+                self.layer_lst[i].bias.data.fill_(1)
+                self.layer_lst[i].weight.data.fill_(1)
 
     def forward(self, x):
         for i in range(len(self.layer_lst) - 1):
