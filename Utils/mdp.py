@@ -315,7 +315,7 @@ class MarkovDecisionProcess:
         self.payoff_map = torch.zeros((self.time_horizon, len(self.action_lst)))
         self.construct_payoff_map()
         ## TODO: Populate it at each state transition epoch
-        self.payoff_curr_ts = 0
+        self.payoff_curr_ts = torch.tensor(0.)
         self.payoff_schedule_dct = {}
         for t in range(self.time_horizon):
             self.payoff_schedule_dct[t] = 0 #{"pickup": 0, "reroute": 0, "charge": 0, "idle": 0}
@@ -326,7 +326,7 @@ class MarkovDecisionProcess:
         self.state_counts_prev = self.state_counts.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
-        self.payoff_curr_ts = 0
+        self.payoff_curr_ts = torch.tensor(0.)
     
     ## Describe the state_counts
     def describe_state_counts(self, state_counts = None, indent = "\t"):
@@ -402,13 +402,13 @@ class MarkovDecisionProcess:
     
     ## Zero out the payoff at the current timestamp
     def reset_payoff_curr_ts(self):
-        self.payoff_curr_ts = 0
+        self.payoff_curr_ts = torch.tensor(0.)
     
     ## Reset timestamp to 0 and regenerate trip arrivals
     def reset_timestamp(self):
         self.curr_ts = 0
         self.trip_arrivals = self.trip_demands.generate_arrivals()
-        self.payoff_curr_ts = 0
+        self.payoff_curr_ts = torch.tensor(0.)
 #        self.payoff_schedule_dct = {}
 #        for t in range(self.time_horizon):
 #            self.payoff_schedule_dct[t] = 0
@@ -427,9 +427,11 @@ class MarkovDecisionProcess:
         self.prev_ts = self.curr_ts
     
     ## Set the states and payoff_schedule_dct according to the given ones
-    def set_states(self, state_counts, ts, payoff_curr_ts = 0):
+    def set_states(self, state_counts, ts, payoff_curr_ts = None):
         self.state_counts = state_counts.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
+        if payoff_curr_ts is None:
+            payoff_curr_ts = torch.tensor(0.)
         self.payoff_curr_ts = payoff_curr_ts
         self.curr_ts = ts
         self.prev_ts = ts

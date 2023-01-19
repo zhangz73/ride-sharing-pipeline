@@ -183,17 +183,21 @@ class PPO_Solver(Solver):
     
     def get_value_loss(self, state_action_advantage_lst_episodes):
         total_value_loss = 0
+        val_num = 0
         for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
             payoff = 0
+            if state_num > 0:
+                final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t, curr_payoff = tup
 #                payoff += self.payoff_map[t, int(action_id)]
-                payoff = curr_payoff
+                payoff = final_payoff - curr_payoff
                 value_model_output = self.value_model((t, curr_state_counts))
                 total_value_loss += (value_model_output - payoff) ** 2
-            total_value_loss /= self.num_episodes
+                val_num += 1
+        total_value_loss /= val_num #self.num_episodes
         return total_value_loss
     
     def get_max_value_loss(self, state_action_advantage_lst_episodes, debug = False, dct = {}):
@@ -201,19 +205,25 @@ class PPO_Solver(Solver):
         for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
 #            payoff = 0
-            for i in range(state_num - 1, -1, -1):
-                tup = state_action_advantage_lst_episodes[day][i]
-                curr_state_counts, action_id, _, t, curr_payoff = tup
-                action = self.all_actions[int(action_id)]
-                #payoff += self.payoff_map[t, int(action_id)]
-                payoff = curr_payoff
-                key = tuple(curr_state_counts.numpy())
-                if key not in dct:
-                    dct[key] = payoff
-                else:
-                    curr_payoff = dct[key]
-                    max_payoff = torch.max(payoff, dct[key])
-                    dct[key] = max_payoff
+            if state_num > 0:
+                final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
+                for i in range(state_num - 1, -1, -1):
+                    tup = state_action_advantage_lst_episodes[day][i]
+                    curr_state_counts, action_id, _, t, curr_payoff = tup
+                    action = self.all_actions[int(action_id)]
+                    #payoff += self.payoff_map[t, int(action_id)]
+                    payoff = final_payoff - curr_payoff
+                    if t == 4 and curr_payoff == 3.5:
+                        for j in range(state_num):
+                            _, _, _, t2, payoff2 = state_action_advantage_lst_episodes[day][j]
+                            print(t2, float(payoff2.data))
+                    key = tuple(curr_state_counts.numpy())
+                    if key not in dct:
+                        dct[key] = payoff
+                    else:
+                        curr_payoff = dct[key]
+                        max_payoff = torch.max(payoff, dct[key])
+                        dct[key] = max_payoff
         for key in dct:
             payoff = dct[key]
             t = int(key[-1])
@@ -259,6 +269,9 @@ class PPO_Solver(Solver):
                 total_value_loss.backward()
                 self.value_optimizer.step()
                 self.value_scheduler.step()
+            if debug:
+                with open("debugging_log.txt", "a") as f:
+                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
             
             ## Update policy models
             print("\tUpdating policy models...")
@@ -279,7 +292,7 @@ class PPO_Solver(Solver):
                         ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
                         loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                         total_policy_loss += loss_curr[0]
-                    total_policy_loss /= self.num_episodes
+                total_policy_loss /= len(batch_idx)
                 total_policy_loss.backward()
                 self.policy_optimizer.step()
                 self.policy_scheduler.step()
@@ -380,8 +393,10 @@ class PPO_Solver(Solver):
                 if debug:
                     with open("debugging_log.txt", "a") as f:
                         msg = self.policy_describe(action_id_prob)
-                        payoff = self.markov_decision_process.get_payoff_curr_ts()
-                        f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}:\n")
+                        payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
+                        self.value_model.eval()
+                        inferred_value = float(self.value_model((t, curr_state_counts)).data)
+                        f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}, inferred state value = {inferred_value}:\n")
                         f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
                         f.write(msg)
                 if train:
@@ -400,8 +415,8 @@ class PPO_Solver(Solver):
                 if car_idx == num_available_cars - 1:
                     self.markov_decision_process.transit_across_timestamp()
                 next_state_counts = self.markov_decision_process.state_counts.clone()
-                payoff = self.markov_decision_process.get_payoff_curr_ts()
-                if return_data and t < self.time_horizon - 1:
+                payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
+                if return_data: # and t < self.time_horizon - 1:
                     state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, payoff))
                 ## Compute loss
                 if not return_data:
@@ -469,12 +484,15 @@ class DP_Solver(Solver):
                 max_value = -np.inf
                 opt_action = None
                 for tup in self.feasible_state_transitions[t][curr_state_counts]:
-                    next_state_counts, curr_payoff = self.feasible_state_transitions[t][curr_state_counts][tup]
-                    next_value = self.feasible_state_transitions[t + 1][next_state_counts]["value"]
-                    curr_value = curr_payoff + next_value
-                    if curr_value >= max_value:
-                        max_value = curr_value
-                        opt_action = tup
+                    if tup not in ["back_pointers"]:
+                        next_state_counts, curr_payoff = self.feasible_state_transitions[t][curr_state_counts][tup]
+                        next_value = self.feasible_state_transitions[t + 1][next_state_counts]["value"]
+    #                     final_payoff = self.feasible_state_transitions[t + 1][next_state_counts]["final_payoff"]
+    #                     atomic_payoff = final_payoff - curr_payoff
+                        curr_value = curr_payoff + next_value
+                        if curr_value >= max_value:
+                            max_value = curr_value
+                            opt_action = tup
                 self.feasible_state_transitions[t][curr_state_counts]["value"] = max_value
                 self.feasible_state_transitions[t][curr_state_counts]["opt_action"] = opt_action
         ## Traverse the graph forward record the optimal states & atomic actions
@@ -519,7 +537,7 @@ class DP_Solver(Solver):
                                 next_state_counts = self.markov_decision_process.state_counts
                                 car_type_id_lst_curr = list(car_type_id_lst_tmp) + [car_idx]
                                 action_lst_curr = list(action_lst_tmp) + [action]
-                                payoff_curr = self.markov_decision_process.get_payoff_curr_ts()
+                                payoff_curr = self.markov_decision_process.get_payoff_curr_ts().clone()
                                 curr.append((car_type_id_lst_curr, action_lst_curr, next_state_counts, payoff_curr))
                         tmp = curr
                     available_car_cnts[car_idx] -= 1
@@ -532,7 +550,8 @@ class DP_Solver(Solver):
                     payoff = tup[3]
                     action_id_lst = [self.markov_decision_process.action_to_id[x] for x in tup[1]]
                     key = (tuple(tup[0]), tuple(action_id_lst))
-                    self.markov_decision_process.set_states(val, t - 1, payoff)
+                    payoff_before = payoff
+                    self.markov_decision_process.set_states(val, t - 1, payoff) # payoff
                     self.markov_decision_process.transit_across_timestamp()
                     ## Record the current payoff
                     payoff = float(self.markov_decision_process.get_payoff_curr_ts()) #self.reward_query.atomic_actions_to_payoff(list(tup[1]), t - 1)
@@ -545,7 +564,11 @@ class DP_Solver(Solver):
                         prev_payoff = self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key][1]
                         if payoff > prev_payoff:
                             self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
-                    self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
+                    if tuple(curr_state_counts) not in self.feasible_state_transitions[t]:
+                        self.feasible_state_transitions[t][tuple(curr_state_counts)] = {"back_pointers": None}
+                    backpointer_tup = self.feasible_state_transitions[t][tuple(curr_state_counts)]["back_pointers"]
+                    if backpointer_tup is None or payoff > backpointer_tup[3]:
+                        self.feasible_state_transitions[t][tuple(curr_state_counts)]["back_pointers"] = (tuple(prev_state_counts), key[0], key[1], payoff)
                 if len(tmp) == 0:
                     ## Load the state value after applying no actions at all
                     self.markov_decision_process.set_states(torch.tensor(prev_state_counts), t - 1, 0)
@@ -561,7 +584,11 @@ class DP_Solver(Solver):
                         prev_payoff = self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key][1]
                         if payoff > prev_payoff:
                             self.feasible_state_transitions[t - 1][tuple(prev_state_counts)][key] = (tuple(curr_state_counts), payoff)
-                    self.feasible_state_transitions[t][tuple(curr_state_counts)] = {}
+                    if tuple(curr_state_counts) not in self.feasible_state_transitions[t]:
+                        self.feasible_state_transitions[t][tuple(curr_state_counts)] = {"back_pointers": None}
+                    backpointer_tup = self.feasible_state_transitions[t][tuple(curr_state_counts)]["back_pointers"]
+                    if backpointer_tup is None or payoff > backpointer_tup[3]:
+                        self.feasible_state_transitions[t][tuple(curr_state_counts)]["back_pointers"] = (tuple(prev_state_counts), key[0], key[1], payoff)
     
     ## Return a tuple of (car_type_id_lst, action_lst)
     def predict(self, state_counts):
