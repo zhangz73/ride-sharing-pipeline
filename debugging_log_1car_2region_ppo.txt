@@ -1,0 +1,839 @@
+------------ Debugging output for day 0 ------------
+Itr = 0:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.098659448325634:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.3333333432674408
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3333333432674408
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3333333432674408
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = 1.0, inferred state value = 0.12437118589878082:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.5
+		Idling from 1 to 1: 0.5
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = 2.0, inferred state value = 0.011120679788291454:
+	val = 1.0 Car: current region 0, destination 0, battery 0, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.5
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.5
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = 2.0, inferred state value = -0.018575670197606087:
+	val = 1.0 Car: current region 0, destination 0, battery 0, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.5
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.5
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = 1.5, inferred state value = -0.06481374800205231:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.3333333432674408
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.3333333432674408
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3333333432674408
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.45951181650161743
+Itr = 1:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.3922675848007202:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.3318857252597809
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.33622854948043823
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3318857252597809
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = 0.0, inferred state value = 0.056950803846120834:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.3362285792827606
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.33188575506210327
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.33188575506210327
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = 0.0, inferred state value = 0.029479846358299255:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.4967499375343323
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.5032500624656677
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = 0.0, inferred state value = 0.33997875452041626:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.5032500624656677
+		Idling from 1 to 1: 0.4967499375343323
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = 0.0, inferred state value = 6.909668445587158e-05:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5032348036766052
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.4967651963233948
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.472563236951828
+Itr = 2:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.4278930425643921:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.3306075632572174
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.33903950452804565
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.33035290241241455
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.19287976622581482:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.3389796316623688
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.330725759267807
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.33029457926750183
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.6026555299758911:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.33046820759773254
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3391190469264984
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.33041274547576904
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = 0.3201359510421753:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.33408305048942566
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3372817635536194
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32863515615463257
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -0.5, inferred state value = 8.195638656616211e-08:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.3362131416797638
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.33620285987854004
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3275839388370514
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.5170423984527588
+Itr = 3:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.42224419116973877:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32940855622291565
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.341820627450943
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32877081632614136
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = 0.0, inferred state value = 0.3148164749145508:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.34172868728637695
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.32959142327308655
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3286798894405365
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = 0.0, inferred state value = 0.5241225361824036:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.32903599739074707
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.34202584624290466
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3289381265640259
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = 1.0, inferred state value = 0.43453994393348694:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.5097415447235107
+		Idling from 1 to 1: 0.49025851488113403
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = 1.0, inferred state value = 1.4901161193847656e-08:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5070644021034241
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.4929356575012207
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.47578075528144836
+Itr = 4:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.5174952149391174:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32808953523635864
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.34463590383529663
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32727453112602234
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.40566888451576233:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.34438496828079224
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.32845401763916016
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3271610140800476
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.31655746698379517:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.48701193928718567
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.5129880309104919
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = 0.6210061311721802:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.5129918456077576
+		Idling from 1 to 1: 0.4870081841945648
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -0.5, inferred state value = 7.450580596923828e-09:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5084297060966492
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.4915703535079956
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.5396350026130676
+Itr = 5:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.5394107699394226:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32672443985939026
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3475019335746765
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32577359676361084
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.07353716343641281:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.3470819890499115
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.3273245096206665
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3255934715270996
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.03273870795965195:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.4837760627269745
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.5162239074707031
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = -0.19441357254981995:
+	val = 1.0 Car: current region 0, destination 0, battery 0, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.5085097551345825
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.4914902150630951
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -1.0, inferred state value = 0.0:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.3404340445995331
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.34037691354751587
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.31918904185295105
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.531179666519165
+Itr = 6:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.5237028002738953:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32536759972572327
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.35036516189575195
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32426726818084717
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.20455250144004822:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.3498062491416931
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.326124906539917
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3240687847137451
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.5336300730705261:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.32469233870506287
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3507441282272339
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32456353306770325
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = -0.0062593985348939896:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.33420270681381226
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3457386791706085
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.320058673620224
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -0.5, inferred state value = 0.0:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.34182441234588623
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.3417331576347351
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3164423704147339
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.5326597094535828
+Itr = 7:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.5184260606765747:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32398492097854614
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3532662093639374
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32274889945983887
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = 0.0, inferred state value = 0.2152259647846222:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.35253584384918213
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.3249596059322357
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32250458002090454
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.4703155755996704:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.3232206106185913
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.35367459058761597
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32310473918914795
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = 0.21030603349208832:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.334990531206131
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3474617898464203
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.31754764914512634
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = 0.5, inferred state value = 0.0:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5114421248435974
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.488557904958725
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.5247271656990051
+Itr = 8:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.448390394449234:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32263660430908203
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.35614392161369324
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.32121944427490234
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.32219934463500977:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.3553529381752014
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.323685884475708
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3209611773490906
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -1.0, inferred state value = 0.6096779704093933:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.321709543466568
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3566029667854309
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3216874301433563
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -1.5, inferred state value = 0.3108827471733093:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.3352575898170471
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.34941956400871277
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3153228163719177
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -0.5, inferred state value = 0.0:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5122045874595642
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.4877953827381134
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.4724005460739136
+Itr = 9:
+	t = 0, car_id = 0, payoff = 0.0, inferred state value = 0.41681766510009766:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+		Idling from 0 to 0: 0.32135072350502014
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.3590126633644104
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.31963664293289185
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 1, car_id = 0, payoff = -0.5, inferred state value = 0.11279148608446121:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 1.0 Timestamp: -
+		Idling from 0 to 0: 0.35823553800582886
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.32231804728507996
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.0
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.3194464147090912
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 2, car_id = 0, payoff = -0.5, inferred state value = 0.018475091084837914:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 2.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.4707385003566742
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.5292614698410034
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 3, car_id = 0, payoff = -0.5, inferred state value = 0.5906216502189636:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.0
+		Pickup from 1 to 0: 0.5291303396224976
+		Idling from 1 to 1: 0.47086966037750244
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	t = 4, car_id = 0, payoff = -0.5, inferred state value = 0.0:
+	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 2.0 ChargingLoad: type peak, load 0
+	val = 4.0 Timestamp: -
+		Idling from 0 to 0: 0.0
+		Pickup from 0 to 0: 0.0
+		Rerouting from 0 to 1: 0.0
+		Pickup from 0 to 1: 0.0
+		Rerouting from 1 to 0: 0.5128812193870544
+		Pickup from 1 to 0: 0.0
+		Idling from 1 to 1: 0.4871187210083008
+		Pickup from 1 to 1: 0.0
+		Charging in region 0 with rate 2: 0.0
+		Charging in region 1 with rate 2: 0.0
+		No new actions applied: 0.0
+	Final Value Loss = 0.46148383617401123

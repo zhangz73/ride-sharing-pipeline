@@ -9,40 +9,40 @@
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "constant",
-        "parameter_fname": "TripDemand/trip_demand_1car3region.tsv",
+        "parameter_fname": "TripDemand/trip_demand_1car3region_patience.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_1car3region.tsv"
+        "reward_fname": "Payoff/payoff_1car3region_patience.tsv"
     },
     "mdp": {
         "time_horizon": 6,
         "connection_patience": 0,
-        "pickup_patience": 0,
-        "num_battery_levels": 4,
+        "pickup_patience": 1,
+        "num_battery_levels": 5,
         "battery_jump": 0.3,
         "charging_rates": [3],
         "battery_offset": 0,
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car3region.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car3region.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car3region_patience.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car3region_patience.tsv"
     },
     "solver": {
         "type": "ppo"
     },
     "neural": {
         "value_model_name": "discretized_feedforward",
-        "value_hidden_dim_lst": [128, 64, 64],
+        "value_hidden_dim_lst": [64, 64, 64],
         "value_activation_lst": ["relu", "relu", "relu"],
         "value_batch_norm": false,
         "value_lr": 1e-3,
         "value_epoch": 100,
-        "value_batch": 100,
+        "value_batch": 300,
         "value_decay": 0.1,
         "value_scheduler_step": 1000,
         "value_solver": "Adam",
         "value_retrain": true,
         "policy_model_name": "discretized_feedforward",
-        "policy_hidden_dim_lst": [128, 64, 64],
+        "policy_hidden_dim_lst": [64, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
         "policy_lr": 1e-4,
@@ -55,10 +55,10 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 10,
-        "num_episodes": 300,
+        "num_episodes": 1000,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
-        "eps": 0.4,
+        "eps": 0.2,
         "policy_syncing_freq": 1
     },
     "metric": ["total_payoff"],

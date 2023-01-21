@@ -216,6 +216,18 @@ class Charge(Action):
     def describe(self):
         return f"Charging in region {self.region} with rate {self.rate}"
 
+## This module is a child-class of Action that is used to describe the nothing action
+class Nothing(Action):
+    def __init__(self, id):
+        super().__init__(id)
+        self.id = id
+    
+    def get_type(self):
+        return "nothing"
+    
+    def describe(self):
+        return "No new actions applied"
+
 ## This module allows users to query rewards for each atomic action
 class Reward:
     def __init__(self, reward_fname = "payoff.tsv"):
@@ -284,7 +296,7 @@ class MarkovDecisionProcess:
         self.regions = self.map.get_regions()
         self.max_travel_time = self.map.get_max_travel_steps()
         self.num_charging_rates = len(self.charging_rates)
-        self.num_car_states = len(self.regions) ** 2 * self.num_battery_levels * 1 + len(self.regions) * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * (self.pickup_patience + self.max_travel_time + 1)
+        self.num_car_states = len(self.regions) ** 2 * self.num_battery_levels * 1 + len(self.regions) * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * (self.pickup_patience + self.max_travel_time + 1) * 2
         self.num_trip_states = len(self.regions) ** 2 * (self.connection_patience + 1)
         self.num_plug_states = len(self.regions) * self.num_charging_rates
         self.num_chargingload_states = 2
@@ -380,13 +392,21 @@ class MarkovDecisionProcess:
                 self.action_to_id[action] = curr_id
                 self.action_desc_to_id[("charge", region, rate)] = curr_id
                 curr_id += 1
+        ## Construct the nothing action
+        action = Nothing(id = curr_id)
+        self.all_actions[curr_id] = action
+        self.action_to_id[action] = curr_id
+        self.action_desc_to_id[("nothing")] = curr_id
     
     ## Construct a map of payoffs (per timestamp) for atomic actions
     def construct_payoff_map(self):
         for t in range(self.time_horizon):
             for action_id in self.all_actions:
                 action = self.all_actions[action_id]
-                self.payoff_map[t, action_id] = self.reward_query.query(action, t)
+                if action.get_type() == "nothing":
+                    self.payoff_map[t, action_id] = 0
+                else:
+                    self.payoff_map[t, action_id] = self.reward_query.query(action, t)
     
     ## Return the list of all possible actions
     def get_all_actions(self):
@@ -481,6 +501,16 @@ class MarkovDecisionProcess:
                 self.state_to_id["car"][(region, region, battery, 0, "idling")] = curr_id
                 self.state_dict[curr_id] = car
                 curr_id += 1
+                
+        ## Define car states -- idling type for filled cars
+        for dest in self.regions:
+            for eta in range(self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    #for is_filled in [0, 1]:
+                    car = Car(curr_id, dest, dest, battery, 1, type = "idling", time_to_dest = eta)
+                    self.state_to_id["car"][(dest, eta, battery, 1, "idling")] = curr_id
+                    self.state_dict[curr_id] = car
+                    curr_id += 1
         
         ## Define car states -- charged
         for region in self.regions:
@@ -572,6 +602,8 @@ class MarkovDecisionProcess:
     ##              New car type (idling) + 1
     ## Return if the action has been successfully processed. False if the action is not feasible
     def transit_within_timestamp(self, action, car_id = None, debug = False):
+        if action.get_type() == "nothing":
+            return self.transit_travel_within_timestamp(action, "nothing", car_id = car_id, debug = debug)
         if action.get_type() == "pickup":
             return self.transit_travel_within_timestamp(action, "pickup", car_id = car_id, debug = debug)
         elif action.get_type() == "rerouting":
@@ -582,7 +614,10 @@ class MarkovDecisionProcess:
     
     ## Atomic state transitions for pickup action within timestamp
     def transit_travel_within_timestamp(self, action, type, car_id = None, debug = False):
-        origin, dest = action.get_origin(), action.get_dest()
+        if type != "nothing":
+            origin, dest = action.get_origin(), action.get_dest()
+        else:
+            origin, dest = None, None
         car_type_idx = 0
         if car_id is None:
             available_car_lst = self.available_existing_car_types
@@ -612,18 +647,19 @@ class MarkovDecisionProcess:
             else:
                 close_to_dest = True
             ## Has someone to be picked up
-            has_someone_to_pickup = False
-            for stag_time in range(self.connection_patience, -1, -1):
-                trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
-                if self.state_counts[trip_id] > 0:
-                    has_someone_to_pickup = True
-                    break
-            if type != "pickup":
-                has_someone_to_pickup = not has_someone_to_pickup
-#             else:
-#                 has_someone_to_pickup = True
+            if type != "nothing":
+                has_someone_to_pickup = False
+                for stag_time in range(self.connection_patience, -1, -1):
+                    trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    if self.state_counts[trip_id] > 0:
+                        has_someone_to_pickup = True
+                        break
+                if type in ["idling", "rerouting"]:
+                    has_someone_to_pickup = not has_someone_to_pickup
+            else:
+                has_someone_to_pickup = True
             ## Compute the battery required for travel
-            if type != "idling":
+            if type in ["pickup", "rerouting"]:
                 battery_required = car.battery_per_step() * total_time_to_arrival + self.battery_offset
                 enough_battery = battery_required <= car.get_battery()
             else:
@@ -631,48 +667,60 @@ class MarkovDecisionProcess:
             ## Check if car can head to the pickup origin
             can_reach_origin = car.get_dest() == origin or not car.is_filled()
             ## Check if car is filled
-            if type == "pickup":
+            if type in ["pickup", "nothing"]:
                 car_not_filled = True
             else:
                 car_not_filled = not car.is_filled()
+            ## For the "nothing" action only
+            if type == "nothing":
+                if not car.is_filled():
+                    nothing_action_feasible = False
+                else:
+                    nothing_action_feasible = True
+            else:
+                nothing_action_feasible = True
             ## Check all feasibility
-            if close_to_dest and enough_battery and car_not_filled and has_someone_to_pickup:
+            if close_to_dest and enough_battery and car_not_filled and has_someone_to_pickup and nothing_action_feasible:
                 self.state_counts[id] -= 1
                 ## Compute target car type
-                if type != "idling":
+                if type not in ["idling", "nothing"]:
                     car_query_type = "general"
                 else:
                     car_query_type = "idling"
                 if type == "pickup":
                     car_filled_status = 1
                     target_car_state = (dest, total_time_to_arrival, car.get_battery(), 1, car_query_type)
-                else:
+                elif type in ["rerouting", "idling"]:
                     car_filled_status = 0
                     target_car_state = (dest, car.get_curr_region(), car.get_battery(), 0, car_query_type)
+                else:
+                    car_filled_status = 1
+                    target_car_state = (car.get_dest(), car.get_time_to_dest(), car.get_battery(), 1, car_query_type)
                 target_car_id = self.state_to_id["car"][target_car_state]
                 self.state_counts[target_car_id] += 1
                 ## Update payment scheduling dct
-                action_id = self.action_desc_to_id[("travel", origin, dest, car_filled_status)]
-                if type == "pickup":
-                    ## First reroute
-                    if not car.is_filled():
-                        curr_region = car.get_curr_region()
-                        time_len = self.map.steps_to_location(curr_region, origin)
-                        reroute_action_id = self.action_desc_to_id[("travel", curr_region, origin, 0)]
-                        reroute_payoff = self.payoff_map[self.curr_ts, reroute_action_id]
-                        self.payoff_curr_ts += reroute_payoff
-#                        for t in range(time_len):
-#                            ts = self.curr_ts + t
-#                            self.payoff_schedule_dct[ts] += reroute_payoff / time_len
-                    ## Then take new passengers
-                    pickup_payoff = self.payoff_map[self.curr_ts, action_id]
-                    self.payoff_curr_ts += pickup_payoff
-#                    for t in range(car.get_time_to_dest(), total_time_to_arrival):
-#                        ts = self.curr_ts + t
-#                        time_len = total_time_to_arrival - car.get_time_to_dest()
-#                        self.payoff_schedule_dct[ts] += pickup_payoff / time_len
-                else:
-                    next_region = self.map.next_cell_to_move(car.get_curr_region(), dest)
+                if type != "nothing":
+                    action_id = self.action_desc_to_id[("travel", origin, dest, car_filled_status)]
+                    if type == "pickup":
+                        ## First reroute
+                        if not car.is_filled():
+                            curr_region = car.get_curr_region()
+                            time_len = self.map.steps_to_location(curr_region, origin)
+                            reroute_action_id = self.action_desc_to_id[("travel", curr_region, origin, 0)]
+                            reroute_payoff = self.payoff_map[self.curr_ts, reroute_action_id]
+                            self.payoff_curr_ts += reroute_payoff
+    #                        for t in range(time_len):
+    #                            ts = self.curr_ts + t
+    #                            self.payoff_schedule_dct[ts] += reroute_payoff / time_len
+                        ## Then take new passengers
+                        pickup_payoff = self.payoff_map[self.curr_ts, action_id]
+                        self.payoff_curr_ts += pickup_payoff
+    #                    for t in range(car.get_time_to_dest(), total_time_to_arrival):
+    #                        ts = self.curr_ts + t
+    #                        time_len = total_time_to_arrival - car.get_time_to_dest()
+    #                        self.payoff_schedule_dct[ts] += pickup_payoff / time_len
+                    else:
+                        next_region = self.map.next_cell_to_move(car.get_curr_region(), dest)
 #                    self.payoff_schedule_dct[self.curr_ts] += self.payoff_map[self.curr_ts, action_id]
                 ## Update trip counts
                 if type == "pickup":
@@ -814,6 +862,13 @@ class MarkovDecisionProcess:
                         if next_state in self.state_to_id["car"]:
                             car_id_next = self.state_to_id["car"][next_state]
                             state_counts_new[car_id_next] += self.state_counts[car_id_curr]
+        ## Gather do nothing cars
+        for dest in self.regions:
+            for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    car_id_curr = self.state_to_id["car"][(dest, eta, battery, 1, "idling")]
+                    car_id_general = self.state_to_id["car"][(dest, eta, battery, 1, "general")]
+                    state_counts_new[car_id_general] += self.state_counts[car_id_curr]
         ## Make movements for traveling filled cars
         for dest in self.regions:
             for eta in range(1, self.pickup_patience + self.max_travel_time + 1):

@@ -56,7 +56,7 @@ def main(args, json_name = ""):
         if "training_loss" in args["report"]["plot"]:
             report_factory.get_training_loss_plot(loss_arr, "Total Payoff Loss", "train_loss")
     elif solver_type == "ppo":
-        value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True)
+        value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt")
         report_factory = train.ReportFactory()
         report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
         report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
@@ -77,7 +77,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "1car_2region_dp"
+JSON_NAME = "1car_2region_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
