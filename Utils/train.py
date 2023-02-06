@@ -380,14 +380,13 @@ class PPO_Solver(Solver):
             ## Add up ||v_model - v_hat||^2
             ## Add up ratio * advantage
             num_available_cars = self.markov_decision_process.get_available_car_counts()
-            action_applied = False
+            transit_applied = False
             for car_idx in range(num_available_cars):
                 ## Perform state transitions
                 curr_state_counts = self.markov_decision_process.state_counts.clone()
                 action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.detach().numpy()
-                    action_applied = True
                     if debug:
                         with open(debug_dir, "a") as f:
                             msg = self.policy_describe(action_id_prob)
@@ -413,6 +412,7 @@ class PPO_Solver(Solver):
                     res = self.markov_decision_process.transit_within_timestamp(action)
                     next_t = t
                     if car_idx == num_available_cars - 1:
+                        transit_applied = True
                         self.markov_decision_process.transit_across_timestamp()
                         next_t += 1
                     next_state_counts = self.markov_decision_process.state_counts.clone()
@@ -434,7 +434,7 @@ class PPO_Solver(Solver):
                         curr_value = self.value_model((t, curr_state_counts))
                         payoff_lst.append(curr_payoff)
                         model_value_lst.append(curr_value)
-            if num_available_cars == 0 or not action_applied:
+            if not transit_applied:
                 self.markov_decision_process.transit_across_timestamp()
         if not return_data:
             payoff_lst = torch.tensor(payoff_lst)

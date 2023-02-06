@@ -63,16 +63,25 @@ def main(args, json_name = ""):
         report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}")
         value_loss, policy_loss, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
 #        print(f"Value Loss = {value_loss}")
-        print(f"Policy Loss = {policy_loss}")
-        print(f"Total Payoff = {float(payoff_lst[-1].data)}")
-        #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-        print(payoff_lst)
-#        print(markov_decision_process.describe_state_counts())
-        for tup in action_lst:
-            curr_state_counts, action, t, car_idx = tup
-            print(f"t = {t}, car = {car_idx}:")
-            print(markov_decision_process.describe_state_counts(curr_state_counts))
-            print(f"action = {action.describe()}")
+        with open(f"ppo_output_{json_name}.txt", "w") as f:
+            print(f"Policy Loss = {policy_loss}")
+            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
+            #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+            print(payoff_lst)
+            
+            f.write(f"Policy Loss = {policy_loss}\n")
+            f.write(f"Total Payoff = {float(payoff_lst[-1].data)}\n")
+            f.write(f"{payoff_lst}\n")
+    #        print(markov_decision_process.describe_state_counts())
+            for tup in action_lst:
+                curr_state_counts, action, t, car_idx = tup
+                print(f"t = {t}, car = {car_idx}:")
+                print(markov_decision_process.describe_state_counts(curr_state_counts))
+                print(f"action = {action.describe()}")
+                
+                f.write(f"t = {t}, car = {car_idx}:\n")
+                f.write(f"{markov_decision_process.describe_state_counts(curr_state_counts)}\n")
+                f.write(f"action = {action.describe()}\n")
         
     ## Evaluation
     ## TODO: Implement it!!!
