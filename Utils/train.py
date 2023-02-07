@@ -157,15 +157,39 @@ class PPO_Solver(Solver):
     
     def get_advantange(self, curr_state_counts, next_state_counts, action_id, ts, next_ts):
         payoff = self.payoff_map[ts, action_id]
-        curr_value = self.value_model((ts, curr_state_counts))
+        curr_value = self.value_model((ts, curr_state_counts)).reshape((-1,))
         ## TODO: Fix the bug in ts
         if next_ts < self.time_horizon - 1:
-            next_value = self.value_model((next_ts, next_state_counts))
+            next_value = self.value_model((next_ts, next_state_counts)).reshape((-1,))
         else:
             next_value = 0
         return payoff + next_value - curr_value
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2):
+        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True)
+        action_id = action_id.reshape((len(action_id), 1))
+        prob = prob_output.gather(1, action_id) #prob_output[action_id]
+        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = True)
+#         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
+        prob_benchmark = prob_benchmark_output.gather(1, action_id) #prob_benchmark_output[action_id]
+        prob = prob.reshape((-1,))
+        prob_benchmark = prob_benchmark.reshape((-1,))
+        ratio = prob / prob_benchmark
+        if clipped:
+            clipped_ratio = torch.min(torch.max(ratio, torch.tensor(1 - eps)), torch.tensor(1 + eps))
+        else:
+            clipped_ratio = ratio
+#        if prob > 0:
+#            ratio = prob / prob_benchmark
+#            if clipped:
+#                clipped_ratio = torch.min(torch.max(ratio, torch.tensor(1 - eps)), torch.tensor(1 + eps))
+#            else:
+#                clipped_ratio = ratio
+#        else:
+#            ratio, clipped_ratio = 0
+        return ratio, clipped_ratio
+    
+    def get_ratio_single(self, state_counts, action_id, ts, clipped = False, eps = 0.2):
         prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True)
         prob = prob_output[action_id]
         prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = True)
@@ -181,7 +205,7 @@ class PPO_Solver(Solver):
             ratio, clipped_ratio = 0
         return ratio, clipped_ratio
     
-    def get_value_loss(self, state_action_advantage_lst_episodes):
+    def get_value_loss_single(self, state_action_advantage_lst_episodes):
         total_value_loss = 0
         val_num = 0
         for day in range(self.value_batch):
@@ -197,6 +221,34 @@ class PPO_Solver(Solver):
                 value_model_output = self.value_model((t, curr_state_counts))
                 total_value_loss += (value_model_output - payoff) ** 2
                 val_num += 1
+        total_value_loss /= val_num #self.num_episodes
+        return total_value_loss
+    
+    def get_value_loss(self, state_action_advantage_lst_episodes):
+        total_value_loss = 0
+        val_num = 0
+        value_dct = {}
+        for t in range(self.time_horizon):
+            value_dct[t] = {"state_counts": [], "payoff": []}
+        for day in range(self.value_batch):
+            state_num = len(state_action_advantage_lst_episodes[day])
+            payoff = 0
+            if state_num > 0:
+                final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
+            for i in range(state_num - 1, -1, -1):
+                tup = state_action_advantage_lst_episodes[day][i]
+                curr_state_counts, action_id, _, t, curr_payoff, _ = tup
+#                payoff += self.payoff_map[t, int(action_id)]
+                payoff = final_payoff - curr_payoff
+                lens = len(curr_state_counts)
+                value_dct[t]["payoff"].append(payoff)
+                value_dct[t]["state_counts"].append(curr_state_counts.reshape((1, lens)))
+                val_num += 1
+        for t in range(self.time_horizon):
+            payoff_lst = torch.tensor(value_dct[t]["payoff"])
+            state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
+            value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
+            total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2)
         total_value_loss /= val_num #self.num_episodes
         return total_value_loss
     
@@ -271,6 +323,12 @@ class PPO_Solver(Solver):
             
             ## Update policy models
             print("\tUpdating policy models...")
+            policy_dct = {}
+            for t in range(self.time_horizon):
+                for offset in [0, 1]:
+                    tup = (t, t + offset)
+                    policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": []}
+                
             for _ in tqdm(range(self.policy_epoch)):
                 batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
                 total_policy_loss = 0
@@ -280,10 +338,25 @@ class PPO_Solver(Solver):
                     for i in range(state_num):
                         tup = state_action_advantage_lst_episodes[day][i]
                         curr_state_counts, action_id, next_state_counts, t, _, next_t = tup
-                        advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
-                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
-                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                        total_policy_loss += loss_curr[0]
+                        lens = len(curr_state_counts)
+                        policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
+                        policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
+                        policy_dct[(t, next_t)]["action_id"].append(action_id)
+#                        advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
+#                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
+#                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+#                        total_policy_loss += loss_curr[0]
+                for t in range(self.time_horizon):
+                    for offset in [0, 1]:
+                        next_t = t + offset
+                        if len(policy_dct[(t, next_t)]["curr_state_counts"]) > 0:
+                            curr_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["curr_state_counts"], dim = 0)
+                            next_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["next_state_counts"], dim = 0)
+                            action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"])
+                            advantage = self.get_advantange(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t)
+                            ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = self.eps)
+                            loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+                            total_policy_loss += torch.sum(loss_curr)
                 total_policy_loss /= len(batch_idx)
                 total_policy_loss.backward()
                 self.policy_optimizer.step()
@@ -328,14 +401,21 @@ class PPO_Solver(Solver):
         else:
             output = self.benchmark_policy_model((ts, state_counts))
         if remove_infeasible:
-            ret = self.remove_infeasible_actions(state_counts, ts, output)
+            if len(state_counts.shape) == 1:
+                ret = self.remove_infeasible_actions(state_counts, ts, output)
+            else:
+                ret_lst = []
+                for i in range(state_counts.shape[0]):
+                    ret = self.remove_infeasible_actions(state_counts[i,:], ts, output[i,:])
+                    ret_lst.append(ret.reshape((1, len(ret))))
+                ret = torch.cat(ret_lst, dim = 0)
             output = output * ret
         if torch.sum(output) == 0:
             return None
         output = output / torch.sum(output)
         if prob:
             return output
-        return torch.argmax(output)
+        return torch.argmax(output, dim = 1).unsqueeze(-1)
     
     def remove_infeasible_actions(self, state_counts, ts, output):
         ## Eliminate infeasible actions
@@ -426,7 +506,7 @@ class PPO_Solver(Solver):
                         else:
                             next_t = t + 1
                         advantage = self.get_advantange(curr_state_counts, next_state_counts, action_id, t, next_t)
-                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = False)
+                        ratio, ratio_clipped = self.get_ratio_single(curr_state_counts, action_id, t, clipped = False)
                         loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                         policy_loss += loss_curr[0]
                         ## Compute values
