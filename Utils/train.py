@@ -139,6 +139,10 @@ class PPO_Solver(Solver):
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.policy_syncing_freq = policy_syncing_freq
+        self.device = device
+        self.payoff_map = self.payoff_map.to(device = self.device)
+        self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
+        self.one_plus_eps = torch.tensor(1 + eps).to(device = self.device)
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
@@ -166,10 +170,10 @@ class PPO_Solver(Solver):
         return payoff + next_value - curr_value
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2):
-        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True)
+        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False)
         action_id = action_id.reshape((len(action_id), 1))
         prob = prob_output.gather(1, action_id) #prob_output[action_id]
-        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = True)
+        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, use_benchmark = True)
 #         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
         prob_benchmark = prob_benchmark_output.gather(1, action_id) #prob_benchmark_output[action_id]
         prob = prob.reshape((-1,))
@@ -198,7 +202,7 @@ class PPO_Solver(Solver):
         if prob > 0:
             ratio = prob / prob_benchmark
             if clipped:
-                clipped_ratio = torch.min(torch.max(ratio, torch.tensor(1 - eps)), torch.tensor(1 + eps))
+                clipped_ratio = torch.min(torch.max(ratio, self.one_minus_eps), self.one_plus_eps)
             else:
                 clipped_ratio = ratio
         else:
@@ -245,7 +249,7 @@ class PPO_Solver(Solver):
                 value_dct[t]["state_counts"].append(curr_state_counts.reshape((1, lens)))
                 val_num += 1
         for t in range(self.time_horizon):
-            payoff_lst = torch.tensor(value_dct[t]["payoff"])
+            payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
             value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
             total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2)
@@ -351,7 +355,7 @@ class PPO_Solver(Solver):
                         if len(policy_dct[(t, next_t)]["curr_state_counts"]) > 0:
                             curr_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["curr_state_counts"], dim = 0)
                             next_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["next_state_counts"], dim = 0)
-                            action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"])
+                            action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"]).to(device = self.device)
                             advantage = self.get_advantange(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t)
                             ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = self.eps)
                             loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
@@ -401,13 +405,14 @@ class PPO_Solver(Solver):
             output = self.benchmark_policy_model((ts, state_counts))
         if remove_infeasible:
             if len(state_counts.shape) == 1:
-                ret = self.remove_infeasible_actions(state_counts, ts, output)
+                ret = self.remove_infeasible_actions(state_counts.cpu(), ts, output)
             else:
                 ret_lst = []
                 for i in range(state_counts.shape[0]):
-                    ret = self.remove_infeasible_actions(state_counts[i,:], ts, output[i,:])
+                    ret = self.remove_infeasible_actions(state_counts[i,:].cpu(), ts, output[i,:])
                     ret_lst.append(ret.reshape((1, len(ret))))
                 ret = torch.cat(ret_lst, dim = 0)
+            ret = ret.to(device = self.device)
             output = output * ret
         if torch.sum(output) == 0:
             return None
@@ -462,10 +467,10 @@ class PPO_Solver(Solver):
             transit_applied = False
             for car_idx in range(num_available_cars):
                 ## Perform state transitions
-                curr_state_counts = self.markov_decision_process.state_counts.clone()
+                curr_state_counts = self.markov_decision_process.state_counts.clone().to(device = self.device)
                 action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True)
                 if action_id_prob is not None:
-                    action_id_prob = action_id_prob.detach().numpy()
+                    action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:
                         with open(debug_dir, "a") as f:
                             msg = self.policy_describe(action_id_prob)
@@ -487,14 +492,14 @@ class PPO_Solver(Solver):
                     action = self.all_actions[int(action_id)]
                     if return_action:
                         action_lst.append((curr_state_counts, action, t, car_idx))
-                    curr_payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
+                    curr_payoff = self.markov_decision_process.get_payoff_curr_ts().clone().to(device = self.device)
                     res = self.markov_decision_process.transit_within_timestamp(action)
                     next_t = t
                     if car_idx == num_available_cars - 1:
                         transit_applied = True
                         self.markov_decision_process.transit_across_timestamp()
                         next_t += 1
-                    next_state_counts = self.markov_decision_process.state_counts.clone()
+                    next_state_counts = self.markov_decision_process.state_counts.clone().to(device = self.device)
                     payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t))
@@ -529,7 +534,7 @@ class PPO_Solver(Solver):
             #value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
         if return_data:
             return state_action_advantage_lst
-        return value_loss, policy_loss, payoff_lst, action_lst
+        return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
 
 ## This module is a child-class of Solver for the dynamic programming solver
 class DP_Solver(Solver):
@@ -575,7 +580,7 @@ class DP_Solver(Solver):
                             opt_action = tup
                 self.feasible_state_transitions[t][curr_state_counts]["value"] = max_value
                 self.feasible_state_transitions[t][curr_state_counts]["opt_action"] = opt_action
-        print(self.describe_feasible_state_transitions())
+#        print(self.describe_feasible_state_transitions())
         ## Traverse the graph forward record the optimal states & atomic actions
         ## Assume the initial timestamp starts with only 1 possible state counts
         for key in self.feasible_state_transitions[0]:
