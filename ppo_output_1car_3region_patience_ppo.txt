@@ -1,35 +1,41 @@
-Policy Loss = -1.690371036529541
-Total Payoff = 2.5
-tensor([1.5000, 2.5000, 2.5000, 2.5000, 2.5000])
+Policy Loss = 0.05289369076490402
+Total Payoff = 2.0
+tensor([0., 0., 2., 2., 2., 2.])
 t = 0, car = 0:
 	val = 1.0 Car: current region 1, destination 1, battery 4, filled 0, type general
 	val = 1.0 Trip: origin 0, destination 2, stag_time 0
 	val = 1.0 Plug: region 2, rate 3
 
-action = Pickup from 0 to 2
+action = Rerouting from 1 to 2
+t = 1, car = 0:
+	val = 1.0 Car: current region 2, destination 2, battery 3, filled 0, type general
+	val = 1.0 Plug: region 2, rate 3
+	val = 1.0 Timestamp: -
+
+action = Idling from 2 to 2
 t = 2, car = 0:
-	val = 1.0 Car: time to destination 1, destination 2, battery 2, filled 1, type general
+	val = 1.0 Car: current region 2, destination 2, battery 3, filled 0, type general
 	val = 1.0 Trip: origin 2, destination 0, stag_time 0
 	val = 1.0 Trip: origin 2, destination 1, stag_time 0
 	val = 1.0 Plug: region 2, rate 3
 	val = 2.0 Timestamp: -
 
-action = Pickup from 2 to 1
+action = Pickup from 2 to 0
 t = 3, car = 0:
-	val = 1.0 Car: time to destination 1, destination 1, battery 1, filled 1, type general
+	val = 1.0 Car: time to destination 1, destination 0, battery 2, filled 1, type general
 	val = 1.0 Plug: region 2, rate 3
 	val = 3.0 Timestamp: -
 
 action = No new actions applied
 t = 4, car = 0:
-	val = 1.0 Car: current region 1, destination 1, battery 0, filled 0, type general
+	val = 1.0 Car: current region 0, destination 0, battery 1, filled 0, type general
 	val = 1.0 Plug: region 2, rate 3
 	val = 4.0 Timestamp: -
 
-action = Idling from 1 to 1
+action = Idling from 0 to 0
 t = 5, car = 0:
-	val = 1.0 Car: current region 1, destination 1, battery 0, filled 0, type general
+	val = 1.0 Car: current region 0, destination 0, battery 1, filled 0, type general
 	val = 1.0 Plug: region 2, rate 3
 	val = 5.0 Timestamp: -
 
-action = Idling from 1 to 1
+action = Idling from 0 to 0

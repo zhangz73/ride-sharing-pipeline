@@ -1,8 +1,10 @@
+import math
 import copy
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from joblib import Parallel, delayed
 import Utils.neural as neural
 
 ## This module computes different types of losses and performance metrics
@@ -121,7 +123,7 @@ class PolicyIteration_Solver(Solver):
         return output
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, n_cpu = 1):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         ## Store some commonly used variables
         self.value_input_dim = len(self.markov_decision_process.state_counts)
@@ -143,6 +145,7 @@ class PPO_Solver(Solver):
         self.payoff_map = self.payoff_map.to(device = self.device)
         self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
         self.one_plus_eps = torch.tensor(1 + eps).to(device = self.device)
+        self.n_cpu = n_cpu
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
@@ -250,9 +253,10 @@ class PPO_Solver(Solver):
                 val_num += 1
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
-            state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
-            value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
-            total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2)
+            if len(value_dct[t]["state_counts"]) > 0:
+                state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
+                value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
+                total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2)
         total_value_loss /= val_num #self.num_episodes
         return total_value_loss
     
@@ -285,6 +289,13 @@ class PPO_Solver(Solver):
         total_value_loss /= len(dct.keys())
         return total_value_loss
     
+    def get_data_single(self, num_episodes):
+        state_action_advantage_lst_episodes = []
+        for day in tqdm(range(num_episodes)):
+            state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = False, debug_dir = None)
+            state_action_advantage_lst_episodes.append(state_action_advantage_lst)
+        return state_action_advantage_lst_episodes
+    
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt"):
         value_loss_arr = []
         policy_loss_arr = []
@@ -304,12 +315,16 @@ class PPO_Solver(Solver):
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
             print("\tGathering data...")
-            for day in tqdm(range(self.num_episodes)):
-#                value_loss, policy_loss, _ = self.evaluate(train = True)
-#                total_value_loss += value_loss / self.num_episodes
-#                total_policy_loss += policy_loss / self.num_episodes
-                state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = debug and day == 0, debug_dir = debug_dir)
-                state_action_advantage_lst_episodes.append(state_action_advantage_lst)
+            if self.n_cpu == 1:
+                state_action_advantage_lst_episodes = self.get_data_single(self.num_episodes)
+            else:
+                batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
+                results = Parallel(n_jobs = self.n_cpu)(delayed(
+                    self.get_data_single
+                )(batch_size) for i in range(self.n_cpu))
+                for res in results:
+                    state_action_advantage_lst_episodes += res
+                
             ## Update models
             ## Update value models
             print("\tUpdating value models...")
