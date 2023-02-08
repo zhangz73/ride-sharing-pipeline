@@ -323,13 +323,12 @@ class PPO_Solver(Solver):
             
             ## Update policy models
             print("\tUpdating policy models...")
-            policy_dct = {}
-            for t in range(self.time_horizon):
-                for offset in [0, 1]:
-                    tup = (t, t + offset)
-                    policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": []}
-                
             for _ in tqdm(range(self.policy_epoch)):
+                policy_dct = {}
+                for t in range(self.time_horizon):
+                    for offset in [0, 1]:
+                        tup = (t, t + offset)
+                        policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": []}
                 batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
                 total_policy_loss = 0
                 self.policy_optimizer.zero_grad()
@@ -576,6 +575,7 @@ class DP_Solver(Solver):
                             opt_action = tup
                 self.feasible_state_transitions[t][curr_state_counts]["value"] = max_value
                 self.feasible_state_transitions[t][curr_state_counts]["opt_action"] = opt_action
+        print(self.describe_feasible_state_transitions())
         ## Traverse the graph forward record the optimal states & atomic actions
         ## Assume the initial timestamp starts with only 1 possible state counts
         for key in self.feasible_state_transitions[0]:

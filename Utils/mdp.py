@@ -331,6 +331,7 @@ class MarkovDecisionProcess:
         self.payoff_schedule_dct = {}
         for t in range(self.time_horizon):
             self.payoff_schedule_dct[t] = 0 #{"pickup": 0, "reroute": 0, "charge": 0, "idle": 0}
+        self.transit_across_timestamp_prepare()
     
     ## Reset all states to the initial one
     def reset_states(self):
@@ -827,7 +828,141 @@ class MarkovDecisionProcess:
     ##      - Set occupied cars to empty if they have arrived at destinations
     ##      - Reset all charging plug numbers to the given ones (i.e. all plugs are available)
     ##      - Zero out the current charging load
+    ## TODO: Vectorize it!!!
+    ##  1. Pad 0 to the end
+    ##  2. Create a 2D tensor y corresponding to indices per slot
+    ##  3. t = t.gather(1, y)
+    ##  4. torch.sum(t, dim = 1)
+    def transit_across_timestamp_prepare(self):
+        self.state_counts_map = [[] for _ in range(self.num_total_states + 1)]
+        self.payoff_tracking_map = torch.zeros((self.time_horizon, self.num_total_states))
+        self.plug_tracking_map = torch.zeros(self.num_total_states)
+        self.trip_arrivals_map = torch.zeros((self.time_horizon, self.num_total_states))
+        ## Update passenger requests
+        for origin in self.regions:
+            for dest in self.regions:
+                for stag_time in range(self.connection_patience, 0, -1):
+                    trip_id_curr = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    trip_id_prev = self.state_to_id["trip"][(origin, dest, stag_time - 1)]
+                    self.state_counts_map[trip_id_curr].append(trip_id_prev)
+                ## Load new passenger requests
+                trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
+                for t in range(self.time_horizon - 1):
+                    tmp_df = self.trip_arrivals[(self.trip_arrivals["T"] == t + 1) & (self.trip_arrivals["Origin"] == origin) & (self.trip_arrivals["Destination"] == dest)]
+                    if tmp_df.shape[0] > 0:
+                        self.trip_arrivals_map[t, trip_id_new] = tmp_df.iloc[0]["Count"]
+                    else:
+                        self.trip_arrivals_map[t, trip_id_new] = 0
+        ## Make movements for traveling empty cars
+        for dest in self.regions:
+            for curr_region in self.regions:
+                for battery in range(self.num_battery_levels):
+                    #for is_filled in [0, 1]:
+                    car_id_curr = self.state_to_id["car"][(dest, curr_region, battery, 0, "general")]
+                    car_id_assigned = self.state_to_id["car"][(dest, curr_region, battery, 0, "assigned")]
+                    car_curr = self.state_dict[car_id_curr]
+                    ## Update payoff
+                    next_region = self.map.next_cell_to_move(curr_region, dest)
+                    curr_action_id = self.action_desc_to_id[("travel", curr_region, next_region, 0)]
+                    for t in range(self.time_horizon):
+                        self.payoff_tracking_map[t, car_id_curr] = self.payoff_map[t, curr_action_id]
+                    ## Update states
+                    if next_region == curr_region:
+                        next_battery = battery
+                    else:
+                        next_battery = battery - car_curr.battery_per_step()
+                    next_state = (dest, next_region, next_battery, 0, "general")
+                    if next_state in self.state_to_id["car"]:
+                        car_id_next = self.state_to_id["car"][next_state]
+                        self.state_counts_map[car_id_next] += [car_id_curr, car_id_assigned]
+        ## Make movements for traveling filled cars
+        for dest in self.regions:
+            for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    #for is_filled in [0, 1]:
+                    car_id_curr = self.state_to_id["car"][(dest, eta, battery, 1, "general")]
+                    car_id_idle = self.state_to_id["car"][(dest, eta, battery, 1, "idling")]
+                    car_curr = self.state_dict[car_id_curr]
+                    next_battery = battery - car_curr.battery_per_step()
+                    next_state = (dest, eta - 1, next_battery, 1, "general")
+                    if next_state in self.state_to_id["car"]:
+                        car_id_next = self.state_to_id["car"][next_state]
+                        self.state_counts_map[car_id_next] += [car_id_curr, car_id_idle]
+        ## Drop-off passengers
+        for region in self.regions:
+            for battery in range(self.num_battery_levels):
+                car_id_filled = self.state_to_id["car"][(region, 0, battery, 1, "general")]
+                car_id_empty = self.state_to_id["car"][(region, region, battery, 0, "general")]
+                self.state_counts_map[car_id_empty] += [car_id_empty] + self.state_counts_map[car_id_filled]
+                self.state_counts_map[car_id_filled] = []
+        ## Gather idling cars
+        for region in self.regions:
+            for battery in range(self.num_battery_levels):
+                car_id_curr = self.state_to_id["car"][(region, region, battery, 0, "idling")]
+                car_id_general = self.state_to_id["car"][(region, region, battery, 0, "general")]
+                self.state_counts_map[car_id_general] += [car_id_curr, car_id_general]
+        ## Gather charged cars
+        for region in self.regions:
+            for battery in range(self.num_battery_levels):
+                for rate in self.charging_rates:
+                    car_id_curr = self.state_to_id["car"][(region, region, battery, 0, "charged", rate)]
+                    next_battery = battery
+                    ## charged cars gain power
+                    car_curr = self.state_dict[car_id_curr]
+                    next_battery += rate
+                    next_battery = min(next_battery, self.num_battery_levels - 1)
+                    ## Update payoff
+                    curr_action_id = self.action_desc_to_id[("charge", region, rate)]
+                    for t in range(self.time_horizon):
+                        self.payoff_tracking_map[t, car_id_curr] = self.payoff_map[t, curr_action_id]
+#                        ## Unplug the cars
+#                        car_curr.unplug()
+                    car_id_general = self.state_to_id["car"][(region, region, next_battery, 0, "general")]
+                    self.state_counts_map[car_id_general] += [car_id_curr]
+        ## Reset charging plugs
+        for region in self.regions:
+            for rate in self.charging_rates:
+                plug_id = self.state_to_id["plug"][(region, rate)]
+                if (region, rate) in self.region_rate_plug_num:
+                    plug_num = self.region_rate_plug_num[(region, rate)]
+                else:
+                    plug_num = 0
+                self.plug_tracking_map[plug_id] = plug_num
+        ## Set peak charging load
+        peak_load_id = self.state_to_id["charging_load"]["peak"]
+        self.state_counts_map[peak_load_id] += [peak_load_id]
+        ## Set timestamp
+        time_id = self.state_to_id["timestamp"]
+        self.state_counts_map[time_id] = [time_id]
+        ## Clean state counts map
+        max_len = 0
+        for i in range(len(self.state_counts_map)):
+            self.state_counts_map[i] = list(set(self.state_counts_map[i]))
+            max_len = max(max_len, len(self.state_counts_map[i]))
+        for i in range(len(self.state_counts_map)):
+            curr_len = len(self.state_counts_map[i])
+            for _ in range(max_len - curr_len):
+                self.state_counts_map[i].append(self.num_total_states)
+        self.state_counts_map = torch.tensor(self.state_counts_map)
+    
     def transit_across_timestamp(self):
+        assert self.curr_ts < self.time_horizon
+        state_counts_new = torch.zeros(self.num_total_states)
+        state_counts_aug = torch.cat((self.state_counts, torch.tensor([0])))
+        state_counts_new = self.plug_tracking_map + self.trip_arrivals_map[self.curr_ts,:] + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
+        ## Update payoff
+        self.payoff_curr_ts += torch.sum(self.payoff_tracking_map[self.curr_ts,:] * self.state_counts)
+        ## Set timestamp
+        time_id = self.state_to_id["timestamp"]
+        state_counts_new[time_id] = self.curr_ts + 1
+        ## Update state counts
+        self.state_counts = state_counts_new.clone()
+        ## Recompute existing available cars
+        self.available_existing_car_types = self.get_all_available_existing_car_types()
+        ## Increment timestamp by 1
+        self.curr_ts += 1
+    
+    def transit_across_timestamp_single(self):
         assert self.curr_ts < self.time_horizon
         state_counts_new = torch.zeros(self.num_total_states)
         ## Update passenger requests

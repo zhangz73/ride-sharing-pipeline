@@ -1,0 +1,31 @@
+Policy Loss = -0.9742612838745117
+Total Payoff = 3.5
+tensor([2.0000, 1.5000, 3.5000, 3.5000])
+t = 0, car = 0:
+	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0, type general
+	val = 1.0 Trip: origin 0, destination 2, stag_time 0
+	val = 1.0 Plug: region 2, rate 3
+
+action = Pickup from 0 to 2
+t = 2, car = 0:
+	val = 1.0 Car: current region 2, destination 2, battery 0, filled 0, type general
+	val = 1.0 Trip: origin 2, destination 1, stag_time 0
+	val = 1.0 Plug: region 2, rate 3
+	val = 2.0 Timestamp: -
+
+action = Charging in region 2 with rate 3
+t = 3, car = 0:
+	val = 1.0 Car: current region 2, destination 2, battery 3, filled 0, type general
+	val = 1.0 Trip: origin 2, destination 0, stag_time 0
+	val = 1.0 Plug: region 2, rate 3
+	val = 3.0 ChargingLoad: type peak, load 0
+	val = 3.0 Timestamp: -
+
+action = Pickup from 2 to 0
+t = 5, car = 0:
+	val = 1.0 Car: current region 0, destination 0, battery 1, filled 0, type general
+	val = 1.0 Plug: region 2, rate 3
+	val = 3.0 ChargingLoad: type peak, load 0
+	val = 5.0 Timestamp: -
+
+action = Rerouting from 0 to 1
