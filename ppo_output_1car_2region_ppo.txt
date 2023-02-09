@@ -1,4 +1,4 @@
-Policy Loss = -0.3781222105026245
+Policy Loss = -0.015000015497207642
 Total Payoff = 2.5
 tensor([1.0000, 2.0000, 1.5000, 2.5000, 2.5000])
 t = 0, car = 0:
@@ -36,4 +36,4 @@ t = 4, car = 0:
 	val = 2.0 ChargingLoad: type peak, load 0
 	val = 4.0 Timestamp: -
 
-action = Idling from 1 to 1
+action = Rerouting from 1 to 0

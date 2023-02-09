@@ -307,6 +307,10 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
+        if return_payoff:
+            _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = 0)
+            payoff_val = float(payoff_lst[-1].data)
+            payoff_arr.append(payoff_val)
         for itr in range(self.num_itr):
             print(f"Iteration #{itr}:")
             if debug:
@@ -379,6 +383,7 @@ class PPO_Solver(Solver):
                 total_policy_loss.backward()
                 self.policy_optimizer.step()
                 self.policy_scheduler.step()
+                policy_dct = None
             if itr % self.policy_syncing_freq == 0:
                 self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             ## Save loss data
