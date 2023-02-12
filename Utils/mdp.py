@@ -332,6 +332,11 @@ class MarkovDecisionProcess:
         for t in range(self.time_horizon):
             self.payoff_schedule_dct[t] = 0 #{"pickup": 0, "reroute": 0, "charge": 0, "idle": 0}
         self.transit_across_timestamp_prepare()
+        ## Variables keeping track of car regions and trip origins
+        ##  Specifically used for removing infeasible actions
+        self.car_trip_state_map = {}
+        self.car_trip_feasible_action_map = {}
+        self.populate_feasible_action_maps()
     
     ## Reset all states to the initial one
     def reset_states(self):
@@ -352,6 +357,62 @@ class MarkovDecisionProcess:
                 val = float(state_counts[id])
                 msg += indent + f"val = {val} " + state.describe() + "\n"
         return msg
+    
+    ## Populate car region and trip origin to feasible action maps
+    ##  Non-empty traveling cars cannot reroute or charge
+    ##  Empty cars can reroute or charge from current region
+    ##  All trip requests in the systems can be potentially pickedup
+    def populate_feasible_action_maps(self):
+        ## Populate feasible actions for empty cars
+        ### Populate state map
+        for curr_region in self.regions:
+            lst = []
+            for dest in self.regions:
+                for battery in range(self.num_battery_levels):
+                    curr_id = self.state_to_id["car"][(dest, curr_region, battery, 0, "general")]
+                    lst.append(curr_id)
+            self.car_trip_state_map[("car", curr_region)] = torch.tensor(lst)
+        ### Populate action map
+        for origin in self.regions:
+            lst = []
+            for dest in self.regions:
+                action_id = self.action_desc_to_id[("travel", origin, dest, 0)]
+                lst.append(action_id)
+            for rate in self.charging_rates:
+                action_id = self.action_desc_to_id[("charge", origin, rate)]
+                lst.append(action_id)
+            action_id = self.action_desc_to_id[("nothing")]
+            lst.append(action_id)
+            self.car_trip_feasible_action_map[("car", origin)] = torch.tensor(lst)
+            
+        ## Populate feasible actions for trip requests
+        ### Populate state map
+        for origin in self.regions:
+            lst = []
+            for dest in self.regions:
+                for stag_time in range(self.connection_patience + 1):
+                    curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    lst.append(curr_id)
+            self.car_trip_state_map[("trip", origin)] = torch.tensor(lst)
+        ### Populate action map
+        for origin in self.regions:
+            lst = []
+            for dest in self.regions:
+                action_id = self.action_desc_to_id[("travel", origin, dest, 1)]
+                lst.append(action_id)
+            self.car_trip_feasible_action_map[("trip", origin)] = torch.tensor(lst)
+    
+    ## Return a list of potential feasible actions given the state counts
+    ##  Note that the list is a super-set of actual feasible actions
+    def state_counts_to_potential_feasible_actions(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        state_counts = state_counts.cpu()
+        mask = torch.zeros(len(self.all_actions))
+        for key in self.car_trip_state_map:
+            if torch.sum(state_counts[self.car_trip_state_map[key]]) > 0:
+                mask[self.car_trip_feasible_action_map[key]] = 1
+        return mask
     
     ## A helper function that converts a dataframe to a dictionary
     ##  with the specified key-value format

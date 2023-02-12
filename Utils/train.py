@@ -123,7 +123,7 @@ class PolicyIteration_Solver(Solver):
         return output
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, n_cpu = 1):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, n_cpu = 1, lazy_removal = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         ## Store some commonly used variables
         self.value_input_dim = len(self.markov_decision_process.state_counts)
@@ -146,6 +146,7 @@ class PPO_Solver(Solver):
         self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
         self.one_plus_eps = torch.tensor(1 + eps).to(device = self.device)
         self.n_cpu = n_cpu
+        self.lazy_removal = lazy_removal
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
@@ -292,7 +293,7 @@ class PPO_Solver(Solver):
     def get_data_single(self, num_episodes):
         state_action_advantage_lst_episodes = []
         for day in tqdm(range(num_episodes)):
-            state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = False, debug_dir = None)
+            state_action_advantage_lst = self.evaluate(train = True, return_data = True, explore = False, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
         return state_action_advantage_lst_episodes
     
@@ -418,7 +419,7 @@ class PPO_Solver(Solver):
             ret += f"\t\t{msg}\n"
         return ret
     
-    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False):
+    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = False):
         if not use_benchmark:
             output = self.policy_model((ts, state_counts))
         else:
@@ -429,7 +430,7 @@ class PPO_Solver(Solver):
             else:
                 ret_lst = []
                 for i in range(state_counts.shape[0]):
-                    ret = self.remove_infeasible_actions(state_counts[i,:].cpu(), ts, output[i,:])
+                    ret = self.remove_infeasible_actions(state_counts[i,:].cpu(), ts, output[i,:], lazy_removal = lazy_removal)
                     ret_lst.append(ret.reshape((1, len(ret))))
                 ret = torch.cat(ret_lst, dim = 0)
             ret = ret.to(device = self.device)
@@ -441,15 +442,23 @@ class PPO_Solver(Solver):
             return output
         return torch.argmax(output, dim = 1).unsqueeze(-1)
     
-    def remove_infeasible_actions(self, state_counts, ts, output):
+    def remove_infeasible_actions(self, state_counts, ts, output, lazy_removal = False):
         ## Eliminate infeasible actions
         ret = torch.ones(len(output))
-        for action_id in range(len(output)):
-            self.markov_decision_process_pg.set_states(state_counts, ts)
-            action = self.all_actions[action_id]
-            if not self.markov_decision_process_pg.transit_within_timestamp(action):
-                ret[action_id] = 0
+        mask = self.markov_decision_process.state_counts_to_potential_feasible_actions(state_counts)
+        ret = ret * mask
+        if not lazy_removal:
+            potential_feasible_action_ids = torch.where(ret > 0)[0]
+            for action_id in potential_feasible_action_ids:
+                action_id = int(action_id)
+                if not self.action_is_feasible(state_counts, ts, action_id):
+                    ret[action_id] = 0
         return ret
+    
+    def action_is_feasible(self, state_counts, ts, action_id):
+        self.markov_decision_process_pg.set_states(state_counts, ts)
+        action = self.all_actions[action_id]
+        return self.markov_decision_process_pg.transit_within_timestamp(action)
     
     def policy_benchmark_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
         if self.benchmarking_policy == "uniform":
@@ -467,7 +476,7 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False, debug = False, debug_dir = "debugging_log.txt"):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, explore = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False):
         if not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -488,7 +497,7 @@ class PPO_Solver(Solver):
             for car_idx in range(num_available_cars):
                 ## Perform state transitions
                 curr_state_counts = self.markov_decision_process.state_counts.clone().to(device = self.device)
-                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True)
+                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:
@@ -501,12 +510,15 @@ class PPO_Solver(Solver):
                             f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
                             f.write(msg)
                     if train:
-                        if not explore:
-                            action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
-                        else:
-                            prob_arr = action_id_prob > 0
-                            prob_arr = prob_arr / np.sum(prob_arr)
-                            action_id = np.random.choice(len(action_id_prob), p = prob_arr)
+                        is_feasible = False
+                        while not is_feasible:
+                            if not explore:
+                                action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
+                            else:
+                                prob_arr = action_id_prob > 0
+                                prob_arr = prob_arr / np.sum(prob_arr)
+                                action_id = np.random.choice(len(action_id_prob), p = prob_arr)
+                            is_feasible = self.action_is_feasible(curr_state_counts, t, int(action_id))
                     else:
                         action_id = np.argmax(action_id_prob)
                     action = self.all_actions[int(action_id)]

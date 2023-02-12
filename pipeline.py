@@ -59,9 +59,10 @@ def main(args, json_name = ""):
         value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt")
         report_factory = train.ReportFactory()
         suffix = f"epi={args['neural']['num_episodes']}_batch={args['neural']['value_batch']}_itr={args['neural']['num_itr']}_eps={args['neural']['eps']}"
-#        report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
-#        report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
-        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
+        report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
+        report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
+        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}")
+#        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
         value_loss, policy_loss, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
 #        print(f"Value Loss = {value_loss}")
         with open(f"ppo_output_{json_name}.txt", "w") as f:
@@ -87,7 +88,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "1car_2region_ppo" #"2car_5grid_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "2car_5grid_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
