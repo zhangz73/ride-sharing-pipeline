@@ -1,9 +1,9 @@
-Policy Loss = 5.612188339233398
+Policy Loss = 9.468276023864746
 Total Payoff = 1.5
-tensor([0.0000, 0.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000,
+tensor([0.0000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000,
         1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000,
-        1.5000])
+        1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000, 1.5000,
+        1.5000, 1.5000, 1.5000, 1.5000, 1.5000])
 t = 0, car = 0:
 	val = 1.0 Car: current region 0, destination 0, battery 8, filled 0, type general
 	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
@@ -12,65 +12,91 @@ t = 0, car = 0:
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 
-action = Rerouting from 0 to 17
+action = Rerouting from 24 to 13
 t = 0, car = 1:
-	val = 1.0 Car: current region 0, destination 17, battery 8, filled 0, type assigned
-	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
+	val = 1.0 Car: current region 0, destination 0, battery 8, filled 0, type general
+	val = 1.0 Car: current region 24, destination 13, battery 5, filled 0, type assigned
 	val = 1.0 Trip: origin 1, destination 7, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 
-action = Idling from 24 to 24
-t = 1, car = 0:
-	val = 1.0 Car: current region 5, destination 17, battery 7, filled 0, type general
-	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
-	val = 1.0 Trip: origin 1, destination 7, stag_time 1
-	val = 1.0 Plug: region 6, rate 3
-	val = 1.0 Plug: region 8, rate 3
-	val = 1.0 Plug: region 17, rate 3
-	val = 1.0 Timestamp: -
-
 action = Pickup from 1 to 7
-t = 1, car = 1:
-	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
-	val = 1.0 Car: time to destination 4, destination 7, battery 7, filled 1, type general
+t = 1, car = 0:
+	val = 1.0 Car: current region 19, destination 13, battery 4, filled 0, type general
+	val = 1.0 Car: time to destination 2, destination 7, battery 7, filled 1, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 1.0 Timestamp: -
 
-action = Idling from 24 to 24
+action = No new actions applied
+t = 1, car = 1:
+	val = 1.0 Car: current region 19, destination 13, battery 4, filled 0, type general
+	val = 1.0 Car: time to destination 2, destination 7, battery 7, filled 1, type idling
+	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
+	val = 1.0 Plug: region 17, rate 3
+	val = 1.0 Timestamp: -
+
+action = Idling from 19 to 19
 t = 2, car = 0:
-	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
-	val = 1.0 Car: time to destination 3, destination 7, battery 6, filled 1, type general
+	val = 1.0 Car: current region 19, destination 19, battery 4, filled 0, type general
+	val = 1.0 Car: time to destination 1, destination 7, battery 6, filled 1, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 2.0 Timestamp: -
 
-action = Idling from 24 to 24
+action = No new actions applied
+t = 2, car = 1:
+	val = 1.0 Car: current region 19, destination 19, battery 4, filled 0, type general
+	val = 1.0 Car: time to destination 1, destination 7, battery 6, filled 1, type idling
+	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
+	val = 1.0 Plug: region 17, rate 3
+	val = 2.0 Timestamp: -
+
+action = Idling from 19 to 19
 t = 3, car = 0:
-	val = 1.0 Car: current region 24, destination 24, battery 5, filled 0, type general
-	val = 1.0 Car: time to destination 2, destination 7, battery 5, filled 1, type general
+	val = 1.0 Car: current region 7, destination 7, battery 5, filled 0, type general
+	val = 1.0 Car: current region 19, destination 19, battery 4, filled 0, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 3.0 Timestamp: -
 
-action = Rerouting from 24 to 14
+action = Idling from 7 to 7
+t = 3, car = 1:
+	val = 1.0 Car: current region 19, destination 19, battery 4, filled 0, type general
+	val = 1.0 Car: current region 7, destination 7, battery 5, filled 0, type idling
+	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
+	val = 1.0 Plug: region 17, rate 3
+	val = 3.0 Timestamp: -
+
+action = Rerouting from 19 to 7
 t = 4, car = 0:
-	val = 1.0 Car: current region 19, destination 14, battery 4, filled 0, type general
-	val = 1.0 Car: time to destination 1, destination 7, battery 4, filled 1, type general
+	val = 1.0 Car: current region 7, destination 7, battery 5, filled 0, type general
+	val = 1.0 Car: current region 14, destination 7, battery 3, filled 0, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 4.0 Timestamp: -
 
-action = Rerouting from 19 to 9
+action = Rerouting from 14 to 9
+t = 4, car = 1:
+	val = 1.0 Car: current region 7, destination 7, battery 5, filled 0, type general
+	val = 1.0 Car: current region 14, destination 9, battery 3, filled 0, type assigned
+	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
+	val = 1.0 Plug: region 17, rate 3
+	val = 4.0 Timestamp: -
+
+action = Rerouting from 7 to 22
 t = 5, car = 0:
-	val = 1.0 Car: current region 7, destination 7, battery 3, filled 0, type general
-	val = 1.0 Car: current region 14, destination 9, battery 3, filled 0, type general
+	val = 1.0 Car: current region 9, destination 9, battery 2, filled 0, type general
+	val = 1.0 Car: current region 12, destination 22, battery 4, filled 0, type general
 	val = 1.0 Trip: origin 11, destination 13, stag_time 0
 	val = 1.0 Trip: origin 16, destination 5, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -78,10 +104,10 @@ t = 5, car = 0:
 	val = 1.0 Plug: region 17, rate 3
 	val = 5.0 Timestamp: -
 
-action = Idling from 7 to 7
+action = Rerouting from 12 to 16
 t = 5, car = 1:
-	val = 1.0 Car: current region 14, destination 9, battery 3, filled 0, type general
-	val = 1.0 Car: current region 7, destination 7, battery 3, filled 0, type idling
+	val = 1.0 Car: current region 9, destination 9, battery 2, filled 0, type general
+	val = 1.0 Car: current region 12, destination 16, battery 4, filled 0, type assigned
 	val = 1.0 Trip: origin 11, destination 13, stag_time 0
 	val = 1.0 Trip: origin 16, destination 5, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -89,10 +115,10 @@ t = 5, car = 1:
 	val = 1.0 Plug: region 17, rate 3
 	val = 5.0 Timestamp: -
 
-action = Rerouting from 14 to 24
+action = Idling from 9 to 9
 t = 6, car = 0:
-	val = 1.0 Car: current region 7, destination 7, battery 3, filled 0, type general
-	val = 1.0 Car: current region 19, destination 24, battery 2, filled 0, type general
+	val = 1.0 Car: current region 9, destination 9, battery 2, filled 0, type general
+	val = 1.0 Car: current region 17, destination 16, battery 3, filled 0, type general
 	val = 1.0 Trip: origin 11, destination 13, stag_time 1
 	val = 1.0 Trip: origin 16, destination 5, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
@@ -100,10 +126,10 @@ t = 6, car = 0:
 	val = 1.0 Plug: region 17, rate 3
 	val = 6.0 Timestamp: -
 
-action = Rerouting from 7 to 13
+action = Rerouting from 17 to 15
 t = 6, car = 1:
-	val = 1.0 Car: current region 7, destination 13, battery 3, filled 0, type assigned
-	val = 1.0 Car: current region 19, destination 24, battery 2, filled 0, type general
+	val = 1.0 Car: current region 9, destination 9, battery 2, filled 0, type general
+	val = 1.0 Car: current region 17, destination 15, battery 3, filled 0, type assigned
 	val = 1.0 Trip: origin 11, destination 13, stag_time 1
 	val = 1.0 Trip: origin 16, destination 5, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
@@ -111,10 +137,10 @@ t = 6, car = 1:
 	val = 1.0 Plug: region 17, rate 3
 	val = 6.0 Timestamp: -
 
-action = Idling from 19 to 19
+action = Rerouting from 9 to 3
 t = 7, car = 0:
-	val = 1.0 Car: current region 12, destination 13, battery 2, filled 0, type general
-	val = 1.0 Car: current region 19, destination 19, battery 2, filled 0, type general
+	val = 1.0 Car: current region 4, destination 3, battery 1, filled 0, type general
+	val = 1.0 Car: current region 16, destination 15, battery 2, filled 0, type general
 	val = 1.0 Trip: origin 7, destination 8, stag_time 0
 	val = 1.0 Trip: origin 7, destination 12, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -122,10 +148,10 @@ t = 7, car = 0:
 	val = 1.0 Plug: region 17, rate 3
 	val = 7.0 Timestamp: -
 
-action = Rerouting from 19 to 18
+action = Rerouting from 4 to 3
 t = 7, car = 1:
-	val = 1.0 Car: current region 12, destination 13, battery 2, filled 0, type general
-	val = 1.0 Car: current region 19, destination 18, battery 2, filled 0, type assigned
+	val = 1.0 Car: current region 4, destination 3, battery 1, filled 0, type assigned
+	val = 1.0 Car: current region 16, destination 15, battery 2, filled 0, type general
 	val = 1.0 Trip: origin 7, destination 8, stag_time 0
 	val = 1.0 Trip: origin 7, destination 12, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -133,10 +159,11 @@ t = 7, car = 1:
 	val = 1.0 Plug: region 17, rate 3
 	val = 7.0 Timestamp: -
 
-action = Pickup from 7 to 8
+action = Rerouting from 16 to 21
 t = 8, car = 0:
-	val = 1.0 Car: current region 18, destination 18, battery 1, filled 0, type general
-	val = 1.0 Car: time to destination 1, destination 8, battery 1, filled 1, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type general
+	val = 1.0 Trip: origin 7, destination 8, stag_time 1
 	val = 1.0 Trip: origin 7, destination 12, stag_time 1
 	val = 1.0 Trip: origin 12, destination 14, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -144,10 +171,22 @@ t = 8, car = 0:
 	val = 1.0 Plug: region 17, rate 3
 	val = 8.0 Timestamp: -
 
-action = Rerouting from 18 to 23
+action = Idling from 21 to 21
+t = 8, car = 1:
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type idling
+	val = 1.0 Trip: origin 7, destination 8, stag_time 1
+	val = 1.0 Trip: origin 7, destination 12, stag_time 1
+	val = 1.0 Trip: origin 12, destination 14, stag_time 0
+	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
+	val = 1.0 Plug: region 17, rate 3
+	val = 8.0 Timestamp: -
+
+action = Idling from 3 to 3
 t = 9, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type general
 	val = 1.0 Trip: origin 12, destination 14, stag_time 1
 	val = 1.0 Trip: origin 16, destination 18, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -155,10 +194,10 @@ t = 9, car = 0:
 	val = 1.0 Plug: region 17, rate 3
 	val = 9.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 21 to 21
 t = 9, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type idling
 	val = 1.0 Trip: origin 12, destination 14, stag_time 1
 	val = 1.0 Trip: origin 16, destination 18, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
@@ -166,131 +205,122 @@ t = 9, car = 1:
 	val = 1.0 Plug: region 17, rate 3
 	val = 9.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3
 t = 10, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type general
 	val = 1.0 Trip: origin 16, destination 18, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 10.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 21 to 21
 t = 10, car = 1:
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type idling
 	val = 1.0 Trip: origin 16, destination 18, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 10.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 3 to 3
 t = 11, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 21, battery 1, filled 0, type general
 	val = 1.0 Trip: origin 7, destination 23, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
 	val = 11.0 Timestamp: -
 
-action = Charging in region 8 with rate 3
+action = Rerouting from 21 to 20
 t = 11, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 0, filled 0, type charged
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 21, destination 20, battery 1, filled 0, type assigned
 	val = 1.0 Trip: origin 7, destination 23, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
+	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type current, load 0
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 11.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3
 t = 12, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type general
 	val = 1.0 Trip: origin 7, destination 23, stag_time 1
 	val = 1.0 Trip: origin 13, destination 16, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 12.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 20 to 20
 t = 12, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type idling
 	val = 1.0 Trip: origin 7, destination 23, stag_time 1
 	val = 1.0 Trip: origin 13, destination 16, stag_time 0
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 12.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3
 t = 13, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type general
 	val = 1.0 Trip: origin 13, destination 16, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 13.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 20 to 20
 t = 13, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type idling
 	val = 1.0 Trip: origin 13, destination 16, stag_time 1
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 13.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3
 t = 14, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 14.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 20 to 20
 t = 14, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type idling
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 14.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3
 t = 15, car = 0:
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type general
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type general
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 15.0 Timestamp: -
 
-action = Idling from 8 to 8
+action = Idling from 20 to 20
 t = 15, car = 1:
-	val = 1.0 Car: current region 23, destination 23, battery 0, filled 0, type general
-	val = 1.0 Car: current region 8, destination 8, battery 3, filled 0, type idling
+	val = 1.0 Car: current region 3, destination 3, battery 0, filled 0, type general
+	val = 1.0 Car: current region 20, destination 20, battery 0, filled 0, type idling
 	val = 1.0 Plug: region 6, rate 3
 	val = 1.0 Plug: region 8, rate 3
 	val = 1.0 Plug: region 17, rate 3
-	val = 3.0 ChargingLoad: type peak, load 0
 	val = 15.0 Timestamp: -
 
-action = Idling from 23 to 23
+action = Idling from 3 to 3

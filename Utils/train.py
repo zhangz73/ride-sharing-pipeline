@@ -123,7 +123,7 @@ class PolicyIteration_Solver(Solver):
         return output
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, n_cpu = 1, lazy_removal = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, lazy_removal = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         ## Store some commonly used variables
         self.value_input_dim = len(self.markov_decision_process.state_counts)
@@ -141,6 +141,7 @@ class PPO_Solver(Solver):
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.policy_syncing_freq = policy_syncing_freq
+        self.value_syncing_freq = value_syncing_freq
         self.device = device
         self.payoff_map = self.payoff_map.to(device = self.device)
         self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
@@ -153,6 +154,7 @@ class PPO_Solver(Solver):
         self.value_model = self.get_value_model()
         self.policy_model = self.get_policy_model()
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
+        self.benchmark_value_model = copy.deepcopy(self.value_model)
         self.value_optimizer, self.value_scheduler = self.value_model_factory.prepare_optimizer()
         self.policy_optimizer, self.policy_scheduler = self.policy_model_factory.prepare_optimizer()
         self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
@@ -165,10 +167,10 @@ class PPO_Solver(Solver):
     
     def get_advantange(self, curr_state_counts, next_state_counts, action_id, ts, next_ts):
         payoff = self.payoff_map[ts, action_id]
-        curr_value = self.value_model((ts, curr_state_counts)).reshape((-1,))
+        curr_value = self.benchmark_value_model((ts, curr_state_counts)).reshape((-1,))
         ## TODO: Fix the bug in ts
         if next_ts < self.time_horizon - 1:
-            next_value = self.value_model((next_ts, next_state_counts)).reshape((-1,))
+            next_value = self.benchmark_value_model((next_ts, next_state_counts)).reshape((-1,))
         else:
             next_value = 0
         return payoff + next_value - curr_value
@@ -385,6 +387,8 @@ class PPO_Solver(Solver):
                 self.policy_optimizer.step()
                 self.policy_scheduler.step()
                 policy_dct = None
+            if itr % self.value_syncing_freq == 0:
+                self.benchmark_value_model = copy.deepcopy(self.value_model)
             if itr % self.policy_syncing_freq == 0:
                 self.benchmark_policy_model = copy.deepcopy(self.policy_model)
             ## Save loss data
@@ -403,6 +407,7 @@ class PPO_Solver(Solver):
                 payoff_val = float(payoff_lst[-1].data)
                 payoff_arr.append(payoff_val)
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
+        self.benchmark_value_model = copy.deepcopy(self.value_model)
         # Save final model
 #         self.value_model_factory.update_model(self.value_model, update_ts = False)
 #         self.policy_model_factory.update_model(self.benchmark_policy_model, update_ts = False)

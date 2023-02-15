@@ -59,6 +59,7 @@
         "benchmarking_policy": "uniform",
         "eps": 0.05,
         "policy_syncing_freq": 1,
+        "value_syncing_freq": 2,
         "n_cpu": 2,
         "lazy_removal": false
     },
