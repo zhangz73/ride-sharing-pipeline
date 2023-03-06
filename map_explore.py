@@ -153,7 +153,7 @@ def get_travel_link_plot(title, fname, regions = None, overlay_chargers = True):
     my_cmap = ListedColormap(my_cmap)
     
     fig, ax = plt.subplots()
-    df_cp.plot(ax = ax, edgecolor = "black", color = "lightskyblue")
+    df_cp.plot(ax = ax, edgecolor = "black", color = "thistle")
     links = df_triplinksplot.plot(ax = ax, cmap = my_cmap, column = "TripCounts", legend = True)
     
 #    cb = ax.get_figure().get_axes()[0]
