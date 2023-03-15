@@ -1,3 +1,4 @@
+import holidays
 import numpy as np
 from pyproj import Proj, Transformer
 import pandas as pd
@@ -9,6 +10,14 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.colors import ListedColormap
 
+## Select Scope
+SCOPE = "Lyft"
+dct_key = {
+    "Uber": ["HV0003"],
+    "Lyft": ["HV0005"],
+    "All": ["HV0003", "HV0005"]
+}
+
 ## Setup ESPG transformer from GPS to coordinates
 transformer = Transformer.from_crs(4326, 2263, always_xy = True)
 
@@ -18,6 +27,8 @@ df_data = pd.read_parquet("Data/Map/fhvhv_tripdata_2022-07.parquet")
 df_chargers = pd.read_csv("Data/Map/ny_charging_stations.csv")
 df_chargers = df_chargers[(df_chargers["City"] == "New York") & (df_chargers["Restricted Access"] == False)]
 df_zone_lookup = pd.read_csv("Data/Map/taxi_zone_lookup.csv")
+
+df_data = df_data[df_data["hvfhs_license_num"].isin(dct_key[SCOPE])]
 
 ## Construct the dataframe of charging locations
 geometry = [Point((transformer.transform(x, y))) for x, y in zip(df_chargers["Longitude"], df_chargers["Latitude"])]
@@ -70,7 +81,7 @@ def get_heatmap(df_plot, title, fname, overlay_chargers = True, df_chargers = No
     plt.title(title)
     plt.xticks([])
     plt.yticks([])
-    plt.savefig(f"MapExplore/{fname}.png")
+    plt.savefig(f"MapExplore/{SCOPE}/{fname}.png")
     plt.clf()
     plt.close()
 
@@ -115,7 +126,7 @@ def get_hist(val, title, fname, x = None):
         plt.hist(val, bins = 100, density = True)
 #        plt.xscale("log")
     plt.title(title)
-    plt.savefig(f"MapExplore/Histograms/{fname}.png")
+    plt.savefig(f"MapExplore/{SCOPE}/Histograms/{fname}.png")
     plt.clf()
     plt.close()
 
@@ -169,16 +180,51 @@ def get_travel_link_plot(title, fname, regions = None, overlay_chargers = True):
     plt.title(title)
     plt.xticks([])
     plt.yticks([])
-    plt.savefig(f"MapExplore/TripLinks/{fname}.png")
+    plt.savefig(f"MapExplore/{SCOPE}/TripLinks/{fname}.png")
     plt.clf()
     plt.close()
     return df_triplinks
 
-"""
+def get_boxplot(data, labels, colors, title, fname):
+    assert len(data) == len(labels)
+    assert len(data) == len(colors)
+    
+    fig = plt.figure(figsize =(10, 7))
+    ax = fig.add_subplot(111)
+     
+    # Creating axes instance
+    bp = ax.boxplot(data, patch_artist = True, notch ='True', vert = 0, showfliers = False)
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+     
+    # changing color and linewidth of whiskers
+    for whisker in bp['whiskers']:
+        whisker.set(color ='#8B008B', linewidth = 1.5, linestyle =":")
+    # changing color and linewidth of caps
+    for cap in bp['caps']:
+        cap.set(color ='#8B008B', linewidth = 2)
+    # changing color and linewidth of medians
+    for median in bp['medians']:
+        median.set(color ='red', linewidth = 3)
+    # changing style of fliers
+    for flier in bp['fliers']:
+        flier.set(marker ='D', color ='#e7298a', alpha = 0.5)
+         
+    # x-axis labels
+    ax.set_yticklabels(labels, wrap = True)
+    # Removing top axes and right axes ticks
+    ax.get_xaxis().tick_bottom()
+    ax.get_yaxis().tick_left()
+    # Adding title
+    plt.title(title)
+    plt.savefig(f"MapExplore/{SCOPE}/Boxplots/{fname}.png")
+    plt.clf()
+    plt.close()
+
 ## Visualize the trip demand heatmaps
 df_tripdemands = get_tripdemand_heatmap(regions = [])
 get_tripdemand_heatmap(regions = ["Manhattan"])
-df_tripdemands[["LocationID", "zone", "TripCounts"]].drop_duplicates().sort_values("TripCounts", ascending = False).to_csv("MapExplore/TripDemand/trip_demands.csv", index=False)
+#df_tripdemands[["LocationID", "zone", "TripCounts"]].drop_duplicates().sort_values("TripCounts", ascending = False).to_csv("MapExplore/TripDemand/trip_demands.csv", index=False)
 
 ## Visualize the trip destinations for representative regions
 ### (LocationID, Zone)
@@ -198,23 +244,73 @@ df_vis["TripRequests"] = 1
 df_vis = df_vis[["Hours", "TripRequests"]].groupby("Hours").sum().reset_index()
 get_hist(df_vis["TripRequests"], "# Trip Requests", "trip_request", x = df_vis["Hours"])
 
+## Visualize the request density across time categorized by weekday and holiday effects
+df_vis = df_data.copy()
+df_vis["Hours"] = df_vis["request_datetime"].apply(lambda x: x.hour)
+df_vis["Weekday"] = df_vis["request_datetime"].apply(lambda x: 1 if x.weekday() <= 4 else 0)
+df_vis["Holiday"] = df_vis["request_datetime"].apply(lambda x: 1 if x.day == 4 else 0)
+df_vis["TripRequests"] = 1
+df_vis = df_vis[["Hours", "TripRequests", "Weekday", "Holiday"]].groupby(["Hours", "Weekday", "Holiday"]).sum().reset_index()
+get_hist(df_vis[(df_vis["Weekday"] == 1) & (df_vis["Holiday"] == 0)]["TripRequests"], "# Trip Requests on Weekdays (Excluding Holidays)", "trip_request_weekday", x = df_vis[(df_vis["Weekday"] == 1) & (df_vis["Holiday"] == 0)]["Hours"])
+get_hist(df_vis[(df_vis["Weekday"] == 0) & (df_vis["Holiday"] == 0)]["TripRequests"], "# Trip Requests on Weekends (Excluding Holidays)", "trip_request_weekend", x = df_vis[(df_vis["Weekday"] == 0) & (df_vis["Holiday"] == 0)]["Hours"])
+df_vis = df_vis[["Hours", "Holiday", "TripRequests"]].groupby(["Hours", "Holiday"]).sum().reset_index()
+get_hist(df_vis[df_vis["Holiday"] == 1]["TripRequests"], "# Trip Requests on Holidays", "trip_request_holiday", x = df_vis[df_vis["Holiday"] == 1]["Hours"])
+
+## Regions to consider: Midtown Center, Penn Station/Madison Sq West, East Harlem, JFK Airport
+## Weekday rush v.s. leisure hours: 7am - 11 pm v.s. 0-6 am
+## Weekend/Holiday rush v.s. leisure hours: 0-1 am, 10am - 11pm v.s. 2-9 am
+
 ## Visualize the trip time, trip distance, trip waiting time densities
 df_vis = df_data.copy()
+df_vis["Hours"] = df_vis["request_datetime"].apply(lambda x: x.hour)
+df_vis["Weekday"] = df_vis["request_datetime"].apply(lambda x: 1 if x.weekday() <= 4 else 0)
+df_vis["Holiday"] = df_vis["request_datetime"].apply(lambda x: 1 if x.day == 4 else 0)
+df_vis["Busy"] = df_vis["Weekday"] * (1 - df_vis["Holiday"])
 ## Remove erroneous data
 ### Remove entries where driver arrives before the request (1.1% records)
 df_vis = df_vis[df_vis["on_scene_datetime"] >= df_vis["request_datetime"]]
 ### Remove entries where trip distance is ridiculously long (0.01% records)
-df_vis = df_vis[df_vis["trip_miles"] <= 100]
+#df_vis = df_vis[df_vis["trip_miles"] <= 100]
+### Remove trips coming from or to unknown areas
+df_vis = df_vis[(df_vis["PULocationID"] < 264) & (df_vis["DOLocationID"] < 264)]
 
 df_vis["TripTime"] = (df_vis["dropoff_datetime"] - df_vis["pickup_datetime"]).apply(lambda x: x.seconds / 60)
 df_vis["WaitingTime"] = (df_vis["on_scene_datetime"] - df_vis["request_datetime"]).apply(lambda x: x.seconds / 60)
-### Visualize trip time
-get_hist(df_vis["TripTime"], "Trip Time (Minutes)", "trip_time")
-### Visualize trip distance
-get_hist(df_vis["trip_miles"], "Trip Distance (Miles)", "trip_distance")
-### Visualize trip time
-get_hist(df_vis["WaitingTime"], "Trip Waiting Time (Minutes)", "wait_time")
-"""
+
+### (138, LaGuardia Airport), (132, JFK Airport), (79, East Village), (230, Times Sq/Theatre District), (161, Midtown Center), (42, Central Harlem), (186, Penn Station), (236, Upper East Side North), (239, Upper West Side South), (74, East Harlem)
+region_lst = [(161, "Midtown Center"), (186, "Penn Station"), (74, "East Harlem"), (132, "JFK Airport")]
+hours_w_desc_lst = [(1, list(np.arange(7, 24)), "Weekday Rush"), (1, list(np.arange(0, 7)), "Weekday Leisure"), (0, [0, 1] + list(np.arange(10, 24)), "Weekend/Holiday Rush"), (0, list(np.arange(2, 10)), "Weekend/Holiday Leisure")]
+
+## Draw Histograms
+for region in region_lst:
+    for hours_w_desc in hours_w_desc_lst:
+        df_vis_sub = df_vis[(df_vis["PULocationID"] == region[0]) & (df_vis["Busy"] == hours_w_desc[0]) & (df_vis["Hours"].isin(hours_w_desc[1]))]
+        title_suffix = region[1] + " " + hours_w_desc[2]
+        fname_suffix = title_suffix.replace("/", " ").replace(" ", "_")
+        ### Visualize trip time
+        get_hist(df_vis_sub["TripTime"], f"Trip Time (Minutes)\n{title_suffix}", f"trip_time_{fname_suffix}")
+        ### Visualize trip distance
+        get_hist(df_vis_sub["trip_miles"], f"Trip Distance (Miles)\n{title_suffix}", f"trip_distance_{fname_suffix}")
+        ### Visualize trip time
+        get_hist(df_vis_sub["WaitingTime"], f"Trip Waiting Time (Minutes)\n{title_suffix}", f"wait_time_{fname_suffix}")
+
+## Draw Boxplots
+colors = ["#F75431", "#F5C4B9", "#55B42C", "#BACDB2"]
+labels = ["Weekday Rush", "Weekday Non-Rush", "Weekend/Holiday Rush", "Weekend/Holiday Non-Rush"]
+for region in region_lst:
+    for data_type in ["TripTime", "trip_miles", "WaitingTime"]:
+        data = []
+        for hours_w_desc in hours_w_desc_lst:
+            df_vis_sub = df_vis[(df_vis["PULocationID"] == region[0]) & (df_vis["Busy"] == hours_w_desc[0]) & (df_vis["Hours"].isin(hours_w_desc[1]))]
+            data.append(df_vis_sub[data_type])
+        name = data_type
+        if name == "TripTime":
+            name = "trip_time"
+        elif name == "WaitingTime":
+            name = "wait_time"
+        title = f"{name.replace('_', ' ').title()} - {region[1]}"
+        fname = f"{name.lower()}_{region[1]}"
+        get_boxplot(data, labels, colors, title, fname)
 
 ## Visualize the travel volumes
 df_triplinks = get_travel_link_plot("NYC Trip Links", "nyc_trip_links", regions = None, overlay_chargers = False)
