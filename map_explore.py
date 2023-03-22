@@ -346,28 +346,29 @@ def visualize_chargers():
     df_chargers_long_level2 = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == "Level2"]
     df_chargers_long_dcFast = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == "DCFast"]
     
-    sc = df_chargers_long_level2.plot(ax = ax, marker = "o", color = "green", markersize = df_chargers_long_level2["ChargerNum"] * 3, alpha = 1)
+    sc = df_chargers_long_level2.plot(ax = ax, marker = "o", color = "red", markersize = (df_chargers_long_level2["ChargerNum"]) * 5, alpha = 0.5)
 #    df_chargers_long_dcFast.plot(ax = ax, marker = "o", color = "blue", markersize = df_chargers_long_dcFast["ChargerNum"], alpha = 0.5)
-    _, bins = pd.cut(df_chargers_long_level2["ChargerNum"], bins=3, precision=0, retbins=True)
+    _, bins = pd.cut(df_chargers_long_level2["ChargerNum"], bins=4, precision=0, retbins=True)
     ax.add_artist(
         ax.legend(
             handles=[
                 mlines.Line2D(
                     [],
                     [],
-                    color="green",
+                    color="red",
+                    alpha=0.5,
                     lw=0,
                     marker="o",
                     markersize=b,
                     label=str(int(b)),
                 )
-                for i, b in enumerate(bins)
+                for i, b in enumerate(bins[1:])
             ],
             loc=4,
         )
     )
     ax.set_aspect("equal")
-    plt.title(f"Chargers")
+    plt.title(f"# Total Chargers: {int(df_chargers_long_level2['ChargerNum'].sum())}")
     plt.xticks([])
     plt.yticks([])
     plt.savefig(f"MapExplore/{SCOPE}/chargers.png")
