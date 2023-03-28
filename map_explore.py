@@ -1,4 +1,7 @@
 import holidays
+from textwrap import wrap
+from itertools import chain
+from collections import Counter
 import numpy as np
 from pyproj import Proj, Transformer
 import pandas as pd
@@ -11,6 +14,9 @@ from matplotlib import colors
 from matplotlib.colors import ListedColormap
 import matplotlib.lines as mlines
 import matplotlib.colors as mcolors
+import matplotlib.dates as mdates
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 ## Select Scope
 SCOPE = "All"
@@ -27,7 +33,9 @@ transformer = Transformer.from_crs(4326, 2263, always_xy = True)
 df = gpd.read_file("Data/Map/taxi_zones/taxi_zones.shp")
 df_data = pd.read_parquet("Data/Map/fhvhv_tripdata_2022-07.parquet")
 df_chargers = pd.read_csv("Data/Map/ny_charging_stations.csv")
-df_chargers = df_chargers[(df_chargers["City"] == "New York") & (df_chargers["Restricted Access"] == False)]
+#df_chargers = df_chargers[(df_chargers["City"] == "New York") & (df_chargers["Restricted Access"] == False)]
+df_chargers = df_chargers[df_chargers["City"] == "New York"]
+df_chargers_cp = df_chargers.copy()
 df_zone_lookup = pd.read_csv("Data/Map/taxi_zone_lookup.csv")
 
 df_data = df_data[df_data["hvfhs_license_num"].isin(dct_key[SCOPE])]
@@ -73,6 +81,7 @@ zones = []
 boroughs = []
 for i in range(df_chargers.shape[0]):
     charger_loc = df_chargers.iloc[i]["geometry"]
+    added = False
     for j in range(df.shape[0]):
         taxi_zone = df.iloc[j]["LocationID"]
         geom = df.iloc[j]["geometry"]
@@ -80,14 +89,21 @@ for i in range(df_chargers.shape[0]):
         if geom.contains(charger_loc):
             zones.append(taxi_zone)
             boroughs.append(region)
+            added = True
             break
+    if not added:
+        zones.append(None)
+        boroughs.append(None)
 df_chargers["LocationID"] = zones
 df_chargers["borough"] = boroughs
+df_chargers = df_chargers.dropna()
 
 zones = []
 boroughs = []
+geometry = []
 for i in range(df_chargers_long.shape[0]):
     charger_loc = df_chargers_long.iloc[i]["geometry_orig"]
+    added = False
     for j in range(df.shape[0]):
         taxi_zone = df.iloc[j]["LocationID"]
         geom = df.iloc[j]["geometry"]
@@ -95,20 +111,31 @@ for i in range(df_chargers_long.shape[0]):
         if geom.contains(charger_loc):
             zones.append(taxi_zone)
             boroughs.append(region)
+            geometry.append(geom)
+            added = True
             break
+    if not added:
+        zones.append(None)
+        boroughs.append(None)
+        geometry.append(None)
 df_chargers_long["LocationID"] = zones
 df_chargers_long["borough"] = boroughs
 
+df_chargers_long_loc = df_chargers_long.copy()
+df_chargers_long_loc["geometry"] = geometry
+df_chargers_long_loc = gpd.GeoDataFrame(df_chargers_long_loc)
+df_chargers_long_loc.crs = df.crs
+
 ## Define helper functions
 ### Generate heatmap
-def get_heatmap(df_plot, title, fname, overlay_chargers = True, df_chargers = None, save = True, cmap = "OrRd", norm = None):
+def get_heatmap(df_plot, title, fname, overlay_chargers = True, df_chargers = None, save = True, cmap = "OrRd", norm = None, column = "TripCounts"):
     if overlay_chargers:
         assert df_chargers is not None
     fig, ax = plt.subplots()
     if norm is not None:
-        df_plot.plot(ax = ax, edgecolor = "black", cmap = cmap, column = "TripCounts", legend = True, norm = norm)
+        df_plot.plot(ax = ax, edgecolor = "black", cmap = cmap, column = column, legend = True, norm = norm)
     else:
-        df_plot.plot(ax = ax, edgecolor = "black", cmap = cmap, column = "TripCounts", legend = True)
+        df_plot.plot(ax = ax, edgecolor = "black", cmap = cmap, column = column, legend = True)
     if overlay_chargers:
         df_chargers.plot(ax = ax, marker = "o", color = "green", markersize = 2)
     if save:
@@ -337,45 +364,129 @@ def get_boxplot(data, labels, colors, title, fname):
     plt.close()
 
 ### Visualize Chargers
-def visualize_chargers():
+def visualize_chargers(charger_type = "Level2"):
     df_cp = df[df["borough"].isin(["Manhattan"])]
     fig, ax = plt.subplots()
     df_cp.plot(ax = ax, edgecolor = "black", color = "white") # thistle
     
     df_chargers_long_cp = df_chargers_long[df_chargers_long["borough"].isin(["Manhattan"])]
-    df_chargers_long_level2 = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == "Level2"]
-    df_chargers_long_dcFast = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == "DCFast"]
+    df_chargers_long_level2 = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == charger_type]
+    df_chargers_long_loc_cp = df_chargers_long_loc[(df_chargers_long_loc["borough"].isin(["Manhattan"])) & (df_chargers_long_loc["ChargerType"] == charger_type)]
+#    df_chargers_long_dcFast = df_chargers_long_cp[df_chargers_long_cp["ChargerType"] == "DCFast"]
     
-    sc = df_chargers_long_level2.plot(ax = ax, marker = "o", color = "red", markersize = (df_chargers_long_level2["ChargerNum"]) * 5, alpha = 0.5)
+#    fig, ax = get_heatmap(df_chargers_long_loc_cp, None, None, overlay_chargers = False, df_chargers = None, save = False, cmap = "OrRd", norm = None, column = "ChargerNum")
+    df_chargers_long_loc_cp.plot(ax = ax, cmap = "OrRd", column = "ChargerNum", legend = True)
+    df_chargers_long_level2.plot(ax = ax, marker = "o", color = "green", markersize = 1)
 #    df_chargers_long_dcFast.plot(ax = ax, marker = "o", color = "blue", markersize = df_chargers_long_dcFast["ChargerNum"], alpha = 0.5)
+    
     _, bins = pd.cut(df_chargers_long_level2["ChargerNum"], bins=4, precision=0, retbins=True)
-    ax.add_artist(
-        ax.legend(
-            handles=[
-                mlines.Line2D(
-                    [],
-                    [],
-                    color="red",
-                    alpha=0.5,
-                    lw=0,
-                    marker="o",
-                    markersize=b,
-                    label=str(int(b)),
-                )
-                for i, b in enumerate(bins[1:])
-            ],
-            loc=4,
-        )
-    )
+#    _, bins_dc = pd.cut(df_chargers_long_dcFast["ChargerNum"], bins=4, precision=0, retbins=True)
+#    ax.add_artist(
+#        ax.legend(
+#            handles=[
+#                mlines.Line2D(
+#                    [],
+#                    [],
+#                    color="red",
+#                    alpha=0.5,
+#                    lw=0,
+#                    marker="o",
+#                    markersize=b,
+#                    label=str(int(b)),
+#                )
+#                for i, b in enumerate(bins[1:])
+#            ],
+#            loc=4,
+#        )
+#    )
     ax.set_aspect("equal")
-    plt.title(f"# Total Chargers: {int(df_chargers_long_level2['ChargerNum'].sum())}")
+    plt.title(f"# Total {charger_type} Chargers: {int(df_chargers_long_level2['ChargerNum'].sum())}")
     plt.xticks([])
     plt.yticks([])
-    plt.savefig(f"MapExplore/{SCOPE}/chargers.png")
+    plt.savefig(f"MapExplore/{SCOPE}/Chargers/chargers_{charger_type}.png")
     plt.clf()
     plt.close()
 
-visualize_chargers()
+def get_charger_networks():
+    df_chargers_agg = df_chargers_cp[["EV Network", "EV Level2 EVSE Num", "EV DC Fast Count"]].groupby(["EV Network"]).sum().reset_index().sort_values("EV Level2 EVSE Num", ascending = False)
+    fig, ax = plt.subplots(figsize = (10, 14))
+    plt.bar(df_chargers_agg["EV Network"], df_chargers_agg["EV Level2 EVSE Num"], label = "Level 2", alpha = 0.5, color = "blue")
+    plt.bar(df_chargers_agg["EV Network"], df_chargers_agg["EV DC Fast Count"], label = "DC Fast", alpha = 0.5, color = "red")
+    x_labels = ["\n".join(x.split()) for x in np.array(df_chargers_agg["EV Network"])]
+    plt.xlabel("EV Network")
+    plt.ylabel("Number of Chargers")
+    plt.title(f"Number of Level 2 & DC Chargers")
+    for i in range(df_chargers_agg.shape[0]):
+        val_level2 = df_chargers_agg.iloc[i]["EV Level2 EVSE Num"]
+        val_dcFast = df_chargers_agg.iloc[i]["EV DC Fast Count"]
+        if val_level2 > 0:
+            plt.text(i, val_level2 + 10, val_level2, ha = "center")
+        if val_dcFast > 0:
+            plt.text(i, val_dcFast + 3, val_dcFast, ha = "center")
+    plt.legend()
+    ax.set_xticklabels(x_labels)
+    plt.setp(ax.get_xticklabels(), rotation=90, fontsize=10)
+    plt.savefig(f"MapExplore/{SCOPE}/Chargers/chargers_hist.png")
+    plt.clf()
+    plt.close()
+
+def get_tripmiles_daily(df):
+    df = df.copy()
+    df["day_of_week"] = df["request_datetime"].apply(lambda x: x.dayofweek + 1)
+    df = df[["trip_miles", "day_of_week"]].groupby("day_of_week").sum().reset_index()
+    plt.bar(df["day_of_week"], df["trip_miles"])
+    plt.xlabel("Day of Week")
+    plt.ylabel("Total Trip Miles")
+    for i in range(df.shape[0]):
+        plt.text(i + 1, df.iloc[i]["trip_miles"], "{:.2e}".format(df.iloc[i]["trip_miles"]), ha = "center")
+    plt.title("Total Trip Miles")
+    plt.savefig(f"MapExplore/{SCOPE}/trip_miles.png")
+    plt.clf()
+    plt.close()
+
+def get_numcars_batch(df_sub):
+    lens = (end - start).seconds + 1
+    cnt_arr = np.zeros(lens)
+    for i in tqdm(range(df_sub.shape[0])):
+        s, e = df_sub.iloc[i]["pickup_idx"], df_sub.iloc[i]["dropoff_idx"]
+        cnt_arr[s:e] += 1
+    return cnt_arr
+
+def get_numcars(df):
+#    df = df.copy()
+#    start = pd.Timestamp("2022-07-01 00:00:00")
+#    end = pd.Timestamp("2022-07-31 23:59:59")
+#    ts_lst = pd.date_range(start, end, freq = "S")
+#    cnt_arr = np.zeros(len(ts_lst))
+#    df["pickup_idx"] = df["pickup_datetime"].apply(lambda x: (x - start).days * 24 * 3600 + (x - start).seconds)
+#    df["dropoff_idx"] = df["dropoff_datetime"].apply(lambda x: (x - start).days * 24 * 3600 + (x - start).seconds)
+##    df["ts_lst"] = df.apply(lambda x: , axis = 1)
+#    for i in tqdm(range(df.shape[0])):
+#        s, e = df.iloc[i]["pickup_idx"], df.iloc[i]["dropoff_idx"]
+#        cnt_arr[s:e] += 1
+#    df_ret = pd.DataFrame.from_dict({"ts": ts_lst, "cnt": cnt_arr})
+#    df_ret.to_csv(f"MapExplore/{SCOPE}/num_cars.csv", index=False)
+    fig, ax = plt.subplots()
+    df_ret = pd.read_csv(f"MapExplore/{SCOPE}/num_cars.csv")
+    df_ret["ts"] = pd.to_datetime(df_ret["ts"], format = "%Y-%m-%d %H:%M:%S")
+    ts_lst, cnt_arr = np.array(df_ret["ts"]), np.array(df_ret["cnt"])
+    plt.plot(ts_lst, cnt_arr)
+    plt.xlabel("Timestamp")
+    plt.ylabel("Number of Cars")
+    plt.title(f"Max #Cars: {int(np.max(cnt_arr))}")
+#    plt.gcf().autofmt_xdate()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+#    plt.setp(ax.get_xticklabels(), rotation=30, fontsize=10)
+    plt.savefig(f"MapExplore/{SCOPE}/num_cars.png")
+    plt.clf()
+    plt.close()
+
+#get_tripmiles_daily(df_data)
+#get_numcars(df_data)
+
+visualize_chargers(charger_type = "Level2")
+visualize_chargers(charger_type = "DCFast")
+#get_charger_networks()
 
 """
 ## Visualize the trip demand heatmaps
