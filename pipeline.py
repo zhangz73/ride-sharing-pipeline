@@ -62,16 +62,16 @@ def main(args, json_name = ""):
         report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}")
         report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}")
         report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}")
-#        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
-        value_loss, policy_loss, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
+        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
+        _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
 #        print(f"Value Loss = {value_loss}")
         with open(f"ppo_output_{json_name}.txt", "w") as f:
-            print(f"Policy Loss = {policy_loss}")
+#            print(f"Policy Loss = {policy_loss}")
             print(f"Total Payoff = {float(payoff_lst[-1].data)}")
             #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
             print(payoff_lst)
             
-            f.write(f"Policy Loss = {policy_loss}\n")
+#            f.write(f"Policy Loss = {policy_loss}\n")
             f.write(f"Total Payoff = {float(payoff_lst[-1].data)}\n")
             f.write(f"{payoff_lst}\n")
     #        print(markov_decision_process.describe_state_counts())
@@ -88,7 +88,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "2car_5grid_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "1000car_5region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

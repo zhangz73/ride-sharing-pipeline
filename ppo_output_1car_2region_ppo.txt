@@ -1,39 +1,35 @@
-Policy Loss = -0.4097168445587158
-Total Payoff = 2.5
-tensor([1.0000, 2.0000, 1.5000, 2.5000, 2.5000])
+Total Payoff = 0.4000000059604645
+tensor([0.2000, 0.2000, 0.2000, 0.4000, 0.4000])
 t = 0, car = 0:
-	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0, type general
-	val = 1.0 Trip: origin 0, destination 1, stag_time 0
-	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Trip: origin 0, destination 0, stag_time 0
+	val = 1.0 Trip: origin 1, destination 1, stag_time 0
 
-action = Pickup from 0 to 1
+action = Travel from None to 1
 t = 1, car = 0:
-	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0, type general
-	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 	val = 1.0 Plug: region 0, rate 2
-	val = 1.0 Timestamp: -
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
 
-action = Pickup from 1 to 0
+action = Travel from None to 1
 t = 2, car = 0:
-	val = 1.0 Car: current region 0, destination 0, battery 0, filled 0, type general
-	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 	val = 1.0 Plug: region 0, rate 2
-	val = 2.0 Timestamp: -
+	val = 1.0 Trip: origin 0, destination 0, stag_time 0
+	val = 1.0 Trip: origin 1, destination 1, stag_time 0
 
-action = Charging in region 0 with rate 2
+action = No new actions applied
 t = 3, car = 0:
-	val = 1.0 Car: current region 0, destination 0, battery 2, filled 0, type general
+	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Trip: origin 0, destination 0, stag_time 0
 	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 	val = 1.0 Trip: origin 1, destination 0, stag_time 0
-	val = 1.0 Plug: region 0, rate 2
-	val = 2.0 ChargingLoad: type peak, load 0
-	val = 3.0 Timestamp: -
+	val = 1.0 Trip: origin 1, destination 1, stag_time 0
 
-action = Pickup from 0 to 1
+action = Travel from None to 0
 t = 4, car = 0:
-	val = 1.0 Car: current region 1, destination 1, battery 1, filled 0, type general
+	val = 1.0 Car: time to destination 0, destination 0, battery 0, filled None, type general
 	val = 1.0 Plug: region 0, rate 2
-	val = 2.0 ChargingLoad: type peak, load 0
-	val = 4.0 Timestamp: -
 
-action = Rerouting from 1 to 0
+action = Travel from None to 0
