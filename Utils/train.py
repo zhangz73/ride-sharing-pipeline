@@ -53,7 +53,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -77,8 +77,10 @@ class PPO_Solver(Solver):
         self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
         self.one_plus_eps = torch.tensor(1 + eps).to(device = self.device)
         self.n_cpu = n_cpu
+        self.n_threads = n_threads
         self.lazy_removal = lazy_removal
         self.state_reduction = state_reduction
+        torch.set_num_threads(self.n_threads)
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
