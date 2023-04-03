@@ -1,35 +1,32 @@
-Total Payoff = 0.4000000059604645
-tensor([0.2000, 0.2000, 0.2000, 0.4000, 0.4000])
+Total Payoff = 2.5
+tensor([1.0000, 2.0000, 1.5000, 2.5000, 2.5000])
 t = 0, car = 0:
-	val = 1.0 Trip: origin 0, destination 0, stag_time 0
-	val = 1.0 Trip: origin 1, destination 1, stag_time 0
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Car: time to destination 0, destination 0, battery 2, filled None, type general
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 
 action = Travel from None to 1
 t = 1, car = 0:
-	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
+	val = 1.0 Trip: origin 1, destination 0, stag_time 0
+
+action = Travel from None to 0
+t = 2, car = 0:
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Car: time to destination 0, destination 0, battery 0, filled None, type general
+	val = 1.0 Trip: origin 0, destination 1, stag_time 0
+
+action = Charging in region None with rate 2
+t = 3, car = 0:
+	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Car: time to destination 0, destination 0, battery 2, filled None, type general
 	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 	val = 1.0 Trip: origin 1, destination 0, stag_time 0
 
 action = Travel from None to 1
-t = 2, car = 0:
-	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
-	val = 1.0 Plug: region 0, rate 2
-	val = 1.0 Trip: origin 0, destination 0, stag_time 0
-	val = 1.0 Trip: origin 1, destination 1, stag_time 0
-
-action = No new actions applied
-t = 3, car = 0:
-	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
-	val = 1.0 Plug: region 0, rate 2
-	val = 1.0 Trip: origin 0, destination 0, stag_time 0
-	val = 1.0 Trip: origin 0, destination 1, stag_time 0
-	val = 1.0 Trip: origin 1, destination 0, stag_time 0
-	val = 1.0 Trip: origin 1, destination 1, stag_time 0
-
-action = Travel from None to 0
 t = 4, car = 0:
-	val = 1.0 Car: time to destination 0, destination 0, battery 0, filled None, type general
 	val = 1.0 Plug: region 0, rate 2
+	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 
-action = Travel from None to 0
+action = Charging in region None with rate 2

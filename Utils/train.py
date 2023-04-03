@@ -437,7 +437,7 @@ class PPO_Solver(Solver):
                         action_id = np.argmax(action_id_prob)
                     action = self.all_actions[int(action_id)]
                     if return_action:
-                        action_lst.append((curr_state_counts, action, t, car_idx))
+                        action_lst.append((curr_state_counts_full, action, t, car_idx))
                     curr_payoff = self.markov_decision_process.get_payoff_curr_ts().clone().to(device = self.device)
                     res = self.markov_decision_process.transit_within_timestamp(action, self.state_reduction, available_car_ids[car_idx])
                     next_t = t
