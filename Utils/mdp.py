@@ -321,11 +321,12 @@ class MarkovDecisionProcess:
         self.regions = self.map.get_regions()
         self.max_travel_time = self.map.get_max_travel_time()
         self.num_charging_rates = len(self.charging_rates)
-        self.num_car_states = len(self.regions) * (self.pickup_patience + self.max_travel_time + 1) * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * self.num_charging_rates
+        self.num_car_states = len(self.regions) * (2 * self.pickup_patience + self.max_travel_time + 2) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
         self.num_trip_states = len(self.regions) * len(self.regions) * (self.connection_patience + 1)
         self.num_trip_reduced_states = len(self.regions) * 2 * (self.connection_patience + 1)
         self.num_plug_states = len(self.regions) * self.num_charging_rates
         self.num_total_states = self.num_car_states + self.num_trip_states + self.num_plug_states
+        self.num_car_reduced_states = len(self.regions) * (self.pickup_patience + 1) * self.num_battery_levels * 2 + len(self.regions) * self.num_battery_levels * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
         self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + 3
