@@ -1,3 +1,4 @@
+import sys
 import math
 import copy
 import numpy as np
@@ -80,7 +81,7 @@ class PPO_Solver(Solver):
         self.n_threads = n_threads
         self.lazy_removal = lazy_removal
         self.state_reduction = state_reduction
-        torch.set_num_threads(self.n_threads)
+#        torch.set_num_threads(self.n_threads)
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
