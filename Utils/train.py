@@ -1,10 +1,12 @@
 import sys
+import gc
 import math
 import copy
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import joblib
 from joblib import Parallel, delayed
 import Utils.neural as neural
 
@@ -196,10 +198,12 @@ class PPO_Solver(Solver):
                 value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
                 total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num
 #        total_value_loss /= val_num #self.num_episodes
+        value_dct = None
         return total_value_loss
     
     def get_data_single(self, num_episodes):
         state_action_advantage_lst_episodes = []
+#         f = open("tmp.joblib", "ab")
         for day in tqdm(range(num_episodes)):
             state_action_advantage_lst = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
@@ -217,7 +221,7 @@ class PPO_Solver(Solver):
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
         if return_payoff:
-            _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = 0)
+            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
             payoff_val = float(payoff_lst[-1].data)
             payoff_arr.append(payoff_val)
         for itr in range(self.num_itr):
@@ -227,6 +231,7 @@ class PPO_Solver(Solver):
                     f.write(f"Itr = {itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
+            gc.collect()
             print("\tGathering data...")
             if self.n_cpu == 1:
                 state_action_advantage_lst_episodes = self.get_data_single(self.num_episodes)
@@ -237,13 +242,14 @@ class PPO_Solver(Solver):
                 )(batch_size) for i in range(self.n_cpu))
                 for res in results:
                     state_action_advantage_lst_episodes += res
+                results = None
                 
             ## Update models
             ## Update value models
             print("\tUpdating value models...")
             for _ in tqdm(range(self.value_epoch)):
                 batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
-                self.value_optimizer.zero_grad()
+                self.value_optimizer.zero_grad(set_to_none=True)
 #                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
                 total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
                 total_value_loss.backward()
@@ -263,7 +269,7 @@ class PPO_Solver(Solver):
                         policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
                 batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
                 total_policy_loss = 0
-                self.policy_optimizer.zero_grad()
+                self.policy_optimizer.zero_grad(set_to_none=True)
                 for day in batch_idx:
                     state_num = len(state_action_advantage_lst_episodes[day])
                     for i in range(state_num):
@@ -312,7 +318,7 @@ class PPO_Solver(Solver):
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
             
             if return_payoff:
-                _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = 0)
+                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
                 payoff_val = float(payoff_lst[-1].data)
                 payoff_arr.append(payoff_val)
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
@@ -391,7 +397,7 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, f = None):
         if not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -416,8 +422,9 @@ class PPO_Solver(Solver):
             for car_idx in tqdm(range(num_available_cars), leave = False):
                 ## Perform state transitions
                 curr_state_counts = self.markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
-                curr_state_counts_full = self.markov_decision_process.get_state_counts(state_reduction = False)
-                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full)
+                if return_action:
+                    curr_state_counts_full = self.markov_decision_process.get_state_counts(state_reduction = False)
+                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = None)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:
@@ -433,7 +440,7 @@ class PPO_Solver(Solver):
                         is_feasible = False
                         while not is_feasible:
                             action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
-                            is_feasible = self.action_is_feasible(curr_state_counts, t, int(action_id), car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full)
+                            is_feasible = self.action_is_feasible(curr_state_counts, t, int(action_id), car_id = available_car_ids[car_idx], state_count_check = None)
 #                            if not is_feasible:
 #                                print("here!")
                     else:
@@ -452,6 +459,7 @@ class PPO_Solver(Solver):
                     payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff))
+#                         joblib.dump((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff), f)
                     ## Compute loss
                     if not return_data:
 #                        if car_idx < num_available_cars - 1:
