@@ -21,6 +21,11 @@ def clean_data():
 
 def main(args, json_name = ""):
     ## Setup
+    if "n_threads" in args["solver"]:
+        n_threads = args["solver"]["n_threads"]
+    else:
+        n_threads = 4
+    torch.set_num_threads(n_threads)
     map = setup.Map(**args["map"])
     time_horizon = args["mdp"]["time_horizon"]
     trip_demands = setup.TripDemands(time_horizon = time_horizon, **args["trip_demand"])

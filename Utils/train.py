@@ -80,10 +80,8 @@ class PPO_Solver(Solver):
         self.one_minus_eps = torch.tensor(1 - eps).to(device = self.device)
         self.one_plus_eps = torch.tensor(1 + eps).to(device = self.device)
         self.n_cpu = n_cpu
-        self.n_threads = n_threads
         self.lazy_removal = lazy_removal
         self.state_reduction = state_reduction
-#        torch.set_num_threads(self.n_threads)
         ## Construct models
         self.value_model_factory = neural.ModelFactory(value_model_name, self.value_input_dim, value_hidden_dim_lst, value_activation_lst, self.value_output_dim, value_batch_norm, value_lr, value_decay, value_scheduler_step, value_solver, value_retrain, self.discretized_len, descriptor + "_value", dir, device)
         self.policy_model_factory = neural.ModelFactory(policy_model_name, self.policy_input_dim, policy_hidden_dim_lst, policy_activation_lst, self.policy_output_dim, policy_batch_norm, policy_lr, policy_decay, policy_scheduler_step, policy_solver, policy_retrain, self.discretized_len, descriptor + "_policy", dir, device, prob = True)
@@ -201,13 +199,16 @@ class PPO_Solver(Solver):
         value_dct = None
         return total_value_loss
     
-    def get_data_single(self, num_episodes):
+    def get_data_single(self, num_episodes, worker_num = 0):
         state_action_advantage_lst_episodes = []
-#         f = open("tmp.joblib", "ab")
+        f = open(f"tmp_{worker_num}.joblib", "wb")
         for day in tqdm(range(num_episodes)):
             state_action_advantage_lst = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
-        return state_action_advantage_lst_episodes
+#        print(f"Worker {worker_num} dumping data...")
+        joblib.dump(state_action_advantage_lst_episodes, f)
+#        print(f"Worker {worker_num} finished!")
+#        return state_action_advantage_lst_episodes
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt"):
         value_loss_arr = []
@@ -231,18 +232,22 @@ class PPO_Solver(Solver):
                     f.write(f"Itr = {itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
-            gc.collect()
             print("\tGathering data...")
             if self.n_cpu == 1:
                 state_action_advantage_lst_episodes = self.get_data_single(self.num_episodes)
             else:
                 batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
-                results = Parallel(n_jobs = self.n_cpu)(delayed(
+                Parallel(n_jobs = self.n_cpu)(delayed(
                     self.get_data_single
-                )(batch_size) for i in range(self.n_cpu))
-                for res in results:
+                )(batch_size, i) for i in range(self.n_cpu))
+                print("Gathering results...")
+                for i in tqdm(range(self.n_cpu)):
+#                    print(f"Loading worker {i}'s data")
+                    res = joblib.load(f"tmp_{i}.joblib")
                     state_action_advantage_lst_episodes += res
-                results = None
+#                for res in results:
+#                    state_action_advantage_lst_episodes += res
+#                results = None
                 
             ## Update models
             ## Update value models
@@ -397,7 +402,7 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, f = None):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False):
         if not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -459,7 +464,6 @@ class PPO_Solver(Solver):
                     payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff))
-#                         joblib.dump((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff), f)
                     ## Compute loss
                     if not return_data:
 #                        if car_idx < num_available_cars - 1:
