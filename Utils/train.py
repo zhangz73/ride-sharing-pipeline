@@ -201,14 +201,10 @@ class PPO_Solver(Solver):
     
     def get_data_single(self, num_episodes, worker_num = 0):
         state_action_advantage_lst_episodes = []
-        f = open(f"tmp_{worker_num}.joblib", "wb")
         for day in tqdm(range(num_episodes)):
             state_action_advantage_lst = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
-#        print(f"Worker {worker_num} dumping data...")
-        joblib.dump(state_action_advantage_lst_episodes, f)
-#        print(f"Worker {worker_num} finished!")
-#        return state_action_advantage_lst_episodes
+        return state_action_advantage_lst_episodes
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt"):
         value_loss_arr = []
@@ -237,17 +233,13 @@ class PPO_Solver(Solver):
                 state_action_advantage_lst_episodes = self.get_data_single(self.num_episodes)
             else:
                 batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
-                Parallel(n_jobs = self.n_cpu)(delayed(
+                results = Parallel(n_jobs = self.n_cpu)(delayed(
                     self.get_data_single
                 )(batch_size, i) for i in range(self.n_cpu))
                 print("Gathering results...")
-                for i in tqdm(range(self.n_cpu)):
-#                    print(f"Loading worker {i}'s data")
-                    res = joblib.load(f"tmp_{i}.joblib")
+                for res in results:
                     state_action_advantage_lst_episodes += res
-#                for res in results:
-#                    state_action_advantage_lst_episodes += res
-#                results = None
+                results = None
                 
             ## Update models
             ## Update value models

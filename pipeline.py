@@ -93,7 +93,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "1000car_5region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "500car_5region_nyc_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
