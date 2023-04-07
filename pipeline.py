@@ -74,7 +74,7 @@ def main(args, json_name = ""):
 #            print(f"Policy Loss = {policy_loss}")
             print(f"Total Payoff = {float(payoff_lst[-1].data)}")
             #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-            print(payoff_lst)
+#            print(payoff_lst)
             
 #            f.write(f"Policy Loss = {policy_loss}\n")
             f.write(f"Total Payoff = {float(payoff_lst[-1].data)}\n")

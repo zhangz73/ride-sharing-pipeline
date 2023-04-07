@@ -32,33 +32,57 @@ if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [132, 230, 79, 238]
 else:
     LOCATIONS_ID_OF_INTEREST = [138, 132, 161, 230, 158, 249, 114, 79, 148, 238, 141, 263]
+LOCATION_MAP = {}
+for i in range(len(LOCATIONS_ID_OF_INTEREST)):
+    LOCATIONS_ID = LOCATIONS_ID_OF_INTEREST[i]
+    LOCATION_MAP[LOCATIONS_ID] = i
+SCENARIO_NAME = "500car4region_nyc"
 
 ## Time of interest
 TIME_RANGE = (8, 20)
 TIME_FREQ = 5 # E.g. 5 minutes per decision epoch
+PACK_SIZE = 40
+MAX_MILES = 149
+TOTAL_CARS_ORIG = 5000
+TOTAL_CARS_NEW = 500
+CHARGING_RATE = 0.128#[0.128, 0.833]
+NUM_BATTERY_LEVELS = 264
+NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
+CHARGING_RATE_DIS = 1#[1, 5]
 
 ## Compute time horizon
 TIME_HORIZON = (TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ
+NUM_TS_PER_HOUR = 60 // TIME_FREQ
 
 ## Load data from files
 df_data = pd.read_parquet("Data/MapData/fhvhv_tripdata_2022-07.parquet")
-df_data = df_data[df_data["hvfhs_license_num"].isin(dct_key[SCOPE])]
+
 df_data["trip_time"] = (df_data["dropoff_datetime"] - df_data["pickup_datetime"]).apply(lambda x: x.days / 24 / 60 + x.seconds / 60)
 df_data["hour"] = df_data["request_datetime"].apply(lambda x: x.hour)
 df_data["date"] = df_data["request_datetime"].apply(lambda x: f"{x.year}-{x.month}-{x.day}")
 df_data["day_of_week"] = df_data["request_datetime"].apply(lambda x: x.weekday())
 df_data["holiday"] = df_data["request_datetime"].apply(lambda x: 1 if x.day == 4 else 0)
+
+## Filter data of interest
+df_data = df_data[(df_data["PULocationID"].isin(LOCATIONS_ID_OF_INTEREST)) & (df_data["DOLocationID"].isin(LOCATIONS_ID_OF_INTEREST))]
+df_data = df_data[(df_data["hour"] >= TIME_RANGE[0]) & (df_data["hour"] < TIME_RANGE[1])]
+df_data = df_data[df_data["day_of_week"].isin([0, 1, 2, 3])]
+df_data = df_data[df_data["holiday"] == 0]
+df_data = df_data[df_data["hvfhs_license_num"].isin(dct_key[SCOPE])]
+
 ## Remove erroneous data
 ### Remove entries where driver arrives before the request (1.1% records)
 df_data = df_data[df_data["on_scene_datetime"] >= df_data["request_datetime"]]
 ### Remove entries where trip distance is ridiculously long (0.01% records)
 df_data = df_data[df_data["trip_miles"] <= 100]
-PACK_SIZE = 40
-MAX_MILES = 149
 
-## Filter data of interest
-df_data = df_data[(df_data["PULocationID"].isin(LOCATIONS_ID_OF_INTEREST)) & (df_data["DOLocationID"].isin(LOCATIONS_ID_OF_INTEREST))]
-df_data = df_data[(df_data["hour"] >= TIME_RANGE[0]) & (df_data["hour"] <= TIME_RANGE[1])]
+## Define columns of interests
+df_data["Count"] = 1
+df_data["Payoff"] = df_data["base_passenger_fare"]
+df_data["TripTime"] = df_data["trip_time"]
+df_data["Distance"] = df_data["trip_miles"]
+df_data["Origin"] = df_data["PULocationID"].apply(lambda x: LOCATION_MAP[x])
+df_data["Destination"] = df_data["DOLocationID"].apply(lambda x: LOCATION_MAP[x])
 
 def get_travel_time(weekdays = [0, 1, 2, 3], remove_holiday = True):
     travel_time = df_data[df_data["day_of_week"].isin(weekdays)]
@@ -82,10 +106,104 @@ def get_battery_consumption_rate():
     avg_kwh_per_min = avg_miles_per_min / MAX_MILES * PACK_SIZE
     return avg_kwh_per_min
 
+def get_attr(attr_name, agg_by_day = False, scale_down_by_car = False):
+    df = df_data.copy()
+    if agg_by_day:
+        df = df[["Origin", "Destination", "hour", "date", attr_name]].groupby(["Origin", "Destination", "hour", "date"]).sum().reset_index()
+    df = df[["Origin", "Destination", "hour", attr_name]].groupby(["Origin", "Destination", "hour"]).mean().reset_index()
+    if scale_down_by_car:
+        df[attr_name] = df[attr_name] / TOTAL_CARS_ORIG * TOTAL_CARS_NEW
+    df[attr_name] = df[attr_name] / 60 * TIME_FREQ
+    df_ret = None
+    for ts in range(NUM_TS_PER_HOUR):
+        df_curr = df.copy()
+        df_curr["T"] = df["hour"].apply(lambda x: (x - TIME_RANGE[0]) * NUM_TS_PER_HOUR + ts)
+        if df_ret is None:
+            df_ret = df_curr
+        else:
+            df_ret = pd.concat([df_ret, df_curr], axis = 0)
+#    df = df.loc[df.index.repeat(NUM_TS_PER_HOUR)].reset_index()
+#    df = df.sort_values("hour", ascending = True)
+#    df["T"] = np.arange(TIME_HORIZON)
+    df_ret = df_ret[["T", "Origin", "Destination", attr_name]].sort_values("T")
+    return df_ret
+
+def get_charging_cost(cost_rate_per_min_lst):
+    cost_rate_lst = []
+    T_lst = []
+    region_lst = []
+    for cost_rate_per_min in cost_rate_per_min_lst:
+        cost_rate, tup = cost_rate_per_min
+        lo, hi = tup
+        for region in range(len(LOCATIONS_ID_OF_INTEREST)):
+            cost_rate_lst += [cost_rate * TIME_FREQ * CHARGING_RATE] * (hi - lo)
+            T_lst += list(range(lo, hi))
+            region_lst += [region for _ in range(hi - lo)]
+    dct = {"T": T_lst, "Payoff": cost_rate_lst, "Region": region_lst}
+    df = pd.DataFrame.from_dict(dct)
+    df["Rate"] = CHARGING_RATE_DIS
+    df = df.sort_values("T")
+    return df
+
+def get_region_battery_car_df():
+    car_num_per_region = TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST)
+    region_lst = []
+    battery_lst = []
+    num_lst = []
+    for region in range(len(LOCATIONS_ID_OF_INTEREST)):
+        region_lst.append(region)
+        battery_lst.append(NUM_BATTERY_LEVELS // 2)
+        num_lst.append(car_num_per_region)
+    dct = {"region": region_lst, "battery": battery_lst, "num": num_lst}
+    return pd.DataFrame.from_dict(dct)
+
+def get_region_rate_plug_df():
+    plug_num_per_region = NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)
+    region_lst = []
+    rate_lst = []
+    num_lst = []
+    for region in range(len(LOCATIONS_ID_OF_INTEREST)):
+        region_lst.append(region)
+        rate_lst.append(CHARGING_RATE_DIS)
+        num_lst.append(plug_num_per_region)
+    dct = {"region": region_lst, "rate": rate_lst, "num": num_lst}
+    return pd.DataFrame.from_dict(dct)
+
 #avg_kwh_per_min = get_battery_consumption_rate()
 #print(avg_kwh_per_min)
 
-travel_time = get_travel_time()
-arrival_rate = get_arrival_rate()
-print(travel_time)
-print(arrival_rate)
+#travel_time = get_travel_time()
+#arrival_rate = get_arrival_rate()
+#print(travel_time)
+#print(arrival_rate)
+
+## Create trip_demand_df
+trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False)
+print(trip_demand_df)
+
+## Create payoff_df
+payoff_df = get_attr("Payoff", agg_by_day = False, scale_down_by_car = False)
+payoff_df["Type"] = "Travel"
+payoff_df["Pickup"] = 1
+payoff_df["Region"] = None
+payoff_df["Rate"] = None
+charging_df = get_charging_cost([(0.19297, (0, 12)), (0.16631, (12, 72)), (0.38498, (72, 144))])
+charging_df["Type"] = "Charge"
+charging_df["Pickup"] = None
+charging_df["Origin"] = None
+charging_df["Destination"] = None
+payoff_df = pd.concat([payoff_df, charging_df], axis = 0, ignore_index = True)
+
+## Create map df
+trip_time_df = get_attr("TripTime", agg_by_day = False, scale_down_by_car = False)
+distance_df = get_attr("Distance", agg_by_day = False, scale_down_by_car = False)
+map_df = trip_time_df.merge(distance_df, on = ["T", "Origin", "Destination"])
+region_battery_car_df = get_region_battery_car_df()
+region_rate_plug_df = get_region_rate_plug_df()
+
+## Write to files
+region_battery_car_df.to_csv(f"Data/RegionBatteryCar/region_battery_car_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
+region_rate_plug_df.to_csv(f"Data/RegionRatePlug/region_rate_plug_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
+trip_demand_df.to_csv(f"Data/TripDemand/trip_demand_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
+payoff_df.to_csv(f"Data/Payoff/payoff_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
+map_df.to_csv(f"Data/Map/map_{SCENARIO_NAME}.tsv", index = False, sep = "\t")

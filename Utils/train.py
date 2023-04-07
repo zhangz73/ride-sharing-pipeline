@@ -66,6 +66,7 @@ class PPO_Solver(Solver):
         self.discretized_len = self.time_horizon
         self.num_itr = num_itr
         self.num_episodes = num_episodes
+        self.num_cars = self.markov_decision_process.num_cars
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.policy_epoch = policy_epoch
@@ -165,7 +166,7 @@ class PPO_Solver(Solver):
                 curr_state_counts, action_id, _, t, curr_payoff, _ = tup
                 payoff = final_payoff - curr_payoff
                 value_model_output = self.value_model((t, curr_state_counts))
-                total_value_loss += (value_model_output - payoff) ** 2
+                total_value_loss += (value_model_output - payoff) ** 2 / self.num_cars / self.time_horizon
                 val_num += 1
         total_value_loss /= val_num #self.num_episodes
         return total_value_loss
@@ -194,17 +195,19 @@ class PPO_Solver(Solver):
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
                 value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
-                total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num
+                total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num / self.num_cars / self.time_horizon
 #        total_value_loss /= val_num #self.num_episodes
         value_dct = None
         return total_value_loss
     
     def get_data_single(self, num_episodes, worker_num = 0):
         state_action_advantage_lst_episodes = []
+        total_payoff = 0
         for day in tqdm(range(num_episodes)):
-            state_action_advantage_lst = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
+            state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
-        return state_action_advantage_lst_episodes
+            total_payoff += payoff_val
+        return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt"):
         value_loss_arr = []
@@ -217,12 +220,12 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-        if return_payoff:
-            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-            payoff_val = float(payoff_lst[-1].data)
-            payoff_arr.append(payoff_val)
-        for itr in range(self.num_itr):
-            print(f"Iteration #{itr}:")
+#        if return_payoff:
+#            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+#            payoff_val = float(payoff_lst[-1].data)
+#            payoff_arr.append(payoff_val)
+        for itr in range(self.num_itr + 1):
+            print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
                 with open(debug_dir, "a") as f:
                     f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
@@ -230,16 +233,24 @@ class PPO_Solver(Solver):
             state_action_advantage_lst_episodes = []
             print("\tGathering data...")
             if self.n_cpu == 1:
-                state_action_advantage_lst_episodes = self.get_data_single(self.num_episodes)
+                state_action_advantage_lst_episodes, tup = self.get_data_single(self.num_episodes)
+                payoff_val = float(tup[1] / tup[0])
             else:
                 batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
                 results = Parallel(n_jobs = self.n_cpu)(delayed(
                     self.get_data_single
-                )(batch_size, i) for i in range(self.n_cpu))
+                )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i) for i in range(self.n_cpu))
                 print("Gathering results...")
+                payoff_val = 0
                 for res in results:
-                    state_action_advantage_lst_episodes += res
+                    state_action_advantage_lst_episodes += res[0]
+                    tup = res[1]
+                    payoff_val += tup[1]
+                payoff_val /= self.num_episodes
                 results = None
+            payoff_arr.append(payoff_val)
+            if itr == self.num_itr:
+                break
                 
             ## Update models
             ## Update value models
@@ -314,10 +325,10 @@ class PPO_Solver(Solver):
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
             
-            if return_payoff:
-                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-                payoff_val = float(payoff_lst[-1].data)
-                payoff_arr.append(payoff_val)
+#            if return_payoff:
+#                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+#                payoff_val = float(payoff_lst[-1].data)
+#                payoff_arr.append(payoff_val)
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
         self.benchmark_value_model = copy.deepcopy(self.value_model)
         # Save final model
@@ -495,10 +506,11 @@ class PPO_Solver(Solver):
 #            model_value_lst = torch.tensor(model_value_lst)
 #            value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
         if return_data:
-            return state_action_advantage_lst
-        print("total cars", total_cars)
-        print("total trips", total_trips)
-        print("payoff", float(payoff_lst[-1].data))
+            final_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
+            return state_action_advantage_lst, final_payoff
+#        print("total cars", total_cars)
+#        print("total trips", total_trips)
+#        print("payoff", float(payoff_lst[-1].data))
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
         return None, None, payoff_lst, action_lst
 

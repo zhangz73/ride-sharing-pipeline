@@ -316,8 +316,6 @@ class MarkovDecisionProcess:
         self.region_battery_car_fname = region_battery_car_fname
         self.region_rate_plug_fname = region_rate_plug_fname
         self.normalize_by_tripnums = normalize_by_tripnums
-        if max_tracked_eta is None:
-            max_tracked_eta = self.pickup_patience
         self.max_tracked_eta = max_tracked_eta
         if battery_cutoff is None:
             battery_cutoff = list(range(1, self.num_battery_levels))
@@ -329,6 +327,8 @@ class MarkovDecisionProcess:
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         self.max_travel_time = self.map.get_max_travel_time()
+        if max_tracked_eta is None:
+            self.max_tracked_eta = self.pickup_patience + self.max_travel_time #self.pickup_patience
         self.num_charging_rates = len(self.charging_rates)
         self.num_car_states = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
         self.num_car_states_train = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
@@ -337,7 +337,7 @@ class MarkovDecisionProcess:
         self.num_plug_states = len(self.regions) * self.num_charging_rates
         self.num_total_states = self.num_car_states + self.num_trip_states + self.num_plug_states
         self.num_total_states_train = self.num_car_states_train + self.num_trip_states + self.num_plug_states
-        self.num_car_reduced_states = len(self.regions) * (self.pickup_patience + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
+        self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
         self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + 3
@@ -380,6 +380,7 @@ class MarkovDecisionProcess:
         ## Variables keeping track of available car types
         self.available_car_types, self.state_is_available_car = self.get_all_available_car_types()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
+        self.num_cars = len(self.get_all_available_existing_car_ids())
         ## Map state transitions in a specific format so that it can be vectorized
         self.transit_across_timestamp_prepare()
     
