@@ -1,32 +1,30 @@
 {
     "map": {
-        "data_dir": "Map/map_1000car5region.tsv"
+        "data_dir": "Map/map_100car3region.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_1000car5region.tsv",
+        "parameter_fname": "TripDemand/trip_demand_100car3region.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_1000car5region.tsv"
+        "reward_fname": "Payoff/payoff_100car3region.tsv"
     },
     "mdp": {
-        "time_horizon": 240,
+        "time_horizon": 10,
         "connection_patience": 0,
-        "pickup_patience": 5,
-        "num_battery_levels": 139,
+        "pickup_patience": 2,
+        "num_battery_levels": 1,
         "battery_jump": 0.3,
         "charging_rates": [
             2
         ],
         "battery_offset": 0,
-        "battery_per_step": 1,
-        "normalize_by_tripnums": false,
-        "max_tracked_eta": 5,
-        "battery_cutoff": [45, 90],
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1000car5region.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1000car5region.tsv"
+        "battery_per_step": 0,
+        "normalize_by_tripnums": true,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_100car3region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_100car3region.tsv"
     },
     "solver": {
         "type": "ppo"
@@ -37,7 +35,7 @@
         "value_activation_lst": ["relu", "relu", "relu"],
         "value_batch_norm": false,
         "value_lr": 1e-3,
-        "value_epoch": 10,
+        "value_epoch": 20,
         "value_batch": 100,
         "value_decay": 0.1,
         "value_scheduler_step": 1000,
@@ -57,7 +55,7 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 10,
-        "num_episodes": 100,
+        "num_episodes": 200,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,

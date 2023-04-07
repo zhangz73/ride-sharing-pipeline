@@ -69,8 +69,8 @@ class PPO_Solver(Solver):
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.policy_epoch = policy_epoch
-        self.value_batch = value_batch
-        self.policy_batch = policy_batch
+        self.value_batch = min(value_batch, num_episodes)
+        self.policy_batch = min(policy_batch, num_episodes)
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.policy_syncing_freq = policy_syncing_freq
@@ -225,7 +225,7 @@ class PPO_Solver(Solver):
             print(f"Iteration #{itr}:")
             if debug:
                 with open(debug_dir, "a") as f:
-                    f.write(f"Itr = {itr}:\n")
+                    f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
             print("\tGathering data...")
@@ -407,11 +407,14 @@ class PPO_Solver(Solver):
         action_lst = []
         policy_loss = 0
         state_action_advantage_lst = []
+        total_cars = 0
+        total_trips = 0
         for t in tqdm(range(self.time_horizon), leave = False):
             ## Add up ||v_model - v_hat||^2
             ## Add up ratio * advantage
             available_car_ids = self.markov_decision_process.get_available_car_ids(self.state_reduction)
             num_available_cars = len(available_car_ids)
+            total_cars += num_available_cars
 #            if not train:
 #                print("t = ", t)
 #                print(self.markov_decision_process.describe_state_counts())
@@ -443,6 +446,8 @@ class PPO_Solver(Solver):
                     else:
                         action_id = np.argmax(action_id_prob)
                     action = self.all_actions[int(action_id)]
+                    if action.get_type() in ["pickup", "rerouting"]:
+                        total_trips += 1
                     if return_action:
                         action_lst.append((curr_state_counts_full, action, t, car_idx))
                     curr_payoff = self.markov_decision_process.get_payoff_curr_ts().clone().to(device = self.device)
@@ -468,9 +473,12 @@ class PPO_Solver(Solver):
 #                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
 #                        policy_loss += loss_curr[0]
 #                        ## Compute values
-                        curr_payoff = float(self.markov_decision_process.get_payoff_curr_ts())
+                        curr_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
 #                        curr_value = self.value_model((t, curr))
                         payoff_lst.append(curr_payoff)
+#                        if t == 0:
+#                            if action.get_type() in ["pickup", "rerouting"]:
+#                                print(action.get_origin(), action.get_dest(), curr_payoff)
 #                        model_value_lst.append(curr_value)
             if not transit_applied:
                 self.markov_decision_process.transit_across_timestamp()
@@ -488,6 +496,9 @@ class PPO_Solver(Solver):
 #            value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
         if return_data:
             return state_action_advantage_lst
+        print("total cars", total_cars)
+        print("total trips", total_trips)
+        print("payoff", float(payoff_lst[-1].data))
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
         return None, None, payoff_lst, action_lst
 

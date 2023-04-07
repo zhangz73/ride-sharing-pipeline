@@ -1,0 +1,21 @@
+------------ Debugging output for day 0 ------------
+Itr = 0:
+	Final Value Loss = 16890.001953125
+Itr = 1:
+	Final Value Loss = 15349.916015625
+Itr = 2:
+	Final Value Loss = 11991.0439453125
+Itr = 3:
+	Final Value Loss = 5755.060546875
+Itr = 4:
+	Final Value Loss = 1043.423095703125
+Itr = 5:
+	Final Value Loss = 682.7593994140625
+Itr = 6:
+	Final Value Loss = 295.1707763671875
+Itr = 7:
+	Final Value Loss = 178.41708374023438
+Itr = 8:
+	Final Value Loss = 131.5611114501953
+Itr = 9:
+	Final Value Loss = 127.87939453125

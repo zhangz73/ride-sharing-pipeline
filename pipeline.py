@@ -82,9 +82,9 @@ def main(args, json_name = ""):
     #        print(markov_decision_process.describe_state_counts())
             for tup in action_lst:
                 curr_state_counts, action, t, car_idx = tup
-                print(f"t = {t}, car = {car_idx}:")
-                print(markov_decision_process.describe_state_counts(curr_state_counts))
-                print(f"action = {action.describe()}")
+#                print(f"t = {t}, car = {car_idx}:")
+#                print(markov_decision_process.describe_state_counts(curr_state_counts))
+#                print(f"action = {action.describe()}")
                 
                 f.write(f"t = {t}, car = {car_idx}:\n")
                 f.write(f"{markov_decision_process.describe_state_counts(curr_state_counts)}\n")
@@ -93,7 +93,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "500car_5region_nyc_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "100car_3region_ppo" #"500car_5region_nyc_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
