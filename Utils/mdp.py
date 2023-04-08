@@ -353,9 +353,14 @@ class MarkovDecisionProcess:
         self.car_train_state_counts = torch.zeros(self.num_car_states_train)
         self.local_order_map = {}
         self.full_car_state_range = None
+        self.general_car_id_region_eta_map = {}
         ## Variables keeping track of current timestamp
         self.curr_ts = 0
         self.reset_timestamp()
+        ## Compute the car with max battery level in the system
+        self.max_battery_per_region = {}
+        for region in self.regions:
+            self.max_battery_per_region[region] = 0
         ## Populate state variables
         self.define_all_states()
         self.define_all_reduced_states()
@@ -377,6 +382,7 @@ class MarkovDecisionProcess:
         ## Store a copy of initial states for resetting
         self.state_counts_init = self.state_counts.clone()
         self.reduced_state_counts_init = self.reduced_state_counts.clone()
+        self.max_battery_per_region_init = self.max_battery_per_region.copy()
         ## Variables keeping track of available car types
         self.available_car_types, self.state_is_available_car = self.get_all_available_car_types()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
@@ -405,6 +411,7 @@ class MarkovDecisionProcess:
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
         self.payoff_curr_ts = torch.tensor(0.)
+        self.max_battery_per_region = self.max_battery_per_region_init.copy()
     
     ## Set the states and payoff_schedule_dct according to the given ones
     ## Only useful for checking action feasibilities
@@ -579,8 +586,9 @@ class MarkovDecisionProcess:
         ## Define car states -- General type
         self.state_to_id["car"] = {}
         for dest in self.regions:
-            for battery in range(self.num_battery_levels):
-                for eta in range(self.pickup_patience + self.max_travel_time + 1):
+            for eta in range(self.pickup_patience + self.max_travel_time + 1):
+                self.general_car_id_region_eta_map[(dest, eta)] = curr_id
+                for battery in range(self.num_battery_levels):
                     car = Car(curr_id, dest, None, battery, None, type = "general", time_to_dest = eta)
                     self.state_to_id["car"][("general", dest, eta, battery)] = curr_id
                     self.state_dict[curr_id] = car
@@ -608,6 +616,7 @@ class MarkovDecisionProcess:
             for battery in range(self.num_battery_levels):
                 if (region, battery) in self.region_battery_car_num:
                     cnt = self.region_battery_car_num[(region, battery)]
+                    self.max_battery_per_region[region] = max(self.max_battery_per_region[region], battery)
                 else:
                     cnt = 0
                 id = self.state_to_id["car"][("general", region, 0, battery)]
@@ -895,13 +904,20 @@ class MarkovDecisionProcess:
             ## Find the closest car then with the largest battery
             trip_distance = self.map.distance(origin, dest)
             for eta in range(self.pickup_patience + 1):
-                for battery in range(self.num_battery_levels - 1, self.battery_per_step * trip_distance - 1, -1):
-                    if car_ret is None:
-                        target_car_state = ("general", origin, eta, battery)
-                        target_car_id = self.state_to_id["car"][target_car_state]
-                        if self.state_counts[target_car_id] > 0:
-                            car_ret = target_car_id
-                            break
+                start = self.general_car_id_region_eta_map[(origin, eta)]
+                end = start + self.num_battery_levels
+                relev_state_counts_reverse = self.state_counts[(start + self.battery_per_step * trip_distance):end].flip(dims = (0,))
+                idx_reverse = torch.argmax((relev_state_counts_reverse > 0) + 0)
+                idx = int(len(relev_state_counts_reverse) - idx_reverse + start)
+                if self.state_counts[idx] > 0:
+                    car_ret = idx
+#                for battery in range(self.num_battery_levels - 1, self.battery_per_step * trip_distance - 1, -1):
+#                    if car_ret is None:
+#                        target_car_state = ("general", origin, eta, battery)
+#                        target_car_id = self.state_to_id["car"][target_car_state]
+#                        if self.state_counts[target_car_id] > 0:
+#                            car_ret = target_car_id
+#                            break
                 if car_ret is not None:
                     break
         elif type == "nothing":
@@ -913,13 +929,19 @@ class MarkovDecisionProcess:
         else:
             ## Car already at origin
             ## Find the car with lowest battery
-            for battery in range(self.num_battery_levels):
-                if car_ret is None:
-                    target_car_state = ("general", origin, 0, battery)
-                    target_car_id = self.state_to_id["car"][target_car_state]
-                    if self.state_counts[target_car_id] > 0:
-                        car_ret = target_car_id
-                        break
+            start = self.general_car_id_region_eta_map[(origin, 0)]
+            end = start + self.num_battery_levels
+            relev_state_counts = self.state_counts[start:end]
+            idx = int(torch.argmax((relev_state_counts > 0) + 0) + start)
+            if self.state_counts[idx] > 0:
+                car_ret = idx
+#            for battery in range(self.num_battery_levels):
+#                if car_ret is None:
+#                    target_car_state = ("general", origin, 0, battery)
+#                    target_car_id = self.state_to_id["car"][target_car_state]
+#                    if self.state_counts[target_car_id] > 0:
+#                        car_ret = target_car_id
+#                        break
         return car_ret
         
     ## Vectorize it!!!
@@ -1125,11 +1147,14 @@ class MarkovDecisionProcess:
             plug_id = self.state_to_id["plug"][(region, rate)]
             if self.state_counts[plug_id] == 0:
                 return False
-            for battery in range(self.num_battery_levels):
-                target_car_state = ("general", region, 0, battery)
-                target_car_id = self.state_to_id["car"][target_car_state]
-                if self.state_counts[target_car_id] > 0:
-                    return True
+            start = self.general_car_id_region_eta_map[(region, 0)]
+            end = start + self.num_battery_levels
+            return torch.sum(self.state_counts[start:end]) > 0
+#            for battery in range(self.num_battery_levels):
+#                target_car_state = ("general", region, 0, battery)
+#                target_car_id = self.state_to_id["car"][target_car_state]
+#                if self.state_counts[target_car_id] > 0:
+#                    return True
         else:
             ## At least 1 car within eta of pickup patience
             ## The car has battery level larger than trip distance
@@ -1137,11 +1162,15 @@ class MarkovDecisionProcess:
             trip_distance = self.map.distance(origin, dest)
             min_battery_needed = self.battery_per_step * trip_distance
             for eta in range(self.pickup_patience + 1):
-                for battery in range(min_battery_needed, self.num_battery_levels):
-                    target_car_state = ("general", origin, eta, battery)
-                    target_car_id = self.state_to_id["car"][target_car_state]
-                    if self.state_counts[target_car_id] > 0:
-                        return True
+                start = self.general_car_id_region_eta_map[(origin, eta)]
+                end = start + self.num_battery_levels
+                if torch.sum(self.state_counts[(start + min_battery_needed):end]) > 0:
+                    return True
+#                for battery in range(min_battery_needed, self.num_battery_levels):
+#                    target_car_state = ("general", origin, eta, battery)
+#                    target_car_id = self.state_to_id["car"][target_car_state]
+#                    if self.state_counts[target_car_id] > 0:
+#                        return True
         return False
     
     def state_counts_to_potential_feasible_actions(self, reduced, state_counts = None):

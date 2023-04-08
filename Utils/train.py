@@ -220,10 +220,10 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-        if return_payoff:
-            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-            payoff_val = float(payoff_lst[-1].data)
-            payoff_arr.append(payoff_val)
+#        if return_payoff:
+#            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+#            payoff_val = float(payoff_lst[-1].data)
+#            payoff_arr.append(payoff_val)
         for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
@@ -248,7 +248,7 @@ class PPO_Solver(Solver):
                     payoff_val += tup[1]
                 payoff_val /= self.num_episodes
                 results = None
-#            payoff_arr.append(payoff_val)
+            payoff_arr.append(payoff_val)
             if itr == self.num_itr:
                 break
                 
@@ -325,17 +325,17 @@ class PPO_Solver(Solver):
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
             
-            if return_payoff:
-                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-                payoff_val = float(payoff_lst[-1].data)
-                payoff_arr.append(payoff_val)
+#            if return_payoff:
+#                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+#                payoff_val = float(payoff_lst[-1].data)
+#                payoff_arr.append(payoff_val)
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
         self.benchmark_value_model = copy.deepcopy(self.value_model)
-        # Save final model
-#         self.value_model_factory.update_model(self.value_model, update_ts = False)
-#         self.policy_model_factory.update_model(self.benchmark_policy_model, update_ts = False)
-#         self.value_model_factory.save_to_file(include_ts = True)
-#         self.policy_model_factory.save_to_file(include_ts = True)
+        ## Save final model
+        self.value_model_factory.update_model(self.value_model, update_ts = False)
+        self.policy_model_factory.update_model(self.benchmark_policy_model, update_ts = False)
+        self.value_model_factory.save_to_file(include_ts = True)
+        self.policy_model_factory.save_to_file(include_ts = True)
         return value_loss_arr, policy_loss_arr, payoff_arr
 
     def policy_describe(self, action_id_prob):

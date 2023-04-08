@@ -1,0 +1,21 @@
+------------ Debugging output for day 0 ------------
+Itr = 1/10:
+	Final Value Loss = 0.09007000923156738
+Itr = 2/10:
+	Final Value Loss = 0.08612973988056183
+Itr = 3/10:
+	Final Value Loss = 0.04988569766283035
+Itr = 4/10:
+	Final Value Loss = 0.005600768607109785
+Itr = 5/10:
+	Final Value Loss = 0.009612943977117538
+Itr = 6/10:
+	Final Value Loss = 0.004248881712555885
+Itr = 7/10:
+	Final Value Loss = 0.004038718994706869
+Itr = 8/10:
+	Final Value Loss = 0.00403441209346056
+Itr = 9/10:
+	Final Value Loss = 0.00030142985633574426
+Itr = 10/10:
+	Final Value Loss = 0.0002958647673949599

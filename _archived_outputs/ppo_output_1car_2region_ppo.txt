@@ -29,4 +29,4 @@ t = 4, car = 0:
 	val = 1.0 Plug: region 0, rate 2
 	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 
-action = Travel from 1 to 0
+action = No new actions applied

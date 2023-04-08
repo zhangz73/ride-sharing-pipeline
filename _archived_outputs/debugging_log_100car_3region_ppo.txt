@@ -1,0 +1,11 @@
+------------ Debugging output for day 0 ------------
+Itr = 1/5:
+	Final Value Loss = 0.6922726035118103
+Itr = 2/5:
+	Final Value Loss = 0.13116994500160217
+Itr = 3/5:
+	Final Value Loss = 0.1273082196712494
+Itr = 4/5:
+	Final Value Loss = 0.08924363553524017
+Itr = 5/5:
+	Final Value Loss = 0.10982391238212585
