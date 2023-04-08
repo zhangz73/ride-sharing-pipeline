@@ -1,15 +1,15 @@
 {
     "map": {
-        "data_dir": "Map/map_300car4region_nyc.tsv"
+        "data_dir": "Map/map_200car4region_nyc.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_300car4region_nyc.tsv",
+        "parameter_fname": "TripDemand/trip_demand_200car4region_nyc.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_300car4region_nyc.tsv"
+        "reward_fname": "Payoff/payoff_200car4region_nyc.tsv"
     },
     "mdp": {
         "time_horizon": 144,
@@ -23,8 +23,8 @@
         "battery_offset": 0,
         "battery_per_step": 2,
         "normalize_by_tripnums": true,
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_300car4region_nyc.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_300car4region_nyc.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_200car4region_nyc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_200car4region_nyc.tsv"
     },
     "solver": {
         "type": "ppo"
@@ -62,7 +62,7 @@
         "policy_syncing_freq": 1,
         "n_cpu": 1,
         "lazy_removal": true,
-        "state_reduction": true
+        "state_reduction": false
     },
     "metric": ["total_payoff"],
     "report": {

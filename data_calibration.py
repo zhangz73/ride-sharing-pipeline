@@ -36,7 +36,7 @@ LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
     LOCATIONS_ID = LOCATIONS_ID_OF_INTEREST[i]
     LOCATION_MAP[LOCATIONS_ID] = i
-SCENARIO_NAME = "300car4region_nyc"
+SCENARIO_NAME = "200car4region_nyc"
 
 ## Time of interest
 TIME_RANGE = (8, 20)
@@ -44,14 +44,14 @@ TIME_FREQ = 5 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 300
+TOTAL_CARS_NEW = 200
 CHARGING_RATE = 0.128#[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
 CHARGING_RATE_DIS = 1#[1, 5]
 
 ## Compute time horizon
-TIME_HORIZON = (TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ
+TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
 NUM_TS_PER_HOUR = 60 // TIME_FREQ
 
 ## Load data from files
@@ -173,6 +173,37 @@ def get_region_rate_plug_df():
     dct = {"region": region_lst, "rate": rate_lst, "num": num_lst}
     return pd.DataFrame.from_dict(dct)
 
+def get_numcars_prev():
+    df = df_data.copy()
+    start = pd.Timestamp("2022-07-01 00:00:00")
+    end = pd.Timestamp("2022-07-31 23:59:59")
+    ts_lst = pd.date_range(start, end, freq = "S")
+    cnt_arr = np.zeros(len(ts_lst))
+    df["pickup_idx"] = df["pickup_datetime"].apply(lambda x: (x - start).days * 24 * 3600 + (x - start).seconds)
+    df["dropoff_idx"] = df["dropoff_datetime"].apply(lambda x: (x - start).days * 24 * 3600 + (x - start).seconds)
+    for i in tqdm(range(df.shape[0])):
+        s, e = df.iloc[i]["pickup_idx"], df.iloc[i]["dropoff_idx"]
+        cnt_arr[s:e] += 1
+    df_ret = pd.DataFrame.from_dict({"ts": ts_lst, "cnt": cnt_arr})
+    df_ret["time_of_day"] = df_ret["ts"].apply(lambda x: f"{x.hour}-{x.minute}-{x.second}")
+    df_ret = df_ret.groupby("time_of_day").mean().reset_index()
+    return df_ret["cnt"].median()
+
+def get_numcars():
+    df = df_data.copy()
+    cnt_arr_all = np.zeros((31, TIME_HORIZON))
+    df["T_PU"] = df["pickup_datetime"].apply(lambda x: (x.hour - TIME_RANGE[0]) * NUM_TS_PER_HOUR + x.minute // TIME_FREQ)
+    df["T_DO"] = df["dropoff_datetime"].apply(lambda x: (x.hour - TIME_RANGE[0]) * NUM_TS_PER_HOUR + x.minute // TIME_FREQ)
+    df["day"] = df["pickup_datetime"].apply(lambda x: x.day - 0)
+    cnt_arr_avg = np.zeros(TIME_HORIZON)
+    for i in tqdm(range(df.shape[0])):
+        s, e = df.iloc[i]["T_PU"], df.iloc[i]["T_DO"]
+        d = df.iloc[i]["day"]
+        cnt_arr_all[d, s:e] += 1
+    cnt_arr = np.mean(cnt_arr_all, axis = 0)
+    df_ret = pd.DataFrame.from_dict({"T": np.arange(TIME_HORIZON), "cnt": cnt_arr})
+    return df_ret["cnt"].median()
+
 #avg_kwh_per_min = get_battery_consumption_rate()
 #print(avg_kwh_per_min)
 
@@ -181,8 +212,13 @@ def get_region_rate_plug_df():
 #print(travel_time)
 #print(arrival_rate)
 
+## Get median num of cars
+median_car_cnt = get_numcars()
+scale_factor = TOTAL_CARS_NEW / median_car_cnt
+print(median_car_cnt, scale_factor)
+
 ## Create trip_demand_df
-trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False, scale_by_freq = "up", scale_factor = 7)
+trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False, scale_by_freq = "up", scale_factor = scale_factor)
 print(trip_demand_df)
 
 ## Create payoff_df
