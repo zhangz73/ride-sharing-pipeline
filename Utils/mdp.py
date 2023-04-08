@@ -386,7 +386,7 @@ class MarkovDecisionProcess:
     
     def get_battery_pos(self, battery):
         idx = 0
-        while idx < len(self.battery_cutoff) and battery > self.battery_cutoff[idx]:
+        while idx < len(self.battery_cutoff) and battery >= self.battery_cutoff[idx]:
             idx += 1
         return idx
     
@@ -431,7 +431,9 @@ class MarkovDecisionProcess:
     
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
-    def get_state_counts(self, state_reduction = False, car_id = None):
+    def get_state_counts(self, state_reduction = False, car_id = None, deliver = False):
+        if deliver:
+            return self.state_counts.clone()
         if not state_reduction:
             ret = torch.cat([self.state_counts[:self.full_car_state_range[0]], self.car_train_state_counts, self.state_counts[self.full_car_state_range[1]:]])
             return ret.clone()
@@ -810,7 +812,7 @@ class MarkovDecisionProcess:
                 self.reduced_state_counts[trip_id_dest] -= 1
             stag_time -= 1
         ## Update car states
-        if origin == dest and not action_fulfilled:
+        if origin != dest or not action_fulfilled:
             new_eta = eta + trip_time
             new_battery = battery - self.battery_per_step * trip_distance
         else:
@@ -820,7 +822,7 @@ class MarkovDecisionProcess:
         target_car_train_state = ("general", dest, new_eta, self.get_battery_pos(new_battery))
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
-        target_car_state = ("general", dest, new_eta, battery - new_battery)
+        target_car_state = ("general", dest, new_eta, new_battery)
         target_car_id = self.state_to_id["car"][target_car_state]
         if new_eta <= self.max_tracked_eta:
             target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
@@ -964,8 +966,8 @@ class MarkovDecisionProcess:
             for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
                 for battery in range(self.num_battery_levels):
                     car_id_curr = self.state_to_id["car"][("general", dest, eta, battery)]
-                    if eta <= self.pickup_patience:
-                        car_id_assigned = self.state_to_id["car"][("assigned", dest, eta, battery)]
+#                    if eta <= self.pickup_patience:
+                    car_id_assigned = self.state_to_id["car"][("assigned", dest, eta, battery)]
                     car_curr = self.state_dict[car_id_curr]
                     next_state = ("general", dest, eta - 1, battery)
                     next_car_train_state = ("general", dest, eta - 1, self.get_battery_pos(battery))

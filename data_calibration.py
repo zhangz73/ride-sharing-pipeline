@@ -36,7 +36,7 @@ LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
     LOCATIONS_ID = LOCATIONS_ID_OF_INTEREST[i]
     LOCATION_MAP[LOCATIONS_ID] = i
-SCENARIO_NAME = "500car4region_nyc"
+SCENARIO_NAME = "300car4region_nyc"
 
 ## Time of interest
 TIME_RANGE = (8, 20)
@@ -44,7 +44,7 @@ TIME_FREQ = 5 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 500
+TOTAL_CARS_NEW = 300
 CHARGING_RATE = 0.128#[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
@@ -106,14 +106,18 @@ def get_battery_consumption_rate():
     avg_kwh_per_min = avg_miles_per_min / MAX_MILES * PACK_SIZE
     return avg_kwh_per_min
 
-def get_attr(attr_name, agg_by_day = False, scale_down_by_car = False):
+def get_attr(attr_name, agg_by_day = False, scale_down_by_car = False, scale_by_freq = None, scale_factor = 1):
     df = df_data.copy()
     if agg_by_day:
         df = df[["Origin", "Destination", "hour", "date", attr_name]].groupby(["Origin", "Destination", "hour", "date"]).sum().reset_index()
     df = df[["Origin", "Destination", "hour", attr_name]].groupby(["Origin", "Destination", "hour"]).mean().reset_index()
     if scale_down_by_car:
         df[attr_name] = df[attr_name] / TOTAL_CARS_ORIG * TOTAL_CARS_NEW
-    df[attr_name] = df[attr_name] / 60 * TIME_FREQ
+    if scale_by_freq == "down":
+        df[attr_name] = df[attr_name] / TIME_FREQ
+    elif scale_by_freq == "up":
+        df[attr_name] = df[attr_name] / 60 * TIME_FREQ
+    df[attr_name] = df[attr_name] * scale_factor
     df_ret = None
     for ts in range(NUM_TS_PER_HOUR):
         df_curr = df.copy()
@@ -178,7 +182,7 @@ def get_region_rate_plug_df():
 #print(arrival_rate)
 
 ## Create trip_demand_df
-trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False)
+trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False, scale_by_freq = "up", scale_factor = 7)
 print(trip_demand_df)
 
 ## Create payoff_df
@@ -195,7 +199,8 @@ charging_df["Destination"] = None
 payoff_df = pd.concat([payoff_df, charging_df], axis = 0, ignore_index = True)
 
 ## Create map df
-trip_time_df = get_attr("TripTime", agg_by_day = False, scale_down_by_car = False)
+trip_time_df = get_attr("TripTime", agg_by_day = False, scale_down_by_car = False, scale_by_freq = "down")
+trip_time_df["TripTime"] = trip_time_df["TripTime"].round(0).astype(int)
 distance_df = get_attr("Distance", agg_by_day = False, scale_down_by_car = False)
 map_df = trip_time_df.merge(distance_df, on = ["T", "Origin", "Destination"])
 region_battery_car_df = get_region_battery_car_df()

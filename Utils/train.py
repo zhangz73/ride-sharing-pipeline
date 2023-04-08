@@ -220,11 +220,11 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-#        if return_payoff:
-#            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-#            payoff_val = float(payoff_lst[-1].data)
-#            payoff_arr.append(payoff_val)
-        for itr in range(self.num_itr + 1):
+        if return_payoff:
+            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+            payoff_val = float(payoff_lst[-1].data)
+            payoff_arr.append(payoff_val)
+        for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
                 with open(debug_dir, "a") as f:
@@ -248,7 +248,7 @@ class PPO_Solver(Solver):
                     payoff_val += tup[1]
                 payoff_val /= self.num_episodes
                 results = None
-            payoff_arr.append(payoff_val)
+#            payoff_arr.append(payoff_val)
             if itr == self.num_itr:
                 break
                 
@@ -325,10 +325,10 @@ class PPO_Solver(Solver):
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
             
-#            if return_payoff:
-#                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-#                payoff_val = float(payoff_lst[-1].data)
-#                payoff_arr.append(payoff_val)
+            if return_payoff:
+                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
+                payoff_val = float(payoff_lst[-1].data)
+                payoff_arr.append(payoff_val)
         self.benchmark_policy_model = copy.deepcopy(self.policy_model)
         self.benchmark_value_model = copy.deepcopy(self.value_model)
         # Save final model
@@ -347,7 +347,7 @@ class PPO_Solver(Solver):
             ret += f"\t\t{msg}\n"
         return ret
     
-    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = False, use_benchmark = False, lazy_removal = False, car_id = None, state_count_check = None):
+    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = False, car_id = None, state_count_check = None):
         if not use_benchmark:
             output = self.policy_model((ts, state_counts))
         else:
@@ -434,7 +434,7 @@ class PPO_Solver(Solver):
                 ## Perform state transitions
                 curr_state_counts = self.markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
                 if return_action:
-                    curr_state_counts_full = self.markov_decision_process.get_state_counts(state_reduction = False)
+                    curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
                 action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = None)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
@@ -452,8 +452,10 @@ class PPO_Solver(Solver):
                         while not is_feasible:
                             action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
                             is_feasible = self.action_is_feasible(curr_state_counts, t, int(action_id), car_id = available_car_ids[car_idx], state_count_check = None)
-#                            if not is_feasible:
-#                                print("here!")
+                            if not is_feasible:
+                                print(self.all_actions[action_id].describe())
+                                print(self.markov_decision_process.describe_state_counts())
+                                assert False
                     else:
                         action_id = np.argmax(action_id_prob)
                     action = self.all_actions[int(action_id)]

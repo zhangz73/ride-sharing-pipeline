@@ -82,9 +82,9 @@ def main(args, json_name = ""):
     #        print(markov_decision_process.describe_state_counts())
             for tup in action_lst:
                 curr_state_counts, action, t, car_idx = tup
-#                print(f"t = {t}, car = {car_idx}:")
-#                print(markov_decision_process.describe_state_counts(curr_state_counts))
-#                print(f"action = {action.describe()}")
+                print(f"t = {t}, car = {car_idx}:")
+                print(markov_decision_process.describe_state_counts(curr_state_counts))
+                print(f"action = {action.describe()}")
                 
                 f.write(f"t = {t}, car = {car_idx}:\n")
                 f.write(f"{markov_decision_process.describe_state_counts(curr_state_counts)}\n")

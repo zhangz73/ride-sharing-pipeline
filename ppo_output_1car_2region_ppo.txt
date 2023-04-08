@@ -5,28 +5,28 @@ t = 0, car = 0:
 	val = 1.0 Car: time to destination 0, destination 0, battery 2, filled None, type general
 	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 
-action = Travel from None to 1
+action = Travel from 0 to 1
 t = 1, car = 0:
 	val = 1.0 Plug: region 0, rate 2
 	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 	val = 1.0 Trip: origin 1, destination 0, stag_time 0
 
-action = Travel from None to 0
+action = Travel from 1 to 0
 t = 2, car = 0:
 	val = 1.0 Plug: region 0, rate 2
 	val = 1.0 Car: time to destination 0, destination 0, battery 0, filled None, type general
 	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 
-action = Charging in region None with rate 2
+action = Charging in region 0 with rate 2
 t = 3, car = 0:
 	val = 1.0 Plug: region 0, rate 2
 	val = 1.0 Car: time to destination 0, destination 0, battery 2, filled None, type general
 	val = 1.0 Trip: origin 0, destination 1, stag_time 0
 	val = 1.0 Trip: origin 1, destination 0, stag_time 0
 
-action = Travel from None to 1
+action = Travel from 0 to 1
 t = 4, car = 0:
 	val = 1.0 Plug: region 0, rate 2
 	val = 1.0 Car: time to destination 0, destination 1, battery 1, filled None, type general
 
-action = Charging in region None with rate 2
+action = Travel from 1 to 0

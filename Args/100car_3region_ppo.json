@@ -55,7 +55,7 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 5,
-        "num_episodes": 300,
+        "num_episodes": 200,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
