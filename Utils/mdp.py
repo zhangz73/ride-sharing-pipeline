@@ -436,6 +436,66 @@ class MarkovDecisionProcess:
                 msg += indent + f"val = {val} " + state.describe() + "\n"
         return msg
     
+    ## Get number of active trip requests
+    def get_num_active_trip_requests(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for origin in self.regions:
+            for dest in self.regions:
+                for stag_time in range(self.connection_patience + 1):
+                    curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    cnt += state_counts[curr_id]
+        return float(cnt.data)
+    
+    ## Get number of new trip requests
+    def get_num_new_trip_requests(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for origin in self.regions:
+            for dest in self.regions:
+                curr_id = self.state_to_id["trip"][(origin, dest, 0)]
+                cnt += state_counts[curr_id]
+        return float(cnt.data)
+    
+    ## Get number of traveling vehicles
+    def get_num_traveling_cars(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for dest in self.regions:
+            for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    for type in ["general", "assigned"]:
+                        curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
+                        cnt += state_counts[curr_id]
+        return float(cnt.data)
+    
+    ## Get number of traveling vehicles
+    def get_num_idling_cars(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for dest in self.regions:
+            for battery in range(self.num_battery_levels):
+                for type in ["general", "assigned"]:
+                    curr_id = self.state_to_id["car"][(type, dest, 0, battery)]
+                    cnt += state_counts[curr_id]
+        return float(cnt.data)
+    
+    ## Get number of charging cars
+    def get_num_charging_cars(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for region in self.regions:
+            for battery in range(self.num_battery_levels):
+                for rate in self.charging_rates:
+                    curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+                    cnt += state_counts[curr_id]
+        return float(cnt.data)
+    
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
     def get_state_counts(self, state_reduction = False, car_id = None, deliver = False):

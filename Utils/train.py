@@ -3,6 +3,7 @@ import gc
 import math
 import copy
 import numpy as np
+import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -468,6 +469,9 @@ class PPO_Solver(Solver):
                     next_t = t
                     if car_idx == num_available_cars - 1:
                         transit_applied = True
+                        if return_action:
+                            curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                            action_lst.append((curr_state_counts_full, None, t, None))
                         self.markov_decision_process.transit_across_timestamp()
                         next_t += 1
                     next_state_counts = self.markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
@@ -494,6 +498,9 @@ class PPO_Solver(Solver):
 #                                print(action.get_origin(), action.get_dest(), curr_payoff)
 #                        model_value_lst.append(curr_value)
             if not transit_applied:
+                if return_action:
+                    curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                    action_lst.append((curr_state_counts_full, None, t, None))
                 self.markov_decision_process.transit_across_timestamp()
         if not return_data:
             payoff_lst = torch.tensor(payoff_lst)
@@ -544,15 +551,80 @@ class ReportFactory:
     def get_plot(self):
         pass
     
-    def get_training_loss_plot(self, loss_arr, loss_name, figname):
-        final_loss = float(loss_arr[-1])
-        plt.plot(loss_arr)
-        plt.xlabel("Training Episodes")
-        plt.ylabel("Loss")
-        plt.title(loss_name + f"\nFinal Loss = {final_loss:.2f}")
-        plt.savefig(f"Plots/{figname}.png")
+    def plot_single(self, y_arr, xlabel, ylabel, title, figname, x_arr = None, dir = "Plots"):
+        if x_arr is None:
+            plt.plot(y_arr)
+        else:
+            plt.plot(x_arr, y_arr)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.savefig(f"{dir}/{figname}.png")
         plt.clf()
         plt.close()
     
-    def get_table(self):
-        pass
+    def get_training_loss_plot(self, loss_arr, loss_name, figname):
+        final_loss = float(loss_arr[-1])
+        self.plot_single(loss_arr, xlabel = "Training Episodes", ylabel = "Loss", title = loss_name + f"\nFinal Loss = {final_loss:.2f}", figname = figname, dir = "Plots")
+    
+    def visualize_table(self, df_table, suffix):
+        ## Visualize new requests
+        self.plot_single(df_table["num_new_requests"], xlabel = "Time Steps", ylabel = "# New Trip Requests", title = "", figname = f"new_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
+        ## Visualize fulfilled requests
+        self.plot_single(df_table["frac_requests_fulfilled"], xlabel = "Time Steps", ylabel = "% Fulfilled Trip Requests", title = "", figname = f"fulfilled_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
+        ## Visualize car status
+        plt.fill_between(df_table["t"], 0, df_table["frac_traveling_cars"], label = "% Traveling Cars")
+        plt.fill_between(df_table["t"], df_table["frac_traveling_cars"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"], label = "% Charging Cars")
+        plt.fill_between(df_table["t"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"] + df_table["frac_idling_cars"], label = "% Idling Cars")
+        plt.xlabel("Time Steps")
+        plt.ylabel("% Cars")
+        plt.legend()
+        plt.savefig(f"TablePlots/car_status_{suffix}.png")
+        plt.clf()
+        plt.close()
+    
+    def get_table(self, markov_decision_process, action_lst):
+        prev_t = -1
+        begin = False
+        num_active_requests_begin, num_traveling_cars_begin, num_idling_cars_begin, num_charging_cars_begin = 0, 0, 0, 0
+        num_active_requests_end, num_traveling_cars_end, num_idling_cars_end, num_charging_cars_end = 0, 0, 0, 0
+        num_new_requests = 0
+        t_lst = []
+        frac_requests_fulfilled_lst = []
+        frac_traveling_cars_lst = []
+        frac_charging_cars_lst = []
+        frac_idling_cars_lst = []
+        num_new_requests_lst = []
+        for i in tqdm(range(len(action_lst))):
+            tup = action_lst[i]
+            curr_state_counts, action, t, car_idx = tup
+            if t > prev_t:
+                begin = True
+            else:
+                begin = False
+            prev_t = t
+            if begin:
+                num_active_requests_begin = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
+                num_new_requests = markov_decision_process.get_num_new_trip_requests(curr_state_counts)
+            if car_idx is None:
+                num_active_requests_end = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
+                num_traveling_cars_end = markov_decision_process.get_num_traveling_cars(curr_state_counts)
+                num_idling_cars_end = markov_decision_process.get_num_idling_cars(curr_state_counts)
+                num_charging_cars_end = markov_decision_process.get_num_charging_cars(curr_state_counts)
+                num_total_cars = num_traveling_cars_end + num_idling_cars_end + num_charging_cars_end
+                if num_active_requests_begin > 0:
+                    frac_requests_fulfilled = (num_active_requests_begin - num_active_requests_end) / num_active_requests_begin
+                else:
+                    frac_requests_fulfilled = 1
+                frac_traveling_cars = num_traveling_cars_end / num_total_cars
+                frac_charging_cars = num_charging_cars_end / num_total_cars
+                frac_idling_cars = num_idling_cars_end / num_total_cars
+                t_lst.append(t)
+                frac_requests_fulfilled_lst.append(frac_requests_fulfilled)
+                frac_traveling_cars_lst.append(frac_traveling_cars)
+                frac_charging_cars_lst.append(frac_charging_cars)
+                frac_idling_cars_lst.append(frac_idling_cars)
+                num_new_requests_lst.append(num_new_requests)
+        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst}
+        df = pd.DataFrame.from_dict(dct)
+        return df

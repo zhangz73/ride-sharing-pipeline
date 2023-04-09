@@ -67,33 +67,40 @@ def main(args, json_name = ""):
         if "training_loss" in args["report"]["plot"]:
             report_factory.get_training_loss_plot(loss_arr, "Total Payoff Loss", "train_loss")
     elif solver_type == "ppo":
-        value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt")
         report_factory = train.ReportFactory()
-        suffix = f"epi={args['neural']['num_episodes']}_batch={args['neural']['value_batch']}_itr={args['neural']['num_itr']}_eps={args['neural']['eps']}"
-        report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}_{descriptor}")
-        report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}_{descriptor}")
-        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{descriptor}")
-#        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
-        
-#        print(f"Value Loss = {value_loss}")
-        with open(f"Logs/ppo_payoff_{json_name}_{descriptor}.txt", "w") as f:
+        if args["neural"]["num_itr"] > 0:
+            value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt")
+            suffix = f"epi={args['neural']['num_episodes']}_batch={args['neural']['value_batch']}_itr={args['neural']['num_itr']}_eps={args['neural']['eps']}"
+            report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}_{descriptor}")
+            report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}_{descriptor}")
+            report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{descriptor}")
+    #        report_factory.get_training_loss_plot(payoff_arr, "Total Payoff", f"total_payoff_{json_name}_{suffix}")
             
-#            f.write(f"Policy Loss = {policy_loss}\n")
-#            f.write(f"Total Payoff = {float(payoff_lst[-1].data)}\n")
-#            f.write(f"{payoff_lst}\n")
-            f.write(",".join([str(x) for x in payoff_arr]))
-    #        print(markov_decision_process.describe_state_counts())
+    #        print(f"Value Loss = {value_loss}")
+            with open(f"Logs/ppo_payoff_{json_name}_{descriptor}.txt", "w") as f:
+                
+    #            f.write(f"Policy Loss = {policy_loss}\n")
+    #            f.write(f"Total Payoff = {float(payoff_lst[-1].data)}\n")
+    #            f.write(f"{payoff_lst}\n")
+                f.write(",".join([str(x) for x in payoff_arr]))
+        #        print(markov_decision_process.describe_state_counts())
     
         _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
         #            print(f"Policy Loss = {policy_loss}")
         print(f"Total Payoff = {float(payoff_lst[-1].data)}")
             #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
 #            print(payoff_lst)
+        df_table = report_factory.get_table(markov_decision_process, action_lst)
+        df_table.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
+        report_factory.visualize_table(df_table, f"{json_name}_{descriptor}")
         for tup in action_lst:
             curr_state_counts, action, t, car_idx = tup
-            print(f"t = {t}, car = {car_idx}:")
-            print(markov_decision_process.describe_state_counts(curr_state_counts))
-            print(f"action = {action.describe()}")
+            if action is not None:
+                print(f"t = {t}, car = {car_idx}:")
+                print(markov_decision_process.describe_state_counts(curr_state_counts))
+                print(f"action = {action.describe()}")
+            else:
+                print(markov_decision_process.describe_state_counts(curr_state_counts))
                 
 #                f.write(f"t = {t}, car = {car_idx}:\n")
 #                f.write(f"{markov_decision_process.describe_state_counts(curr_state_counts)}\n")
@@ -102,7 +109,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
