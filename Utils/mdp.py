@@ -801,7 +801,7 @@ class MarkovDecisionProcess:
         origin = car.get_dest()
         eta = car.get_time_to_dest()
         battery = car.get_battery()
-        reduced_id = self.reduced_state_to_id["car"][("general", origin, eta, battery)]
+        reduced_id = self.reduced_state_to_id["car"][("general", origin, eta, self.get_battery_pos(battery))]
         trip_time = self.map.time_to_location(origin, dest, self.curr_ts)
         trip_distance = self.map.distance(origin, dest)
         if battery < self.battery_per_step * trip_distance:
@@ -868,7 +868,7 @@ class MarkovDecisionProcess:
         if self.state_counts[plug_id] == 0:
             return False
         battery = car.get_battery()
-        reduced_id = self.reduced_state_to_id["car"][("general", region, 0, battery)]
+        reduced_id = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
         target_car_state = ("charged", region, battery, rate)
         curr_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
         target_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
