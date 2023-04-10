@@ -39,16 +39,16 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (8, 20)
-TIME_FREQ = 5 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 200
+TOTAL_CARS_NEW = 100#200
 CHARGING_RATE = 0.128#[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
 CHARGING_RATE_DIS = 1#[1, 5]
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region_nyc"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{TIME_FREQ}mins_nyc"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
