@@ -436,28 +436,34 @@ class MarkovDecisionProcess:
                 msg += indent + f"val = {val} " + state.describe() + "\n"
         return msg
     
-    ## Get number of active trip requests
-    def get_num_active_trip_requests(self, state_counts = None):
+    ## Get number of trip requests in a specific range of trip stagnation time in the system
+    def get_num_trip_requests(self, state_counts = None, stag_range = (0, 1)):
         if state_counts is None:
             state_counts = self.state_counts
         cnt = 0
         for origin in self.regions:
             for dest in self.regions:
-                for stag_time in range(self.connection_patience + 1):
+                for stag_time in range(stag_range[0], stag_range[1]):
                     curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
                     cnt += state_counts[curr_id]
         return float(cnt.data)
     
+    ## Get number of active trip requests
+    def get_num_active_trip_requests(self, state_counts = None):
+        return self.get_num_trip_requests(state_counts = state_counts, stag_range = (0, self.connection_patience + 1))
+    
     ## Get number of new trip requests
     def get_num_new_trip_requests(self, state_counts = None):
-        if state_counts is None:
-            state_counts = self.state_counts
-        cnt = 0
-        for origin in self.regions:
-            for dest in self.regions:
-                curr_id = self.state_to_id["trip"][(origin, dest, 0)]
-                cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return self.get_num_trip_requests(state_counts = state_counts, stag_range = (0, 1))
+    
+    ## Get number of queued trip requests
+    def get_num_queued_trip_requests(self, state_counts = None):
+        return self.get_num_trip_requests(state_counts = state_counts, stag_range = (0, self.connection_patience))
+    
+    ## Get number of abandoned trip requests
+    ## Note that it only makes sense to be called right before transition across time
+    def get_num_abandoned_trip_requests(self, state_counts = None):
+        return self.get_num_trip_requests(state_counts = state_counts, stag_range = (self.connection_patience, self.connection_patience + 1))
     
     ## Get number of traveling vehicles
     def get_num_traveling_cars(self, state_counts = None):
