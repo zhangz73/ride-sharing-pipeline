@@ -567,21 +567,31 @@ class ReportFactory:
         final_loss = float(loss_arr[-1])
         self.plot_single(loss_arr, xlabel = "Training Episodes", ylabel = "Loss", title = loss_name + f"\nFinal Loss = {final_loss:.2f}", figname = figname, dir = "Plots")
     
+    def plot_stacked(self, x_arr, y_arr_lst, label_lst, xlabel, ylabel, title, figname):
+        assert len(y_arr_lst) == len(label_lst)
+        curr_lo = 0
+        curr_hi = 0
+        for i in range(len(label_lst)):
+            curr_hi += y_arr_lst[i]
+            label = label_lst[i]
+            plt.fill_between(x_arr, curr_lo, curr_hi, label = label)
+            curr_lo += y_arr_lst[i]
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.legend()
+        plt.savefig(f"TablePlots/{figname}.png")
+        plt.clf()
+        plt.close()
+    
     def visualize_table(self, df_table, suffix):
         ## Visualize new requests
         self.plot_single(df_table["num_new_requests"], xlabel = "Time Steps", ylabel = "# New Trip Requests", title = "", figname = f"new_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize fulfilled requests
         self.plot_single(df_table["frac_requests_fulfilled"], xlabel = "Time Steps", ylabel = "% Fulfilled Trip Requests", title = "", figname = f"fulfilled_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize car status
-        plt.fill_between(df_table["t"], 0, df_table["frac_traveling_cars"], label = "% Traveling Cars")
-        plt.fill_between(df_table["t"], df_table["frac_traveling_cars"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"], label = "% Charging Cars")
-        plt.fill_between(df_table["t"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"], df_table["frac_traveling_cars"] + df_table["frac_charging_cars"] + df_table["frac_idling_cars"], label = "% Idling Cars")
-        plt.xlabel("Time Steps")
-        plt.ylabel("% Cars")
-        plt.legend()
-        plt.savefig(f"TablePlots/car_status_{suffix}.png")
-        plt.clf()
-        plt.close()
+        self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"car_status_{suffix}")
+        ## Visualize trip status
+        self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "% Queued Requests", "% Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = "", figname = f"trip_status_{suffix}")
     
     def get_table(self, markov_decision_process, action_lst):
         prev_t = -1
@@ -595,6 +605,9 @@ class ReportFactory:
         frac_charging_cars_lst = []
         frac_idling_cars_lst = []
         num_new_requests_lst = []
+        num_fulfilled_requests_lst = []
+        num_queued_requests_lst = []
+        num_abandoned_requests_lst = []
         for i in tqdm(range(len(action_lst))):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
@@ -616,6 +629,9 @@ class ReportFactory:
                     frac_requests_fulfilled = (num_active_requests_begin - num_active_requests_end) / num_active_requests_begin
                 else:
                     frac_requests_fulfilled = 1
+                num_requests_fulfilled = num_active_requests_begin - num_active_requests_end
+                num_requests_queued = markov_decision_process.get_num_queued_trip_requests(curr_state_counts)
+                num_requests_abandoned = markov_decision_process.get_num_abandoned_trip_requests(curr_state_counts)
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
                 frac_idling_cars = num_idling_cars_end / num_total_cars
@@ -625,6 +641,9 @@ class ReportFactory:
                 frac_charging_cars_lst.append(frac_charging_cars)
                 frac_idling_cars_lst.append(frac_idling_cars)
                 num_new_requests_lst.append(num_new_requests)
-        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst}
+                num_fulfilled_requests_lst.append(num_requests_fulfilled)
+                num_queued_requests_lst.append(num_requests_queued)
+                num_abandoned_requests_lst.append(num_requests_abandoned)
+        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst}
         df = pd.DataFrame.from_dict(dct)
         return df

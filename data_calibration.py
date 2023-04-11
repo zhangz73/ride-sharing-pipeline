@@ -218,9 +218,18 @@ def get_numcars():
 #print(travel_time)
 #print(arrival_rate)
 
+## Create map df
+trip_time_df = get_attr("TripTime", agg_by_day = False, scale_down_by_car = False, scale_by_freq = "down")
+trip_time_df["TripTime"] = trip_time_df["TripTime"].round(0).astype(int)
+distance_df = get_attr("Distance", agg_by_day = False, scale_down_by_car = False)
+distance_df["Distance"] = distance_df["Distance"].round(0).astype(int)
+map_df = trip_time_df.merge(distance_df, on = ["T", "Origin", "Destination"])
+region_battery_car_df = get_region_battery_car_df()
+region_rate_plug_df = get_region_rate_plug_df()
+
 ## Get median num of cars
 median_car_cnt = get_numcars()
-scale_factor = TOTAL_CARS_NEW / median_car_cnt
+scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean())
 print(median_car_cnt, scale_factor)
 
 ## Create trip_demand_df
@@ -239,15 +248,6 @@ charging_df["Pickup"] = None
 charging_df["Origin"] = None
 charging_df["Destination"] = None
 payoff_df = pd.concat([payoff_df, charging_df], axis = 0, ignore_index = True)
-
-## Create map df
-trip_time_df = get_attr("TripTime", agg_by_day = False, scale_down_by_car = False, scale_by_freq = "down")
-trip_time_df["TripTime"] = trip_time_df["TripTime"].round(0).astype(int)
-distance_df = get_attr("Distance", agg_by_day = False, scale_down_by_car = False)
-distance_df["Distance"] = distance_df["Distance"].round(0).astype(int)
-map_df = trip_time_df.merge(distance_df, on = ["T", "Origin", "Destination"])
-region_battery_car_df = get_region_battery_car_df()
-region_rate_plug_df = get_region_rate_plug_df()
 
 ## Write to files
 region_battery_car_df.to_csv(f"Data/RegionBatteryCar/region_battery_car_{SCENARIO_NAME}.tsv", index = False, sep = "\t")

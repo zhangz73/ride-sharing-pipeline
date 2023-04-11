@@ -93,14 +93,14 @@ def main(args, json_name = ""):
         df_table = report_factory.get_table(markov_decision_process, action_lst)
         df_table.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
         report_factory.visualize_table(df_table, f"{json_name}_{descriptor}")
-        for tup in action_lst:
-            curr_state_counts, action, t, car_idx = tup
-            if action is not None:
-                print(f"t = {t}, car = {car_idx}:")
-                print(markov_decision_process.describe_state_counts(curr_state_counts))
-                print(f"action = {action.describe()}")
-            else:
-                print(markov_decision_process.describe_state_counts(curr_state_counts))
+#        for tup in action_lst:
+#            curr_state_counts, action, t, car_idx = tup
+#            if action is not None:
+#                print(f"t = {t}, car = {car_idx}:")
+#                print(markov_decision_process.describe_state_counts(curr_state_counts))
+#                print(f"action = {action.describe()}")
+#            else:
+#                print(markov_decision_process.describe_state_counts(curr_state_counts))
                 
 #                f.write(f"t = {t}, car = {car_idx}:\n")
 #                f.write(f"{markov_decision_process.describe_state_counts(curr_state_counts)}\n")
