@@ -1,15 +1,15 @@
 {
     "map": {
-        "data_dir": "Map/map_50car4region15mins_nyc.tsv"
+        "data_dir": "Map/map_12car4region15mins_nyc.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_50car4region15mins_nyc.tsv",
+        "parameter_fname": "TripDemand/trip_demand_12car4region15mins_nyc.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_50car4region15mins_nyc.tsv"
+        "reward_fname": "Payoff/payoff_12car4region15mins_nyc.tsv"
     },
     "mdp": {
         "time_horizon": 48,
@@ -24,8 +24,8 @@
         "battery_per_step": 2,
         "normalize_by_tripnums": true,
         "battery_cutoff": [90, 180],
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_50car4region15mins_nyc.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_50car4region15mins_nyc.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_12car4region15mins_nyc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_12car4region15mins_nyc.tsv"
     },
     "solver": {
         "type": "ppo"
@@ -56,7 +56,7 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 40,
-        "num_episodes": 200,
+        "num_episodes": 300,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
