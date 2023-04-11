@@ -1,31 +1,31 @@
 {
     "map": {
-        "data_dir": "Map/map_100car4region15mins_nyc.tsv"
+        "data_dir": "Map/map_50car4region15mins_nyc.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_100car4region15mins_nyc.tsv",
+        "parameter_fname": "TripDemand/trip_demand_50car4region15mins_nyc.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_100car4region15mins_nyc.tsv"
+        "reward_fname": "Payoff/payoff_50car4region15mins_nyc.tsv"
     },
     "mdp": {
         "time_horizon": 48,
         "connection_patience": 1,
-        "pickup_patience": 2,
+        "pickup_patience": 1,
         "num_battery_levels": 264,
         "battery_jump": 0.3,
         "charging_rates": [
-            15
+            150
         ],
         "battery_offset": 0,
-        "battery_per_step": 2,
+        "battery_per_step": 30,
         "normalize_by_tripnums": true,
         "battery_cutoff": [90, 180],
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_100car4region15mins_nyc.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_100car4region15mins_nyc.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_50car4region15mins_nyc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_50car4region15mins_nyc.tsv"
     },
     "solver": {
         "type": "ppo"
