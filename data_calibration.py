@@ -43,7 +43,7 @@ TIME_FREQ = 15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 50#200
+TOTAL_CARS_NEW = 50 #200
 CHARGING_RATE = 0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
@@ -150,14 +150,20 @@ def get_charging_cost(cost_rate_per_min_lst):
     return df
 
 def get_region_battery_car_df():
-    car_num_per_region = TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST)
+    car_num_per_region = TOTAL_CARS_NEW // len(LOCATIONS_ID_OF_INTEREST)
     region_lst = []
     battery_lst = []
     num_lst = []
+    car_cnt = 0
     for region in range(len(LOCATIONS_ID_OF_INTEREST)):
         region_lst.append(region)
         battery_lst.append(NUM_BATTERY_LEVELS // 2)
-        num_lst.append(car_num_per_region)
+        if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
+            curr_car = TOTAL_CARS_NEW - car_cnt
+        else:
+            curr_car = car_num_per_region
+        car_cnt += curr_car
+        num_lst.append(curr_car)
     dct = {"region": region_lst, "battery": battery_lst, "num": num_lst}
     return pd.DataFrame.from_dict(dct)
 
