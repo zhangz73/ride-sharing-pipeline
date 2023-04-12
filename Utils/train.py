@@ -225,7 +225,7 @@ class PPO_Solver(Solver):
 #            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
 #            payoff_val = float(payoff_lst[-1].data)
 #            payoff_arr.append(payoff_val)
-        for itr in range(self.num_itr + 0):
+        for itr in range(self.num_itr + 1):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
                 with open(debug_dir, "a") as f:
@@ -348,7 +348,7 @@ class PPO_Solver(Solver):
             ret += f"\t\t{msg}\n"
         return ret
     
-    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = False, car_id = None, state_count_check = None):
+    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = True, car_id = None, state_count_check = None):
         if not use_benchmark:
             output = self.policy_model((ts, state_counts))
         else:
@@ -448,7 +448,7 @@ class PPO_Solver(Solver):
                             f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}, inferred state value = {inferred_value}:\n")
                             f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
                             f.write(msg)
-                    if train:
+                    if True:#train:
                         is_feasible = False
                         while not is_feasible:
                             action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
@@ -592,6 +592,8 @@ class ReportFactory:
         self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"car_status_{suffix}")
         ## Visualize trip status
         self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = "", figname = f"trip_status_{suffix}")
+        ## Visualize car battery status
+        self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"battery_status_{suffix}")
     
     def get_table(self, markov_decision_process, action_lst):
         prev_t = -1
@@ -608,7 +610,10 @@ class ReportFactory:
         num_fulfilled_requests_lst = []
         num_queued_requests_lst = []
         num_abandoned_requests_lst = []
-        for i in tqdm(range(len(action_lst))):
+        frac_low_battery_cars_lst = []
+        frac_med_battery_cars_lst = []
+        frac_high_battery_cars_lst = []
+        for i in tqdm(range(len(action_lst)), leave = False):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
             if t > prev_t:
@@ -632,6 +637,9 @@ class ReportFactory:
                 num_requests_fulfilled = num_active_requests_begin - num_active_requests_end
                 num_requests_queued = markov_decision_process.get_num_queued_trip_requests(curr_state_counts)
                 num_requests_abandoned = markov_decision_process.get_num_abandoned_trip_requests(curr_state_counts)
+                num_low_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "L")
+                num_med_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "M")
+                num_high_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "H")
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
                 frac_idling_cars = num_idling_cars_end / num_total_cars
@@ -644,6 +652,9 @@ class ReportFactory:
                 num_fulfilled_requests_lst.append(num_requests_fulfilled)
                 num_queued_requests_lst.append(num_requests_queued)
                 num_abandoned_requests_lst.append(num_requests_abandoned)
-        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst}
+                frac_low_battery_cars_lst.append(num_low_battery_cars / num_total_cars)
+                frac_med_battery_cars_lst.append(num_med_battery_cars / num_total_cars)
+                frac_high_battery_cars_lst.append(num_high_battery_cars / num_total_cars)
+        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
         df = pd.DataFrame.from_dict(dct)
         return df

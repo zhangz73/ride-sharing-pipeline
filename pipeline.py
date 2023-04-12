@@ -6,6 +6,7 @@ import Utils.setup as setup
 import Utils.neural as neural
 import Utils.mdp as mdp
 import Utils.train as train
+from tqdm import tqdm
 
 ## Check if CUDA is available
 train_on_gpu = torch.cuda.is_available()
@@ -85,13 +86,26 @@ def main(args, json_name = ""):
                 f.write(",".join([str(x) for x in payoff_arr]))
         #        print(markov_decision_process.describe_state_counts())
     
-        _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = 0)
-        #            print(f"Policy Loss = {policy_loss}")
-        print(f"Total Payoff = {float(payoff_lst[-1].data)}")
-            #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-#            print(payoff_lst)
-        df_table = report_factory.get_table(markov_decision_process, action_lst)
-        df_table.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
+        df_table_all = None
+        payoff = 0
+        num_trials = args["neural"]["num_episodes"]
+        for i in tqdm(range(num_trials)):
+            _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = None)
+            #            print(f"Policy Loss = {policy_loss}")
+#            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
+                #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+    #            print(payoff_lst)
+            payoff += float(payoff_lst[-1].data)
+            df_table = report_factory.get_table(markov_decision_process, action_lst)
+            df_table["trial"] = i
+            if df_table_all is None:
+                df_table_all = df_table
+            else:
+                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+        payoff /= num_trials
+        print(f"Total Payoff = {payoff}")
+        df_table_all = df_table_all.groupby("trial").mean().reset_index()
+        df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
         report_factory.visualize_table(df_table, f"{json_name}_{descriptor}")
 #        for tup in action_lst:
 #            curr_state_counts, action, t, car_idx = tup

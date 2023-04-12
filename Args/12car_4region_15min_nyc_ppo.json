@@ -55,7 +55,7 @@
         "policy_retrain": true,
         "descriptor": "PPO",
         "dir": ".",
-        "num_itr": 100,
+        "num_itr": 40,
         "num_episodes": 300,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
