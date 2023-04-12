@@ -229,7 +229,7 @@ class PPO_Solver(Solver):
 #            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
 #            payoff_val = float(payoff_lst[-1].data)
 #            payoff_arr.append(payoff_val)
-        for itr in range(self.num_itr + 1):
+        for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
                 with open(debug_dir, "a") as f:
