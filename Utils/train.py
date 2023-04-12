@@ -94,6 +94,10 @@ class PPO_Solver(Solver):
         self.value_optimizer, self.value_scheduler = self.value_model_factory.prepare_optimizer()
         self.policy_optimizer, self.policy_scheduler = self.policy_model_factory.prepare_optimizer()
         self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
+        self.markov_decision_process_lst = []
+        for i in range(self.n_cpu):
+            cp = copy.deepcopy(markov_decision_process)
+            self.markov_decision_process_lst.append(cp)
     
     def get_value_model(self):
         return self.value_model_factory.get_model()
@@ -205,7 +209,7 @@ class PPO_Solver(Solver):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
         for day in tqdm(range(num_episodes)):
-            state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal)
+            state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num])
             state_action_advantage_lst_episodes.append(state_action_advantage_lst)
             total_payoff += payoff_val
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
@@ -406,14 +410,16 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None):
         if not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
+        if markov_decision_process is None:
+            markov_decision_process = self.markov_decision_process
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)
-        self.markov_decision_process.reset_states()
+        markov_decision_process.reset_states()
         payoff_lst = []
         model_value_lst = []
         action_lst = []
@@ -424,7 +430,7 @@ class PPO_Solver(Solver):
         for t in tqdm(range(self.time_horizon), leave = False):
             ## Add up ||v_model - v_hat||^2
             ## Add up ratio * advantage
-            available_car_ids = self.markov_decision_process.get_available_car_ids(self.state_reduction)
+            available_car_ids = markov_decision_process.get_available_car_ids(self.state_reduction)
             num_available_cars = len(available_car_ids)
             total_cars += num_available_cars
 #            if not train:
@@ -433,16 +439,16 @@ class PPO_Solver(Solver):
             transit_applied = False
             for car_idx in tqdm(range(num_available_cars), leave = False):
                 ## Perform state transitions
-                curr_state_counts = self.markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
+                curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
                 if return_action:
-                    curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                    curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                 action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = None)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:
                         with open(debug_dir, "a") as f:
                             msg = self.policy_describe(action_id_prob)
-                            payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
+                            payoff = markov_decision_process.get_payoff_curr_ts().clone()
                             self.value_model.eval()
                             inferred_value = float(self.value_model((t, curr_state_counts)).data)
                             f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}, inferred state value = {inferred_value}:\n")
@@ -464,18 +470,18 @@ class PPO_Solver(Solver):
                         total_trips += 1
                     if return_action:
                         action_lst.append((curr_state_counts_full, action, t, car_idx))
-                    curr_payoff = self.markov_decision_process.get_payoff_curr_ts().clone().to(device = self.device)
-                    res = self.markov_decision_process.transit_within_timestamp(action, self.state_reduction, available_car_ids[car_idx])
+                    curr_payoff = markov_decision_process.get_payoff_curr_ts().clone().to(device = self.device)
+                    res = markov_decision_process.transit_within_timestamp(action, self.state_reduction, available_car_ids[car_idx])
                     next_t = t
                     if car_idx == num_available_cars - 1:
                         transit_applied = True
                         if return_action:
-                            curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                            curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                             action_lst.append((curr_state_counts_full, None, t, None))
-                        self.markov_decision_process.transit_across_timestamp()
+                        markov_decision_process.transit_across_timestamp()
                         next_t += 1
-                    next_state_counts = self.markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
-                    payoff = self.markov_decision_process.get_payoff_curr_ts().clone()
+                    next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
+                    payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff))
                     ## Compute loss
@@ -490,7 +496,7 @@ class PPO_Solver(Solver):
 #                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
 #                        policy_loss += loss_curr[0]
 #                        ## Compute values
-                        curr_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
+                        curr_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
 #                        curr_value = self.value_model((t, curr))
                         payoff_lst.append(curr_payoff)
 #                        if t == 0:
@@ -499,9 +505,9 @@ class PPO_Solver(Solver):
 #                        model_value_lst.append(curr_value)
             if not transit_applied:
                 if return_action:
-                    curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                    curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                     action_lst.append((curr_state_counts_full, None, t, None))
-                self.markov_decision_process.transit_across_timestamp()
+                markov_decision_process.transit_across_timestamp()
         if not return_data:
             payoff_lst = torch.tensor(payoff_lst)
 #            payoff_lst[-1] = 0
@@ -515,7 +521,7 @@ class PPO_Solver(Solver):
 #            model_value_lst = torch.tensor(model_value_lst)
 #            value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
         if return_data:
-            final_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
+            final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
             return state_action_advantage_lst, final_payoff
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)

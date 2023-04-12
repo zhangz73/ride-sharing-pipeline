@@ -88,7 +88,7 @@ def main(args, json_name = ""):
     
         df_table_all = None
         payoff = 0
-        num_trials = args["neural"]["num_episodes"]
+        num_trials = 10#args["neural"]["num_episodes"]
         for i in tqdm(range(num_trials)):
             _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = None)
             #            print(f"Policy Loss = {policy_loss}")
