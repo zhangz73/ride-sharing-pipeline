@@ -591,7 +591,7 @@ class ReportFactory:
         ## Visualize car status
         self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"car_status_{suffix}")
         ## Visualize trip status
-        self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "% Queued Requests", "% Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = "", figname = f"trip_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = "", figname = f"trip_status_{suffix}")
     
     def get_table(self, markov_decision_process, action_lst):
         prev_t = -1
