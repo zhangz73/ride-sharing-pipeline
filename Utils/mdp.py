@@ -446,7 +446,7 @@ class MarkovDecisionProcess:
                 for stag_time in range(stag_range[0], stag_range[1]):
                     curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
                     cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return float(cnt)
     
     ## Get number of active trip requests
     def get_num_active_trip_requests(self, state_counts = None):
@@ -476,7 +476,7 @@ class MarkovDecisionProcess:
                     for type in ["general", "assigned"]:
                         curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
                         cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return float(cnt)
     
     ## Get number of traveling vehicles
     def get_num_idling_cars(self, state_counts = None):
@@ -488,7 +488,7 @@ class MarkovDecisionProcess:
                 for type in ["general", "assigned"]:
                     curr_id = self.state_to_id["car"][(type, dest, 0, battery)]
                     cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return float(cnt)
     
     ## Get number of charging cars
     def get_num_charging_cars(self, state_counts = None):
@@ -500,7 +500,7 @@ class MarkovDecisionProcess:
                 for rate in self.charging_rates:
                     curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
                     cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return float(cnt)
     
     ## Get number of cars with H/M/L battery levels
     def get_num_cars_w_battery(self, state_counts = None, level = "H"):
@@ -528,7 +528,7 @@ class MarkovDecisionProcess:
                 for rate in self.charging_rates:
                     curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
                     cnt += state_counts[curr_id]
-        return float(cnt.data)
+        return float(cnt)
     
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
@@ -922,10 +922,10 @@ class MarkovDecisionProcess:
             new_eta = eta
             new_battery = battery
         curr_car_train_state = ("general", dest, eta + trip_time, self.get_battery_pos(battery))
-        target_car_train_state = ("general", dest, new_eta, self.get_battery_pos(new_battery))
+        target_car_train_state = ("assigned", dest, new_eta, self.get_battery_pos(new_battery))
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
-        target_car_state = ("general", dest, new_eta, new_battery)
+        target_car_state = ("assigned", dest, new_eta, new_battery)
         target_car_id = self.state_to_id["car"][target_car_state]
         if new_eta <= self.max_tracked_eta:
             target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
@@ -1100,7 +1100,7 @@ class MarkovDecisionProcess:
                         self.state_counts_map[car_id_next] += [car_id_curr, car_id_assigned]
                         self.car_train_state_counts_map[car_train_id_next] += [car_id_curr, car_id_assigned]
                     else:
-                        self.state_counts_map[car_id_next] += [car_id_curr]
+                        self.state_counts_map[car_id_next] += [car_id_curr, car_id_assigned]
                         self.car_train_state_counts_map[car_train_id_next] += [car_id_curr]
                         
         ## Gather idling cars
@@ -1212,7 +1212,9 @@ class MarkovDecisionProcess:
     ## Check if the action has the potential to be feasible
     ##  If False, then the action is certainly infeasible
     ##  If True, then the action might still be infeasible
-    def action_is_potentially_feasible(self, action_id, reduced, car_id = None):
+    def action_is_potentially_feasible(self, action_id, reduced, car_id = None, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
         if reduced:
             if car_id is None:
                 return True
@@ -1224,7 +1226,7 @@ class MarkovDecisionProcess:
             if action.get_type() == "charged":
                 rate = action.get_rate()
                 plug_id = self.state_to_id["plug"][(dest, rate)]
-                return eta == 0 and self.state_counts[plug_id] > 0
+                return eta == 0 and state_counts[plug_id] > 0
             new_dest = action.get_dest()
             trip_distance = self.map.distance(dest, new_dest)
             min_battery_needed = self.battery_per_step * trip_distance
@@ -1239,11 +1241,11 @@ class MarkovDecisionProcess:
             ## At least 1 plug with the rate available
             region, rate = action.get_region(), action.get_rate()
             plug_id = self.state_to_id["plug"][(region, rate)]
-            if self.state_counts[plug_id] == 0:
+            if state_counts[plug_id] == 0:
                 return False
             start = self.general_car_id_region_eta_map[(region, 0)]
             end = start + self.num_battery_levels
-            return torch.sum(self.state_counts[start:end]) > 0
+            return torch.sum(state_counts[start:end]) > 0
 #            for battery in range(self.num_battery_levels):
 #                target_car_state = ("general", region, 0, battery)
 #                target_car_id = self.state_to_id["car"][target_car_state]
@@ -1258,7 +1260,7 @@ class MarkovDecisionProcess:
             for eta in range(self.pickup_patience + 1):
                 start = self.general_car_id_region_eta_map[(origin, eta)]
                 end = start + self.num_battery_levels
-                if torch.sum(self.state_counts[(start + min_battery_needed):end]) > 0:
+                if torch.sum(state_counts[(start + min_battery_needed):end]) > 0:
                     return True
 #                for battery in range(min_battery_needed, self.num_battery_levels):
 #                    target_car_state = ("general", origin, eta, battery)
@@ -1277,12 +1279,13 @@ class MarkovDecisionProcess:
         mask = torch.zeros(total_actions)
         has_feasible_action = False
         for action_id in range(total_actions):
-            if self.action_is_potentially_feasible(action_id, reduced):
+            if self.action_is_potentially_feasible(action_id, reduced, state_counts = state_counts):
                 mask[action_id] = 1
                 has_feasible_action = True
         return mask
     
     ## Return a list of feasible actions
+    ## Deprecated!!!
     def all_feasible_actions(self, reduced):
         feasible_actions = []
         if reduced:
