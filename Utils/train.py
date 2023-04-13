@@ -569,9 +569,13 @@ class ReportFactory:
         plt.clf()
         plt.close()
     
-    def get_training_loss_plot(self, loss_arr, loss_name, figname):
+    def get_training_loss_plot(self, loss_arr, loss_name, figname, loss = True):
         final_loss = float(loss_arr[-1])
-        self.plot_single(loss_arr, xlabel = "Training Episodes", ylabel = "Loss", title = loss_name + f"\nFinal Loss = {final_loss:.2f}", figname = figname, dir = "Plots")
+        if loss:
+            type = "Loss"
+        else:
+            type = "Payoff"
+        self.plot_single(loss_arr, xlabel = "Policy Iterations", ylabel = type, title = loss_name + f"\nFinal {type} = {final_loss:.2f}", figname = figname, dir = "Plots")
     
     def plot_stacked(self, x_arr, y_arr_lst, label_lst, xlabel, ylabel, title, figname):
         assert len(y_arr_lst) == len(label_lst)

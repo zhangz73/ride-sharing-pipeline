@@ -255,3 +255,13 @@ region_rate_plug_df.to_csv(f"Data/RegionRatePlug/region_rate_plug_{SCENARIO_NAME
 trip_demand_df.to_csv(f"Data/TripDemand/trip_demand_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
 payoff_df.to_csv(f"Data/Payoff/payoff_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
 map_df.to_csv(f"Data/Map/map_{SCENARIO_NAME}.tsv", index = False, sep = "\t")
+
+## Plot average trip demands
+trip_demand_df = pd.read_csv(f"Data/TripDemand/trip_demand_{SCENARIO_NAME}.tsv", sep = "\t")
+trip_demand_df = trip_demand_df[["T", "Count"]].groupby("T").sum().reset_index()
+plt.plot(trip_demand_df["T"], trip_demand_df["Count"])
+plt.xlabel("Time Steps")
+plt.ylabel("Average Trip Demand")
+plt.savefig(f"DataPlots/avg_trip_demand_{SCENARIO_NAME}.png")
+plt.clf()
+plt.close()
