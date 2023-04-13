@@ -1,3 +1,2 @@
 ------------ Debugging output for day 0 ------------
-Itr = 1/1:
-	Final Value Loss = 8708.53125
+Itr = 1/100:

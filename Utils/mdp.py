@@ -263,6 +263,9 @@ class Reward:
             total_payoff += curr_payoff
         return total_payoff
     
+    def get_reward_df(self):
+        return self.reward_df
+    
     def get_travel_reward(self, origin, dest, ts):
         ## Update cache
         if self.curr_ts != ts:
@@ -326,6 +329,7 @@ class MarkovDecisionProcess:
         self.load_initial_data()
         ## Auxiliary variables
         self.regions = self.map.get_regions()
+        self.reward_df = reward_query.get_reward_df()
         self.max_travel_time = self.map.get_max_travel_time()
         if max_tracked_eta is None:
             self.max_tracked_eta = self.pickup_patience + self.max_travel_time #self.pickup_patience
@@ -625,7 +629,7 @@ class MarkovDecisionProcess:
     def get_payoff_curr_ts(self, deliver = False):
         ret = self.payoff_curr_ts.clone()
         if self.normalize_by_tripnums and deliver:
-            ret = ret / self.total_arrivals
+            ret = ret / self.total_market_revenue
         return ret
     
     ## Zero out the payoff at the current timestamp
@@ -641,8 +645,16 @@ class MarkovDecisionProcess:
         self.trip_arrivals_cache = self.trip_arrivals[(self.trip_arrivals["Origin"] == self.origin_cache) & (self.trip_arrivals["T"] == self.ts_cache)]
         self.payoff_curr_ts = torch.tensor(0.)
         self.total_arrivals = self.trip_arrivals["Count"].sum()
+        self.total_market_revenue = self.compute_total_market_revenue()
 #        print(self.trip_arrivals["Count"].sum())
 #        print(self.trip_arrivals[self.trip_arrivals["T"] == 0])
+
+    def compute_total_market_revenue(self):
+        tmp_df = self.reward_df[(self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
+        merged_df = tmp_df.merge(self.trip_arrivals, on = ["T", "Origin", "Destination"])
+        merged_df["Revenue"] = merged_df["Payoff"] * merged_df["Count"]
+        total_revenue = merged_df["Revenue"].sum()
+        return total_revenue
     
     ## Query the trip arrivals
     def query_trip_arrival(self, origin, dest, t):
