@@ -999,10 +999,11 @@ class MarkovDecisionProcess:
             trip_distance = self.map.distance(origin, dest)
             for eta in range(self.pickup_patience + 1):
                 start = self.general_car_id_region_eta_map[(origin, eta)]
+                start_feasible = start + self.battery_per_step * trip_distance
                 end = start + self.num_battery_levels
-                relev_state_counts_reverse = self.state_counts[(start + self.battery_per_step * trip_distance):end].flip(dims = (0,))
+                relev_state_counts_reverse = self.state_counts[start_feasible:end].flip(dims = (0,))
                 idx_reverse = torch.argmax((relev_state_counts_reverse > 0) + 0)
-                idx = int(len(relev_state_counts_reverse) - idx_reverse + start)
+                idx = int(len(relev_state_counts_reverse) - 1 - idx_reverse + start_feasible)
                 if self.state_counts[idx] > 0:
                     car_ret = idx
 #                for battery in range(self.num_battery_levels - 1, self.battery_per_step * trip_distance - 1, -1):
@@ -1297,22 +1298,30 @@ class MarkovDecisionProcess:
                 feasible_actions.append(action_id)
         return feasible_actions
     
-    def get_available_car_counts(self):
-        cnt = torch.sum(self.state_counts[self.available_car_types])
+    def get_available_car_counts(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = torch.sum(state_counts[self.available_car_types])
         return int(cnt.data)
     
-    def get_available_car_ids(self, state_reduction):
-        cnt = self.get_available_car_counts()
+    def get_available_car_ids(self, state_reduction, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = self.get_available_car_counts(state_counts = state_counts)
         if not state_reduction:
             return [None] * cnt
-        return self.get_all_available_existing_car_ids()
+        return self.get_all_available_existing_car_ids(state_counts = state_counts)
 
-    def get_all_available_existing_car_types(self):
-        ret = (self.state_counts * self.state_is_available_car > 0).nonzero(as_tuple = True)[0]
+    def get_all_available_existing_car_types(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        ret = (state_counts * self.state_is_available_car > 0).nonzero(as_tuple = True)[0]
         return set(list(ret.numpy()))
     
-    def get_all_available_existing_car_ids(self):
-        available_car_types = list(self.get_all_available_existing_car_types())
+    def get_all_available_existing_car_ids(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        available_car_types = list(self.get_all_available_existing_car_types(state_counts = state_counts))
         counts = self.state_counts[available_car_types]
         return np.repeat(available_car_types, counts)
     

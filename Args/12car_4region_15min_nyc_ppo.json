@@ -59,11 +59,11 @@
         "num_episodes": 300,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
-        "eps": 0.1,
+        "eps": 0.05,
         "policy_syncing_freq": 1,
         "n_cpu": 4,
         "lazy_removal": true,
-        "state_reduction": true
+        "state_reduction": false
     },
     "metric": ["total_payoff"],
     "report": {

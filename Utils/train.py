@@ -360,9 +360,10 @@ class PPO_Solver(Solver):
         if remove_infeasible:
             if len(state_counts.shape) == 1:
                 ret = self.remove_infeasible_actions(state_counts.cpu(), ts, output, car_id = car_id, state_count_check = state_count_check)
-#                print(self.markov_decision_process.describe_state_counts(state_counts))
+#                print(self.markov_decision_process.describe_state_counts(state_count_check))
 #                print(ret)
 #                print("")
+#                assert False
             else:
                 ret_lst = []
                 for i in range(state_counts.shape[0]):
