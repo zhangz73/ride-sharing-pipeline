@@ -330,6 +330,7 @@ class MarkovDecisionProcess:
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         self.reward_df = reward_query.get_reward_df()
+        self.max_atomic_payoff = self.reward_df["Payoff"].max()
         self.max_travel_time = self.map.get_max_travel_time()
         if max_tracked_eta is None:
             self.max_tracked_eta = self.pickup_patience + self.max_travel_time #self.pickup_patience
@@ -630,7 +631,7 @@ class MarkovDecisionProcess:
         ret = self.payoff_curr_ts.clone()
         if self.normalize_by_tripnums and deliver:
             ret = ret / self.total_market_revenue
-        return ret
+        return ret / self.max_atomic_payoff
     
     ## Zero out the payoff at the current timestamp
     def reset_payoff_curr_ts(self):
