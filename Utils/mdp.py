@@ -631,7 +631,9 @@ class MarkovDecisionProcess:
         ret = self.payoff_curr_ts.clone()
         if self.normalize_by_tripnums and deliver:
             ret = ret / self.total_market_revenue
-        return ret / self.max_atomic_payoff
+        else:
+            ret = ret / self.max_atomic_payoff
+        return ret
     
     ## Zero out the payoff at the current timestamp
     def reset_payoff_curr_ts(self):
