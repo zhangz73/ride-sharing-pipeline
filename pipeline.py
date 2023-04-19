@@ -70,7 +70,7 @@ def main(args, json_name = ""):
     elif solver_type == "ppo":
         report_factory = train.ReportFactory()
         if args["neural"]["num_itr"] > 0:
-            value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt")
+            value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt", label = f"{json_name}_{descriptor}")
             suffix = f"epi={args['neural']['num_episodes']}_batch={args['neural']['value_batch']}_itr={args['neural']['num_itr']}_eps={args['neural']['eps']}"
             report_factory.get_training_loss_plot(value_loss_arr, "Value Loss", f"value_loss_{json_name}_{descriptor}")
             report_factory.get_training_loss_plot(policy_loss_arr, "Policy Loss", f"policy_loss_{json_name}_{descriptor}")

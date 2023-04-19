@@ -297,7 +297,7 @@ class Reward:
             payoff = 0
         ## For now, charging rate assumes to be 0
 #        pay_rate = 0
-        return payoff #-0.5 #-pay_rate * rate
+        return -payoff #-0.5 #-pay_rate * rate
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
@@ -632,7 +632,7 @@ class MarkovDecisionProcess:
         if self.normalize_by_tripnums and deliver:
             ret = ret / self.total_market_revenue
         else:
-            ret = ret / self.max_atomic_payoff
+            ret = ret #/ self.max_atomic_payoff
         return ret
     
     ## Zero out the payoff at the current timestamp

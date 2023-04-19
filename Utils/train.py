@@ -95,7 +95,7 @@ class PPO_Solver(Solver):
         self.policy_optimizer, self.policy_scheduler = self.policy_model_factory.prepare_optimizer()
         self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
         self.markov_decision_process_lst = []
-        for i in range(self.n_cpu):
+        for i in range(self.n_cpu): #self.n_cpu
             cp = copy.deepcopy(markov_decision_process)
             self.markov_decision_process_lst.append(cp)
     
@@ -214,7 +214,7 @@ class PPO_Solver(Solver):
             total_payoff += payoff_val
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
-    def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt"):
+    def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
         value_loss_arr = []
         policy_loss_arr = []
         payoff_arr = []
@@ -222,6 +222,7 @@ class PPO_Solver(Solver):
         self.policy_model.train()
         ## Policy Iteration
         dct_outer = {}
+        report_factory = ReportFactory()
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
@@ -229,6 +230,8 @@ class PPO_Solver(Solver):
 #            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
 #            payoff_val = float(payoff_lst[-1].data)
 #            payoff_arr.append(payoff_val)
+        with open(f"payoff_log_{label}.txt", "w") as f:
+            f.write("Payoff Logs:\n")
         for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
@@ -254,26 +257,36 @@ class PPO_Solver(Solver):
                 payoff_val /= self.num_episodes
                 results = None
             payoff_arr.append(payoff_val)
+            with open(f"payoff_log_{label}.txt", "a") as f:
+                f.write(f"{float(payoff_val)}\n")
             if itr == self.num_itr:
                 break
                 
             ## Update models
             ## Update value models
             print("\tUpdating value models...")
+            value_curr_arr = []
             for _ in tqdm(range(self.value_epoch)):
                 batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
                 self.value_optimizer.zero_grad(set_to_none=True)
 #                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
                 total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
+                value_curr_arr.append(float(total_value_loss.data))
                 total_value_loss.backward()
                 self.value_optimizer.step()
                 self.value_scheduler.step()
+#             plt.plot(value_curr_arr)
+#             plt.title(f"Itr = {itr + 1}\nFinal Loss = {value_curr_arr[-1]}")
+#             plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
+#             plt.clf()
+#             plt.close()
             if debug:
                 with open(debug_dir, "a") as f:
                     f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
             
             ## Update policy models
             print("\tUpdating policy models...")
+            policy_curr_arr = []
             for _ in tqdm(range(self.policy_epoch)):
                 policy_dct = {}
                 for t in range(self.time_horizon):
@@ -311,10 +324,16 @@ class PPO_Solver(Solver):
                             loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                             total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
 #                total_policy_loss /= len(batch_idx)
+                policy_curr_arr.append(float(total_policy_loss.data))
                 total_policy_loss.backward()
                 self.policy_optimizer.step()
                 self.policy_scheduler.step()
                 policy_dct = None
+#             plt.plot(policy_curr_arr)
+#             plt.title(f"Itr = {itr + 1}\nFinal Loss = {policy_curr_arr[-1]}")
+#             plt.savefig(f"DebugPlots/policy_itr={itr+1}.png")
+#             plt.clf()
+#             plt.close()
             if itr % self.value_syncing_freq == 0:
                 self.benchmark_value_model = copy.deepcopy(self.value_model)
             if itr % self.policy_syncing_freq == 0:
@@ -329,6 +348,21 @@ class PPO_Solver(Solver):
                 descriptor = f"_itr={itr}"
                 self.value_model_factory.save_to_file(descriptor, include_ts = True)
                 self.policy_model_factory.save_to_file(descriptor, include_ts = True)
+                num_trials = 10
+                payoff = 0
+                df_table_all = None
+                for i in tqdm(range(num_trials)):
+                    _, _, payoff_lst, action_lst = self.evaluate(return_action = True, seed = None)
+                    payoff += float(payoff_lst[-1].data)
+                    df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+                    df_table["trial"] = i
+                    if df_table_all is None:
+                        df_table_all = df_table
+                    else:
+                        df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+                payoff /= num_trials
+                df_table_all = df_table_all.groupby("trial").mean().reset_index()
+                report_factory.visualize_table(df_table, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
             
 #            if return_payoff:
 #                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
@@ -593,21 +627,22 @@ class ReportFactory:
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.legend()
+        plt.title(title)
         plt.savefig(f"TablePlots/{figname}.png")
         plt.clf()
         plt.close()
     
-    def visualize_table(self, df_table, suffix):
+    def visualize_table(self, df_table, suffix, title = ""):
         ## Visualize new requests
-        self.plot_single(df_table["num_new_requests"], xlabel = "Time Steps", ylabel = "# New Trip Requests", title = "", figname = f"new_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
+        self.plot_single(df_table["num_new_requests"], xlabel = "Time Steps", ylabel = "# New Trip Requests", title = title, figname = f"new_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize fulfilled requests
-        self.plot_single(df_table["frac_requests_fulfilled"], xlabel = "Time Steps", ylabel = "% Fulfilled Trip Requests", title = "", figname = f"fulfilled_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
+        self.plot_single(df_table["frac_requests_fulfilled"], xlabel = "Time Steps", ylabel = "% Fulfilled Trip Requests", title = title, figname = f"fulfilled_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize car status
-        self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"car_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"car_status_{suffix}")
         ## Visualize trip status
-        self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = "", figname = f"trip_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = title, figname = f"trip_status_{suffix}")
         ## Visualize car battery status
-        self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"battery_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"battery_status_{suffix}")
     
     def get_table(self, markov_decision_process, action_lst):
         prev_t = -1
