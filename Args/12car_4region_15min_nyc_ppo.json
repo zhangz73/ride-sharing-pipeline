@@ -59,7 +59,7 @@
         "num_episodes": 300,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
-        "eps": 0.1,
+        "eps": 0.2,
         "policy_syncing_freq": 1,
         "n_cpu": 4,
         "lazy_removal": true,
