@@ -57,7 +57,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -75,6 +75,7 @@ class PPO_Solver(Solver):
         self.policy_batch = min(policy_batch, num_episodes)
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
+        self.eps_sched = eps_sched
         self.policy_syncing_freq = policy_syncing_freq
         self.value_syncing_freq = value_syncing_freq
         self.device = device
@@ -197,6 +198,7 @@ class PPO_Solver(Solver):
                 val_num += 1
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
+            payoff_lst = (payoff_lst - torch.mean(payoff_lst)) / torch.std(payoff_lst)
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
                 value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
@@ -232,6 +234,7 @@ class PPO_Solver(Solver):
 #            payoff_arr.append(payoff_val)
         with open(f"payoff_log_{label}.txt", "w") as f:
             f.write("Payoff Logs:\n")
+        eps = self.eps
         for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
             if debug:
@@ -320,7 +323,7 @@ class PPO_Solver(Solver):
                             atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t)]["atomic_payoff"]).to(device = self.device)
                             advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst)
                             ## TODO: Fix it!!!
-                            ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = self.eps)
+                            ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps)
                             loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
                             total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
 #                total_policy_loss /= len(batch_idx)
@@ -341,6 +344,10 @@ class PPO_Solver(Solver):
             ## Save loss data
             value_loss_arr.append(float(total_value_loss.data))
             policy_loss_arr.append(float(total_policy_loss.data))
+            
+            ## Update eps according to scheduler
+            if itr > 0 and itr % self.eps_sched == 0:
+                eps = eps / 5
             ## Checkpoint
             if itr > 0 and itr % self.ckpt_freq == 0:
                 self.value_model_factory.update_model(self.value_model, update_ts = False)
