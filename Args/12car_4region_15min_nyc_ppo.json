@@ -55,16 +55,16 @@
         "policy_retrain": true,
         "descriptor": "PPO",
         "dir": ".",
-        "num_itr": 40,
+        "num_itr": 100,
         "num_episodes": 300,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
         "eps_sched": 100,
         "policy_syncing_freq": 1,
-        "n_cpu": 4,
+        "n_cpu": 8,
         "lazy_removal": true,
-        "state_reduction": true
+        "state_reduction": false
     },
     "metric": ["total_payoff"],
     "report": {
