@@ -46,9 +46,9 @@ TOTAL_CARS_ORIG = 5000
 TOTAL_CARS_NEW = 12#50 #200
 CHARGING_RATE = 0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
-NUM_PLUGS = TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5
+NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{TIME_FREQ}mins_nyc"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_nobattery_nyc"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -138,9 +138,10 @@ def get_charging_cost(cost_rate_per_min_lst):
     region_lst = []
     for cost_rate_per_min in cost_rate_per_min_lst:
         cost_rate, tup = cost_rate_per_min
+        cost_rate = 0
         lo, hi = tup
         for region in range(len(LOCATIONS_ID_OF_INTEREST)):
-            cost_rate_lst += [cost_rate * TIME_FREQ * CHARGING_RATE] * (hi - lo)
+            cost_rate_lst += [-cost_rate * TIME_FREQ * CHARGING_RATE] * (hi - lo)
             T_lst += list(range(lo, hi))
             region_lst += [region for _ in range(hi - lo)]
     dct = {"T": T_lst, "Payoff": cost_rate_lst, "Region": region_lst}
@@ -242,7 +243,7 @@ payoff_df["Type"] = "Travel"
 payoff_df["Pickup"] = 1
 payoff_df["Region"] = None
 payoff_df["Rate"] = None
-charging_df = get_charging_cost([(0.19297, (0, 12)), (0.16631, (12, 72)), (0.38498, (72, 144))])
+charging_df = get_charging_cost([(0.19297, (0, 4)), (0.16631, (4, 24)), (0.38498, (24, 48))])
 charging_df["Type"] = "Charge"
 charging_df["Pickup"] = None
 charging_df["Origin"] = None
