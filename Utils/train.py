@@ -76,6 +76,7 @@ class PPO_Solver(Solver):
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.eps_sched = eps_sched
+        self.eps_eta = eps_eta
         self.policy_syncing_freq = policy_syncing_freq
         self.value_syncing_freq = value_syncing_freq
         self.device = device
@@ -122,7 +123,7 @@ class PPO_Solver(Solver):
             next_value = next_value * sd + mu
         else:
             next_value = 0
-        return payoff + next_value - curr_value
+        return (payoff + next_value - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None):
         prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, car_id = car_id)
@@ -203,13 +204,13 @@ class PPO_Solver(Solver):
                 val_num += 1
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
-            mu, sd = 0, (self.time_horizon - t)
+            mu, sd = torch.mean(payoff_lst), torch.std(payoff_lst) #(self.time_horizon - t)
             self.value_scale[t] = (mu, sd)
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
                 value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
-                total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num / self.num_cars / self.time_horizon
+                total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num #/ self.num_cars / self.time_horizon
 #        total_value_loss /= val_num #self.num_episodes
         value_dct = None
         return total_value_loss
