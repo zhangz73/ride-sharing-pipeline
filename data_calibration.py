@@ -159,7 +159,7 @@ def get_region_battery_car_df():
     for region in range(len(LOCATIONS_ID_OF_INTEREST)):
         region_lst.append(region)
         #battery_lst.append(NUM_BATTERY_LEVELS // 2)
-        battery_lst.append(NUM_BATTERY_LEVELS)
+        battery_lst.append(NUM_BATTERY_LEVELS - 1)
         if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
             curr_car = TOTAL_CARS_NEW - car_cnt
         else:
