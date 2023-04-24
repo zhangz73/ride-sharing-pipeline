@@ -154,7 +154,9 @@ class TripDemands:
 
     ## Generate 1 trial of the constant arrival process
     def generate_constant_arrivals(self):
-        return self.data[["T", "Origin", "Destination", "Count"]].copy()
+        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
+        ret["Count"] = ret["Count"].round(0).astype(int)
+        return ret
     
     ## Generate 1 trial of poisson arrival process
     def generate_poisson_arrivals(self):

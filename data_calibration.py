@@ -46,9 +46,9 @@ TOTAL_CARS_ORIG = 5000
 TOTAL_CARS_NEW = 12#50 #200
 CHARGING_RATE = 0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
-NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
+NUM_PLUGS = 0 #len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_nobattery_nyc"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -158,7 +158,8 @@ def get_region_battery_car_df():
     car_cnt = 0
     for region in range(len(LOCATIONS_ID_OF_INTEREST)):
         region_lst.append(region)
-        battery_lst.append(NUM_BATTERY_LEVELS // 2)
+        #battery_lst.append(NUM_BATTERY_LEVELS // 2)
+        battery_lst.append(NUM_BATTERY_LEVELS)
         if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
             curr_car = TOTAL_CARS_NEW - car_cnt
         else:

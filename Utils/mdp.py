@@ -790,6 +790,7 @@ class MarkovDecisionProcess:
     def define_all_reduced_states(self):
         self.reduced_state_to_id["plug"] = self.state_to_id["plug"]
         curr_id = len(self.reduced_state_to_id["plug"])
+        self.reduced_state_counts[:curr_id] = self.state_counts[:curr_id]
         ## Define car states -- General type
         self.reduced_state_to_id["car"] = {}
         for dest in self.regions:
