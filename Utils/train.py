@@ -114,11 +114,13 @@ class PPO_Solver(Solver):
             curr, next = curr_state_counts[:,:self.value_input_dim], next_state_counts[:,:self.value_input_dim]
         else:
             curr, next = curr_state_counts[:self.value_input_dim], next_state_counts[:self.value_input_dim]
-        curr_value = self.benchmark_value_model((ts, curr)).reshape((-1,))
+        with torch.no_grad():
+            curr_value = self.value_model((ts, curr)).reshape((-1,))
         mu, sd = self.value_scale[ts]
         curr_value = curr_value * sd + mu
         if next_ts < self.time_horizon - 1:
-            next_value = self.benchmark_value_model((next_ts, next)).reshape((-1,))
+            with torch.no_grad():
+                next_value = self.value_model((next_ts, next)).reshape((-1,))
             mu, sd = self.value_scale[next_ts]
             next_value = next_value * sd + mu
         else:
@@ -236,9 +238,14 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-#        if return_payoff:
-#            _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
-#            payoff_val = float(payoff_lst[-1].data)
+#         payoff_tot = 0
+#         num_trials = 50
+#         for i in tqdm(range(num_trials), leave = False):
+# #         if return_payoff:
+#             _, _, payoff_lst, _ = self.evaluate(return_action = True)
+#             payoff_val = float(payoff_lst[-1].data)
+#             payoff_tot += payoff_val
+#         print(payoff_tot / num_trials)
 #            payoff_arr.append(payoff_val)
         with open(f"payoff_log_{label}.txt", "w") as f:
             f.write("Payoff Logs:\n")
@@ -405,7 +412,8 @@ class PPO_Solver(Solver):
         if not use_benchmark:
             output = self.policy_model((ts, state_counts))
         else:
-            output = self.benchmark_policy_model((ts, state_counts))
+            with torch.no_grad():
+                output = self.benchmark_policy_model((ts, state_counts))
         if remove_infeasible:
             if len(state_counts.shape) == 1:
                 ret = self.remove_infeasible_actions(state_counts.cpu(), ts, output, car_id = car_id, state_count_check = state_count_check)
@@ -464,7 +472,7 @@ class PPO_Solver(Solver):
         return torch.argmax(policy_output)
     
     def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None):
-        if not train:
+        if True: #not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
         if markov_decision_process is None:
