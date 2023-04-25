@@ -178,6 +178,7 @@ class ModelFactory:
             return None
         model = torch.load(dir_fname)
         model = model.to(device = self.device)
+        model.eval()
         if update:
             self.update_model(model, update_ts = False)
         return model
