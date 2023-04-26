@@ -90,8 +90,6 @@ class ModelFactory:
         ## The timestamp when the latest model is stored into self.model
         self.model_ts = self.get_curr_ts()
         self.model = None
-        if not retrain:
-            self.model = self.load_latest(self.descriptor)
         if self.model is None:
             if model_name == "discretized_feedforward":
                 self.model = self.discretized_feedforward()
@@ -100,6 +98,9 @@ class ModelFactory:
                 self.model = self.rnn()
                 self.model = ModelFull(self.model, is_discretized = False)
             self.model = self.model.to(device = self.device)
+        if not retrain:
+#             self.model = self.load_latest(self.descriptor)
+            self.load_latest(self.descriptor)
 
     ## Construct a discretized feedforward neural network
     ## The neural network is discretized along the timestamps
@@ -148,14 +149,15 @@ class ModelFactory:
         name = self.descriptor + descriptor
         if include_ts:
             name += "__" + self.model_ts
-        torch.save(model_save, f"{self.dir}/Models/{name}.pt")
+        torch.save(model_save.state_dict(), f"{self.dir}/Models/{name}.pt")
         ## Convert the model back to its original device
         self.model = self.model.to(device = self.device)
     
     ## Load the latest model from file given the descriptor
     ##  A more delicate wrapper for load_model()
     def load_latest(self, descriptor):
-        return self.load_model(descriptor, update = False, include_ts = True)
+#         return self.load_model(descriptor, update = False, include_ts = True)
+        self.load_model(descriptor, update = False, include_ts = True)
 
     ## Load the model from file given the descriptor
     ## Updates the current model to the loaded one if update = True.
@@ -176,12 +178,15 @@ class ModelFactory:
         dir_fname = f"{self.dir}/Models/{name}.pt"
         if not os.path.isfile(dir_fname):
             return None
-        model = torch.load(dir_fname)
-        model = model.to(device = self.device)
-        model.eval()
+        print(f"Loading {dir_fname}...")
+        self.model.load_state_dict(torch.load(dir_fname))
+        self.model.eval()
+#         model = torch.load(dir_fname)
+#         model = model.to(device = self.device)
+#         model.eval()
         if update:
-            self.update_model(model, update_ts = False)
-        return model
+            self.update_model(self.model, update_ts = False)
+#         return model
 
     ## Compute the current timestamp
     def get_curr_ts(self):
