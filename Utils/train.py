@@ -100,7 +100,7 @@ class PPO_Solver(Solver):
         for i in range(self.n_cpu): #self.n_cpu
             cp = copy.deepcopy(markov_decision_process)
             self.markov_decision_process_lst.append(cp)
-        self.value_scale = {}
+        self.value_scale = self.value_model_factory.get_value_scale()
     
     def get_value_model(self):
         return self.value_model_factory.get_model()
@@ -121,8 +121,8 @@ class PPO_Solver(Solver):
         if next_ts < self.time_horizon - 1:
             with torch.no_grad():
                 next_value = self.value_model((next_ts, next)).reshape((-1,))
-            mu, sd = self.value_scale[next_ts]
-            next_value = next_value * sd + mu
+            mu2, sd2 = self.value_scale[next_ts]
+            next_value = next_value * sd2 + mu2
         else:
             next_value = 0
         return (payoff + next_value - curr_value) / sd
@@ -185,7 +185,7 @@ class PPO_Solver(Solver):
         total_value_loss /= val_num #self.num_episodes
         return total_value_loss
     
-    def get_value_loss(self, state_action_advantage_lst_episodes):
+    def get_value_loss(self, state_action_advantage_lst_episodes, update_value_scale = False):
         total_value_loss = 0
         val_num = 0
         value_dct = {}
@@ -206,8 +206,10 @@ class PPO_Solver(Solver):
                 val_num += 1
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
-            mu, sd = torch.mean(payoff_lst), torch.std(payoff_lst) #(self.time_horizon - t)
-            self.value_scale[t] = (mu, sd)
+            if update_value_scale:
+                mu, sd = torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
+                self.value_scale[t] = (mu, sd)
+            mu, sd = self.value_scale[t]
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
@@ -215,6 +217,8 @@ class PPO_Solver(Solver):
                 total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num #/ self.num_cars / self.time_horizon
 #        total_value_loss /= val_num #self.num_episodes
         value_dct = None
+        if update_value_scale:
+            self.value_model_factory.set_value_scale(self.value_scale)
         return total_value_loss
     
     def get_data_single(self, num_episodes, worker_num = 0):
@@ -238,16 +242,16 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-        payoff_tot = 0
-        num_trials = 20
-        for i in tqdm(range(num_trials), leave = False):
-#         if return_payoff:
-#             _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = None)
-            _, payoff_val = self.evaluate(train = True, return_data = True, seed = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0])
-#             payoff_val = float(payoff_lst[-1].data)
-            payoff_tot += payoff_val
-        print(payoff_tot / num_trials)
-        assert False
+#        payoff_tot = 0
+#        num_trials = 10
+#        for i in tqdm(range(num_trials), leave = False):
+##         if return_payoff:
+#            _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = None)
+##            _, payoff_val = self.evaluate(train = True, return_data = True, seed = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0])
+#            payoff_val = float(payoff_lst[-1].data)
+#            payoff_tot += payoff_val
+#        print(payoff_tot / num_trials)
+#        assert False
 #            payoff_arr.append(payoff_val)
         with open(f"payoff_log_{label}.txt", "w") as f:
             f.write("Payoff Logs:\n")
@@ -290,7 +294,7 @@ class PPO_Solver(Solver):
                 batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
                 self.value_optimizer.zero_grad(set_to_none=True)
 #                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
-                total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
+                total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx], update_value_scale = itr == 0)
                 value_curr_arr.append(float(total_value_loss.data))
                 total_value_loss.backward()
                 self.value_optimizer.step()
@@ -364,7 +368,7 @@ class PPO_Solver(Solver):
             
             ## Update eps according to scheduler
             if itr > 0 and itr % self.eps_sched == 0:
-                eps = eps * self.eps_eta
+                eps = max(eps * self.eps_eta, 0.01)
             ## Checkpoint
             if itr > 0 and itr % self.ckpt_freq == 0:
                 self.value_model_factory.update_model(self.value_model, update_ts = False)

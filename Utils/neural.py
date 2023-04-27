@@ -90,6 +90,8 @@ class ModelFactory:
         ## The timestamp when the latest model is stored into self.model
         self.model_ts = self.get_curr_ts()
         self.model = None
+        self.optimizer = None
+        self.scheduler = None
         if self.model is None:
             if model_name == "discretized_feedforward":
                 self.model = self.discretized_feedforward()
@@ -97,10 +99,11 @@ class ModelFactory:
             else:
                 self.model = self.rnn()
                 self.model = ModelFull(self.model, is_discretized = False)
-            self.model = self.model.to(device = self.device)
         if not retrain:
 #             self.model = self.load_latest(self.descriptor)
             self.load_latest(self.descriptor)
+        self.model = self.model.to(device = self.device)
+        self.value_scale = {}
 
     ## Construct a discretized feedforward neural network
     ## The neural network is discretized along the timestamps
@@ -112,6 +115,14 @@ class ModelFactory:
             model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm, self.prob)
             model_list.append(model)
         return model_list
+    
+    ## Set the value scale
+    def set_value_scale(self, value_scale):
+        self.value_scale = value_scale.copy()
+    
+    ## Get the value scale
+    def get_value_scale(self):
+        return self.value_scale.copy()
     
     ## Recurrent neural network. To be implemented
     def rnn(self):
@@ -130,15 +141,15 @@ class ModelFactory:
             self.model_ts = self.get_curr_ts()
 
     ## Set up the model optimizer and training scheduler objects
-    def prepare_optimizer(self):
+    def prepare_optimizer(self, weight_decay = 0):
         if self.solver == "Adam":
-            optimizer = optim.Adam(self.model.parameters(), lr = self.lr)
+            self.optimizer = optim.Adam(self.model.parameters(), lr = self.lr, weight_decay = weight_decay)
         elif self.solver == "SGD":
-            optimizer = optim.SGD(self.model.parameters(), lr = self.lr)
+            self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, weight_decay = weight_decay)
         else:
-            optimizer = optim.RMSprop(self.model.parameters(), lr = self.lr)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size = self.scheduler_step, gamma = self.decay)
-        return optimizer, scheduler
+            self.optimizer = optim.RMSprop(self.model.parameters(), lr = self.lr, weight_decay = weight_decay)
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = self.scheduler_step, gamma = self.decay)
+        return self.optimizer, self.scheduler
     
     ## Save the model to file named according to the given descriptor
     ## Append the current timestamp to the model if include_ts = True
@@ -149,7 +160,8 @@ class ModelFactory:
         name = self.descriptor + descriptor
         if include_ts:
             name += "__" + self.model_ts
-        torch.save(model_save.state_dict(), f"{self.dir}/Models/{name}.pt")
+        ckpt = {"model_state_dict": model_save.state_dict(), "opt_state_dict": self.optimizer.state_dict(), "scheduler_state_dict": self.scheduler.state_dict(), "value_scale": self.value_scale}
+        torch.save(ckpt, f"{self.dir}/Models/{name}.pt")
         ## Convert the model back to its original device
         self.model = self.model.to(device = self.device)
     
@@ -179,7 +191,9 @@ class ModelFactory:
         if not os.path.isfile(dir_fname):
             return None
         print(f"Loading {dir_fname}...")
-        self.model.load_state_dict(torch.load(dir_fname))
+        ckpt = torch.load(dir_fname)
+        self.model.load_state_dict(ckpt["model_state_dict"])
+        self.set_value_scale(ckpt["value_scale"])
         self.model.eval()
 #         model = torch.load(dir_fname)
 #         model = model.to(device = self.device)

@@ -57,9 +57,11 @@
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
+        "eps_eta": 0.99,
+        "eps_sched": 1,
         "policy_syncing_freq": 1,
         "lazy_removal": true,
-        "state_reduction": false
+        "state_reduction": true
     },
     "metric": ["total_payoff"],
     "report": {
