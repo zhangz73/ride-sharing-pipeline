@@ -6,7 +6,8 @@
         "parameter_source": "given",
         "arrival_type": "poisson",
         "parameter_fname": "TripDemand/trip_demand_12car4region48chargers15mins_fullycharged_nyc.tsv",
-        "data": null
+        "data": null,
+        "scaling_factor": 4
     },
     "reward": {
         "reward_fname": "Payoff/payoff_12car4region48chargers15mins_fullycharged_nyc.tsv"

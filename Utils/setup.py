@@ -101,7 +101,7 @@ class TripDemands:
     ##      3. Trip Destination: The origin of the passenger trip request
     ## smooth_time_window and smooth_region_window is only used when there are no trip requests
     ##  at a specific region at a specific timestamp.
-    def __init__(self, time_horizon, parameter_source = "given", arrival_type = "poisson", parameter_fname = "trip_demand.tsv", data = None, start_ts = "00:00:00", end_ts = "23:59:59", smooth_time_window = 3, smooth_region_window = 3):
+    def __init__(self, time_horizon, parameter_source = "given", arrival_type = "poisson", parameter_fname = "trip_demand.tsv", data = None, start_ts = "00:00:00", end_ts = "23:59:59", smooth_time_window = 3, smooth_region_window = 3, scaling_factor = 1):
         assert parameter_source in ["given", "inferred"]
         assert arrival_type in ["constant", "poisson", "data-driven"]
         self.time_horizon = time_horizon
@@ -113,6 +113,7 @@ class TripDemands:
         self.end_ts = end_ts
         self.smooth_time_window = smooth_time_window
         self.smooth_region_window = smooth_region_window
+        self.scaling_factor = scaling_factor
         ## Auxiliary objects
         self.data = None
         ## Populate the arrival rate df
@@ -161,7 +162,7 @@ class TripDemands:
     ## Generate 1 trial of poisson arrival process
     def generate_poisson_arrivals(self):
         ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
-        ret["Count"] = np.random.poisson(lam = ret["Count"])
+        ret["Count"] = ((np.random.poisson(lam = ret["Count"] * self.scaling_factor)) / self.scaling_factor).round(0).astype(int)
         return ret
     
     ## TODO: Define the exact behavior of data-driven arrivals
