@@ -242,16 +242,16 @@ class PPO_Solver(Solver):
         if debug:
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
-#        payoff_tot = 0
-#        num_trials = 10
-#        for i in tqdm(range(num_trials), leave = False):
-##         if return_payoff:
-#            _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = None)
-##            _, payoff_val = self.evaluate(train = True, return_data = True, seed = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0])
-#            payoff_val = float(payoff_lst[-1].data)
-#            payoff_tot += payoff_val
-#        print(payoff_tot / num_trials)
-#        assert False
+#         payoff_tot = 0
+#         num_trials = 10
+#         for i in tqdm(range(num_trials), leave = False):
+# #         if return_payoff:
+#             _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = None)
+# #            _, payoff_val = self.evaluate(train = True, return_data = True, seed = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0])
+#             payoff_val = float(payoff_lst[-1].data)
+#             payoff_tot += payoff_val
+#         print(payoff_tot / num_trials)
+#         assert False
 #            payoff_arr.append(payoff_val)
         with open(f"payoff_log_{label}.txt", "w") as f:
             f.write("Payoff Logs:\n")
