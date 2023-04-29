@@ -431,10 +431,10 @@ class MarkovDecisionProcess:
         reduced_state_trip_half_len = (self.connection_patience + 1) * len(self.regions)
         self.trip_arrivals_map[:, self.state_trip_begin:state_trip_end : (self.connection_patience + 1)] = self.trip_arrivals
         orig_arrivals = np.add.reduceat(self.trip_arrivals.numpy(), np.arange(0, len(self.regions) ** 2, len(self.regions)), axis = 1)
-        self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin:(self.reduced_state_trip_begin + reduced_state_trip_half_len)] = torch.tensor(orig_arrivals)
+        self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin:(self.reduced_state_trip_begin + reduced_state_trip_half_len):(self.connection_patience + 1)] = torch.tensor(orig_arrivals)
         for region in self.regions:
             dest_arrivals_single_region = torch.sum(self.trip_arrivals[:, region::len(self.regions)], axis = 1)
-            self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region] = dest_arrivals_single_region
+            self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region * (self.connection_patience + 1)] = dest_arrivals_single_region
     
     ## Reset all states to the initial one
     def reset_states(self):
