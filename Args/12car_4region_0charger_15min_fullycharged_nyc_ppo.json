@@ -64,7 +64,7 @@
         "eps_sched": 1,
         "eps_eta": 0.97,
         "policy_syncing_freq": 1,
-        "n_cpu": 4,
+        "n_cpu": 8,
         "lazy_removal": true,
         "state_reduction": true
     },
