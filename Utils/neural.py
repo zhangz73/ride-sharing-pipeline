@@ -160,7 +160,8 @@ class ModelFactory:
         name = self.descriptor + descriptor
         if include_ts:
             name += "__" + self.model_ts
-        ckpt = {"model_state_dict": model_save.state_dict(), "opt_state_dict": self.optimizer.state_dict(), "scheduler_state_dict": self.scheduler.state_dict(), "value_scale": self.value_scale}
+#        ckpt = {"model_state_dict": model_save.state_dict(), "opt_state_dict": self.optimizer.state_dict(), "scheduler_state_dict": self.scheduler.state_dict(), "value_scale": self.value_scale}
+        ckpt = {"model_state_dict": model_save.state_dict(), "value_scale": self.value_scale}
         torch.save(ckpt, f"{self.dir}/Models/{name}.pt")
         ## Convert the model back to its original device
         self.model = self.model.to(device = self.device)

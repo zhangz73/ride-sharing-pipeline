@@ -122,6 +122,7 @@ class TripDemands:
             self.infer_parameters()
         if parameter_source == "given":
             self.data = pd.read_csv(f"Data/{self.parameter_fname}", sep = "\t")
+        self.data_wide = self.long_to_wide()
     
     ## Infer parameters from the data
     ## Procedures:
@@ -145,6 +146,21 @@ class TripDemands:
     def smooth_parameters(self):
         pass
     
+    ## Transform the data from long to wide format
+    def long_to_wide(self):
+        num_regions = int(max(self.data["Origin"].max(), self.data["Destination"].max())) + 1
+        mat = np.zeros((self.time_horizon, num_regions * num_regions))
+        for t in range(self.time_horizon):
+            for origin in range(num_regions):
+                for dest in range(num_regions):
+                    tmp_df = self.data[(self.data["T"] == t) & (self.data["Origin"] == origin) & (self.data["Destination"] == dest)]
+                    if tmp_df.shape[0] > 0:
+                        cnt = tmp_df.iloc[0]["Count"]
+                    else:
+                        cnt = 0
+                    mat[t, origin * num_regions + dest] = cnt
+        return mat
+    
     ## Simulate 1 trial of the passenger arrivals
     def generate_arrivals(self):
         if self.arrival_type == "constant":
@@ -155,14 +171,16 @@ class TripDemands:
 
     ## Generate 1 trial of the constant arrival process
     def generate_constant_arrivals(self):
-        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
-        ret["Count"] = ret["Count"].round(0).astype(int)
+#        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
+#        ret["Count"] = ret["Count"].round(0).astype(int)
+        ret = self.data_wide.round(0).astype(int)
         return ret
     
     ## Generate 1 trial of poisson arrival process
     def generate_poisson_arrivals(self):
-        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
-        ret["Count"] = ((np.random.poisson(lam = ret["Count"] * self.scaling_factor)) / self.scaling_factor).round(0).astype(int)
+#        ret = self.data[["T", "Origin", "Destination", "Count"]].copy()
+#        ret["Count"] = ((np.random.poisson(lam = ret["Count"] * self.scaling_factor)) / self.scaling_factor).round(0).astype(int)
+        ret = (np.random.poisson(self.data_wide * self.scaling_factor) / self.scaling_factor).round(0).astype(int)
         return ret
     
     ## TODO: Define the exact behavior of data-driven arrivals

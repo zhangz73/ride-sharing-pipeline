@@ -266,6 +266,19 @@ class Reward:
     def get_reward_df(self):
         return self.reward_df
     
+    def get_wide_reward(self, time_horizon, num_regions):
+        mat = np.zeros((time_horizon, num_regions * num_regions))
+        for t in range(time_horizon):
+            for origin in range(num_regions):
+                for dest in range(num_regions):
+                    tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Origin"] == origin) & (self.reward_df["Destination"] == dest) & (self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
+                    if tmp_df.shape[0] > 0:
+                        cnt = tmp_df.iloc[0]["Payoff"]
+                    else:
+                        cnt = 0
+                    mat[t, origin * num_regions + dest] = cnt
+        return mat
+    
     def get_travel_reward(self, origin, dest, ts):
         ## Update cache
         if self.curr_ts != ts:
@@ -330,6 +343,7 @@ class MarkovDecisionProcess:
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         self.reward_df = reward_query.get_reward_df()
+        self.reward_wide = torch.tensor(self.reward_query.get_wide_reward(self.time_horizon, len(self.regions)))
         self.max_atomic_payoff = self.reward_df["Payoff"].max()
         self.max_travel_time = self.map.get_max_travel_time()
         if max_tracked_eta is None:
@@ -388,6 +402,8 @@ class MarkovDecisionProcess:
         self.state_counts_init = self.state_counts.clone()
         self.reduced_state_counts_init = self.reduced_state_counts.clone()
         self.max_battery_per_region_init = self.max_battery_per_region.copy()
+        self.trip_arrivals_map = torch.zeros((self.time_horizon, self.num_total_states))
+        self.trip_arrivals_reduced_map = torch.zeros((self.time_horizon, self.num_total_reduced_states))
         ## Variables keeping track of available car types
         self.available_car_types, self.state_is_available_car = self.get_all_available_car_types()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
@@ -409,6 +425,17 @@ class MarkovDecisionProcess:
             return self.num_total_reduced_states + self.num_total_local_states
         return self.num_total_reduced_states
     
+    ## prepare trip demands
+    def trip_demand_map_prepare(self):
+        state_trip_end = self.state_trip_begin + (self.connection_patience + 1) * len(self.regions) ** 2
+        reduced_state_trip_half_len = (self.connection_patience + 1) * len(self.regions)
+        self.trip_arrivals_map[:, self.state_trip_begin:state_trip_end : (self.connection_patience + 1)] = self.trip_arrivals
+        orig_arrivals = np.add.reduceat(self.trip_arrivals.numpy(), np.arange(0, len(self.regions) ** 2, len(self.regions)), axis = 1)
+        self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin:(self.reduced_state_trip_begin + reduced_state_trip_half_len)] = torch.tensor(orig_arrivals)
+        for region in self.regions:
+            dest_arrivals_single_region = torch.sum(self.trip_arrivals[:, region::len(self.regions)], axis = 1)
+            self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region] = dest_arrivals_single_region
+    
     ## Reset all states to the initial one
     def reset_states(self):
         self.state_counts = self.state_counts_init.clone()
@@ -417,6 +444,13 @@ class MarkovDecisionProcess:
         self.reset_timestamp()
         self.payoff_curr_ts = torch.tensor(0.)
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
+        self.trip_demand_map_prepare()
+#        print("Trip Arrival Map:")
+#        print(self.trip_arrivals_map)
+#        print("Reduced Trip Arrival Map:")
+#        print(self.trip_arrivals_reduced_map)
+        self.state_counts += self.trip_arrivals_map[0,:]
+        self.reduced_state_counts += self.trip_arrivals_reduced_map[0,:]
     
     ## Set the states and payoff_schedule_dct according to the given ones
     ## Only useful for checking action feasibilities
@@ -642,21 +676,22 @@ class MarkovDecisionProcess:
     ## Reset timestamp to 0 and regenerate trip arrivals
     def reset_timestamp(self):
         self.curr_ts = 0
-        self.trip_arrivals = self.trip_demands.generate_arrivals()
+        self.trip_arrivals = torch.tensor(self.trip_demands.generate_arrivals())
         self.ts_cache = 0
         self.origin_cache = 0
-        self.trip_arrivals_cache = self.trip_arrivals[(self.trip_arrivals["Origin"] == self.origin_cache) & (self.trip_arrivals["T"] == self.ts_cache)]
+#        self.trip_arrivals_cache = self.trip_arrivals[(self.trip_arrivals["Origin"] == self.origin_cache) & (self.trip_arrivals["T"] == self.ts_cache)]
         self.payoff_curr_ts = torch.tensor(0.)
-        self.total_arrivals = self.trip_arrivals["Count"].sum()
+        self.total_arrivals = torch.sum(self.trip_arrivals) #self.trip_arrivals["Count"].sum()
         self.total_market_revenue = self.compute_total_market_revenue()
 #        print(self.trip_arrivals["Count"].sum())
 #        print(self.trip_arrivals[self.trip_arrivals["T"] == 0])
 
     def compute_total_market_revenue(self):
-        tmp_df = self.reward_df[(self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
-        merged_df = tmp_df.merge(self.trip_arrivals, on = ["T", "Origin", "Destination"])
-        merged_df["Revenue"] = merged_df["Payoff"] * merged_df["Count"]
-        total_revenue = merged_df["Revenue"].sum()
+#        tmp_df = self.reward_df[(self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
+#        merged_df = tmp_df.merge(self.trip_arrivals, on = ["T", "Origin", "Destination"])
+#        merged_df["Revenue"] = merged_df["Payoff"] * merged_df["Count"]
+#        total_revenue = merged_df["Revenue"].sum()
+        total_revenue = torch.sum(self.reward_wide * self.trip_arrivals)
         return total_revenue
     
     ## Query the trip arrivals
@@ -732,6 +767,7 @@ class MarkovDecisionProcess:
                 self.state_counts[id] = cnt
         ## Define trip states
         self.state_to_id["trip"] = {}
+        self.state_trip_begin = curr_id
         for origin in self.regions:
             curr_id_begin = curr_id
             for dest in self.regions:
@@ -741,8 +777,8 @@ class MarkovDecisionProcess:
                     self.state_dict[curr_id] = trip
                     curr_id += 1
                 ## Load new passenger requests
-                trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
-                self.state_counts[trip_id_new] = self.query_trip_arrival(origin, dest, 0)
+#                trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
+#                self.state_counts[trip_id_new] = self.query_trip_arrival(origin, dest, 0)
             self.local_order_map[origin] = (curr_id_begin, curr_id)
     
     ## TODO: Modify it!!!
@@ -833,21 +869,22 @@ class MarkovDecisionProcess:
                 self.reduced_state_counts[id] += cnt
         ## Define trip states
         self.reduced_state_to_id["trip"] = {}
+        self.reduced_state_trip_begin = curr_id
         for region in self.regions:
             for stag_time in range(self.connection_patience + 1):
                 self.reduced_state_to_id["trip"][("origin", region, stag_time)] = curr_id
                 curr_id += 1
                 self.reduced_state_to_id["trip"][("dest", region, stag_time)] = curr_id
                 curr_id += 1
-        ## Load new passenger requests
-        for origin in self.regions:
-            for dest in self.regions:
-                trip_id_origin = self.reduced_state_to_id["trip"][("origin", origin, 0)]
-                trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, 0)]
-                trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
-                cnt = self.state_counts[trip_id_new]
-                self.reduced_state_counts[trip_id_origin] += cnt
-                self.reduced_state_counts[trip_id_dest] += cnt
+#        ## Load new passenger requests
+#        for origin in self.regions:
+#            for dest in self.regions:
+#                trip_id_origin = self.reduced_state_to_id["trip"][("origin", origin, 0)]
+#                trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, 0)]
+#                trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
+#                cnt = self.state_counts[trip_id_new]
+#                self.reduced_state_counts[trip_id_origin] += cnt
+#                self.reduced_state_counts[trip_id_dest] += cnt
     
     ## Atomic state transitions within a timestamp
     ## Return if the action has been successfully processed. False if the action is not feasible
@@ -1066,8 +1103,6 @@ class MarkovDecisionProcess:
         self.car_train_state_counts_map = [[] for _ in range(self.num_car_states_train + 1)]
         self.plug_tracking_map = torch.zeros(self.num_total_states)
         self.plug_tracking_reduced_map = torch.zeros(self.num_total_reduced_states)
-        self.trip_arrivals_map = torch.zeros((self.time_horizon, self.num_total_states))
-        self.trip_arrivals_reduced_map = torch.zeros((self.time_horizon, self.num_total_reduced_states))
         ## Update passenger requests
         for origin in self.regions:
             for dest in self.regions:
@@ -1083,17 +1118,6 @@ class MarkovDecisionProcess:
                     trip_id_curr_reduced = self.reduced_state_to_id["trip"][("dest", dest, stag_time)]
                     trip_id_prev_reduced = self.reduced_state_to_id["trip"][("dest", dest, stag_time - 1)]
                     self.reduced_state_counts_map[trip_id_curr_reduced].append(trip_id_prev_reduced)
-        ## Load new passenger requests
-        for t in range(self.time_horizon - 1):
-            for origin in self.regions:
-                for dest in self.regions:
-                    trip_id_new = self.state_to_id["trip"][(origin, dest, 0)]
-                    trip_id_origin = self.reduced_state_to_id["trip"][("origin", origin, 0)]
-                    trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, 0)]
-                    cnt = self.query_trip_arrival(origin, dest, t + 1)
-                    self.trip_arrivals_map[t, trip_id_new] = cnt
-                    self.trip_arrivals_reduced_map[t, trip_id_origin] += cnt
-                    self.trip_arrivals_reduced_map[t, trip_id_dest] += cnt
         ## Make movements for traveling cars
         for dest in self.regions:
             for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
@@ -1197,12 +1221,18 @@ class MarkovDecisionProcess:
         assert self.curr_ts < self.time_horizon
         state_counts_new = torch.zeros(self.num_total_states)
         state_counts_aug = torch.cat((self.state_counts, torch.tensor([0])))
-        state_counts_new = self.plug_tracking_map + self.trip_arrivals_map[self.curr_ts,:] + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
+        if self.curr_ts < self.time_horizon - 1:
+            trip_arrivals_map = self.trip_arrivals_map[self.curr_ts + 1,:]
+            trip_arrivals_reduced_map = self.trip_arrivals_reduced_map[self.curr_ts + 1,:]
+        else:
+            trip_arrivals_map = 0
+            trip_arrivals_reduced_map = 0
+        state_counts_new = self.plug_tracking_map + trip_arrivals_map + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
         ## Update state counts
         self.state_counts = state_counts_new.clone()
 
 #        reduced_state_counts_aug = torch.cat((self.reduced_state_counts, torch.tensor([0])))
-        reduced_state_counts_new = self.plug_tracking_reduced_map + self.trip_arrivals_reduced_map[self.curr_ts,:] + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
+        reduced_state_counts_new = self.plug_tracking_reduced_map + trip_arrivals_reduced_map + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
         ## Update reduced state counts
         self.reduced_state_counts = reduced_state_counts_new.clone()
         
