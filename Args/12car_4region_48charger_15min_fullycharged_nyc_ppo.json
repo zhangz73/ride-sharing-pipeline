@@ -60,7 +60,7 @@
         "num_episodes": 500,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
-        "eps": 0.2,
+        "eps": 0.1,
         "eps_sched": 1,
         "eps_eta": 0.97,
         "policy_syncing_freq": 1,
