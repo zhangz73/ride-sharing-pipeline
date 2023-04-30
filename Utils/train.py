@@ -243,7 +243,7 @@ class PPO_Solver(Solver):
             with open(debug_dir, "w") as f:
                 f.write("------------ Debugging output for day 0 ------------\n")
 #         payoff_tot = 0
-#         num_trials = 10
+#         num_trials = 50
 #         for i in tqdm(range(num_trials), leave = False):
 # #         if return_payoff:
 #             _, _, payoff_lst, _ = self.evaluate(return_action = True, seed = None)
