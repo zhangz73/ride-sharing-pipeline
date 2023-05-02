@@ -123,7 +123,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "24car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "48car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
