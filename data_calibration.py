@@ -46,9 +46,10 @@ TOTAL_CARS_ORIG = 5000
 TOTAL_CARS_NEW = 12#50 #200
 CHARGING_RATE = 0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
+SCALE_DOWN = 3
 NUM_PLUGS = 0 #len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_scale{SCALE_DOWN}_nyc"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -231,7 +232,7 @@ region_rate_plug_df = get_region_rate_plug_df()
 
 ## Get median num of cars
 median_car_cnt = get_numcars()
-scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean())
+scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean()) / SCALE_DOWN
 print(median_car_cnt, scale_factor)
 
 ## Create trip_demand_df
