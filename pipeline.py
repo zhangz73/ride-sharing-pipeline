@@ -96,7 +96,7 @@ def main(args, json_name = ""):
                 #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
     #            print(payoff_lst)
             payoff += float(payoff_lst[-1].data)
-            df_table = report_factory.get_table(markov_decision_process, action_lst)
+            df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
             df_table["trial"] = i
             if df_table_all is None:
                 df_table_all = df_table
@@ -106,7 +106,7 @@ def main(args, json_name = ""):
         print(f"Total Payoff = {payoff}")
         df_table_all = df_table_all.groupby("trial").mean().reset_index()
         df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
-        report_factory.visualize_table(df_table, f"{json_name}_{descriptor}")
+        report_factory.visualize_table(df_table, f"{json_name}_{descriptor}", detailed = True)
 #        for tup in action_lst:
 #            curr_state_counts, action, t, car_idx = tup
 #            if action is not None:
@@ -123,7 +123,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "48car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "24car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

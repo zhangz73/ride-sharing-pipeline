@@ -636,6 +636,17 @@ class ReportFactory:
         plt.clf()
         plt.close()
     
+    def plot_multi(self, y_arr_lst, label_lst, xlabel, ylabel, title, figname, dir = "Plots"):
+        for y_arr, label in zip(y_arr_lst, label_lst):
+            plt.plot(y_arr, label = label)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.legend()
+        plt.savefig(f"{dir}/{figname}.png")
+        plt.clf()
+        plt.close()
+
     def get_training_loss_plot(self, loss_arr, loss_name, figname, loss = True):
         final_loss = float(loss_arr[-1])
         if loss:
@@ -661,7 +672,7 @@ class ReportFactory:
         plt.clf()
         plt.close()
     
-    def visualize_table(self, df_table, suffix, title = ""):
+    def visualize_table(self, df_table, suffix, title = "", detailed = False):
         ## Visualize new requests
         self.plot_single(df_table["num_new_requests"], xlabel = "Time Steps", ylabel = "# New Trip Requests", title = title, figname = f"new_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize fulfilled requests
@@ -672,13 +683,22 @@ class ReportFactory:
         self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = title, figname = f"trip_status_{suffix}")
         ## Visualize car battery status
         self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"battery_status_{suffix}")
+        ## Visualize region supply & demand balancedness
+        if detailed:
+            regions = [int(x.split("_")[-1]) for x in df_table.columns if x.startswith("num_cars")]
+            num_regions = np.max(regions) + 1
+            for region in range(num_regions):
+                num_trip_requests_region = df_table[f"num_trip_requests_{region}"]
+                num_cars_region = df_table[f"num_cars_region_{region}"]
+                self.plot_multi([num_trip_requests_region, num_cars_region], ["# Trip Requests", "# Available Cars"], "Time Steps", "Supply & Demand", "", f"supply_demand_{region}_{suffix}", dir = "TablePlots")
     
-    def get_table(self, markov_decision_process, action_lst):
+    def get_table(self, markov_decision_process, action_lst, detailed = False):
         prev_t = -1
         begin = False
         num_active_requests_begin, num_traveling_cars_begin, num_idling_cars_begin, num_charging_cars_begin = 0, 0, 0, 0
         num_active_requests_end, num_traveling_cars_end, num_idling_cars_end, num_charging_cars_end = 0, 0, 0, 0
         num_new_requests = 0
+        num_regions = len(markov_decision_process.regions)
         t_lst = []
         frac_requests_fulfilled_lst = []
         frac_traveling_cars_lst = []
@@ -691,6 +711,11 @@ class ReportFactory:
         frac_low_battery_cars_lst = []
         frac_med_battery_cars_lst = []
         frac_high_battery_cars_lst = []
+        num_trip_requests_dct = {}
+        num_cars_dct = {}
+        for i in range(num_regions):
+            num_trip_requests_dct[i] = []
+            num_cars_dct[i] = []
         for i in tqdm(range(len(action_lst)), leave = False):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
@@ -702,6 +727,15 @@ class ReportFactory:
             if begin:
                 num_active_requests_begin = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
                 num_new_requests = markov_decision_process.get_num_new_trip_requests(curr_state_counts)
+                for region in range(num_regions):
+                    if detailed:
+                        num_trip_requests_region = markov_decision_process.get_num_trip_requests_region(region, state_counts = curr_state_counts)
+                        num_cars_region = markov_decision_process.get_num_cars_region(region, state_counts = curr_state_counts)
+                    else:
+                        num_trip_requests_region = None
+                        num_cars_region = None
+                    num_trip_requests_dct[region].append(num_trip_requests_region)
+                    num_cars_dct[region].append(num_cars_region)
             if car_idx is None:
                 num_active_requests_end = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
                 num_traveling_cars_end = markov_decision_process.get_num_traveling_cars(curr_state_counts)
@@ -734,5 +768,8 @@ class ReportFactory:
                 frac_med_battery_cars_lst.append(num_med_battery_cars / num_total_cars)
                 frac_high_battery_cars_lst.append(num_high_battery_cars / num_total_cars)
         dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
+        for region in range(num_regions):
+            dct[f"num_trip_requests_{region}"] = num_trip_requests_dct[region]
+            dct[f"num_cars_region_{region}"] = num_cars_dct[region]
         df = pd.DataFrame.from_dict(dct)
         return df
