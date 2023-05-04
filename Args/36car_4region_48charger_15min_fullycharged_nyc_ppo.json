@@ -4,7 +4,7 @@
     },
     "trip_demand": {
         "parameter_source": "given",
-        "arrival_type": "poisson",
+        "arrival_type": "constant",
         "parameter_fname": "TripDemand/trip_demand_36car4region48chargers15mins_fullycharged_nyc.tsv",
         "data": null,
         "scaling_factor": 4
@@ -38,7 +38,7 @@
         "value_batch_norm": false,
         "value_lr": 1e-2,
         "value_epoch": 100,
-        "value_batch": 300,
+        "value_batch": 100,
         "value_decay": 0.1,
         "value_scheduler_step": 50,
         "value_solver": "Adam",
@@ -49,7 +49,7 @@
         "policy_batch_norm": false,
         "policy_lr": 5e-4,
         "policy_epoch": 3,
-        "policy_batch": 300,
+        "policy_batch": 100,
         "policy_decay": 0.1,
         "policy_scheduler_step": 1000,
         "policy_solver": "Adam",
@@ -64,7 +64,7 @@
         "eps_sched": 1,
         "eps_eta": 0.97,
         "policy_syncing_freq": 1,
-        "n_cpu": 4,
+        "n_cpu": 8,
         "lazy_removal": true,
         "state_reduction": true
     },
