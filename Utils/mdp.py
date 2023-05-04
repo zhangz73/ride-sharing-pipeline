@@ -499,6 +499,28 @@ class MarkovDecisionProcess:
     def get_num_queued_trip_requests(self, state_counts = None):
         return self.get_num_trip_requests(state_counts = state_counts, stag_range = (0, self.connection_patience))
     
+    ## Get number of trip requests per region
+    def get_num_trip_requests_region(self, region, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for dest in self.regions:
+            curr_id = self.state_to_id["trip"][(region, dest, 0)]
+            cnt += state_counts[curr_id]
+        return float(cnt)
+    
+    ## Get number of cars close to each region
+    def get_num_cars_region(self, region, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for eta in range(self.pickup_patience):
+            for battery in range(self.num_battery_levels):
+                for type in ["general", "assigned"]:
+                    curr_id = self.state_to_id["car"][(type, region, eta, battery)]
+                    cnt += state_counts[curr_id]
+        return float(cnt)
+    
     ## Get number of abandoned trip requests
     ## Note that it only makes sense to be called right before transition across time
     def get_num_abandoned_trip_requests(self, state_counts = None):
