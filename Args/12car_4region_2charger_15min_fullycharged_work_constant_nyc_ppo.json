@@ -1,0 +1,76 @@
+{
+    "map": {
+        "data_dir": "Map/map_12car4region6chargers15mins_fullycharged_nyc.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_12car4region6chargers15mins_fullycharged_nyc.tsv",
+        "data": null,
+        "scaling_factor": 4
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_12car4region6chargers15mins_fullycharged_nyc.tsv"
+    },
+    "mdp": {
+        "time_horizon": 48,
+        "connection_patience": 1,
+        "pickup_patience": 1,
+        "num_battery_levels": 264,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            150
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 2,
+        "normalize_by_tripnums": true,
+        "battery_cutoff": [90, 180],
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_12car4region6chargers15mins_fullycharged_nyc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_12car4region2chargers15mins_fullycharged_work_nyc.tsv"
+    },
+    "solver": {
+        "type": "ppo"
+    },
+    "neural": {
+        "value_model_name": "discretized_feedforward",
+        "value_hidden_dim_lst": [500, 64, 64],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
+        "value_batch_norm": false,
+        "value_lr": 1e-2,
+        "value_epoch": 100,
+        "value_batch": 100,
+        "value_decay": 0.1,
+        "value_scheduler_step": 50,
+        "value_solver": "Adam",
+        "value_retrain": true,
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [500, 64, 64],
+        "policy_activation_lst": ["tanh", "tanh", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 5e-4,
+        "policy_epoch": 3,
+        "policy_batch": 100,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 1000,
+        "policy_solver": "Adam",
+        "policy_retrain": true,
+        "descriptor": "PPO",
+        "dir": ".",
+        "num_itr": 80,
+        "num_episodes": 500,
+        "ckpt_freq": 10,
+        "benchmarking_policy": "uniform",
+        "eps": 0.1,
+        "eps_sched": 1,
+        "eps_eta": 0.97,
+        "policy_syncing_freq": 1,
+        "n_cpu": 8,
+        "lazy_removal": true,
+        "state_reduction": true
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}
