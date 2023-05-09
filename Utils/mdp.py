@@ -521,6 +521,17 @@ class MarkovDecisionProcess:
                     cnt += state_counts[curr_id]
         return float(cnt)
     
+    ## Get number of charging cars close to each region
+    def get_num_charging_cars_region(self, region, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt = 0
+        for battery in range(self.num_battery_levels):
+            for rate in self.charging_rates:
+                curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+                cnt += state_counts[curr_id]
+        return float(cnt)
+    
     ## Get number of abandoned trip requests
     ## Note that it only makes sense to be called right before transition across time
     def get_num_abandoned_trip_requests(self, state_counts = None):
