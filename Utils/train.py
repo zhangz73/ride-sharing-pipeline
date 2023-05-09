@@ -389,8 +389,8 @@ class PPO_Solver(Solver):
                     else:
                         df_table_all = pd.concat([df_table_all, df_table], axis = 0)
                 payoff /= num_trials
-                df_table_all = df_table_all.groupby("trial").mean().reset_index()
-                report_factory.visualize_table(df_table, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
+                df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
+                report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
             
 #            if return_payoff:
 #                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
@@ -636,6 +636,15 @@ class ReportFactory:
         plt.clf()
         plt.close()
     
+    def plot_bar(self, x_arr, y_arr, xlabel, ylabel, title, figname, dir = "TablePlots"):
+        plt.bar(x_arr, y_arr)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.savefig(f"{dir}/{figname}.png")
+        plt.clf()
+        plt.close()
+    
     def plot_multi(self, y_arr_lst, label_lst, xlabel, ylabel, title, figname, dir = "Plots"):
         for y_arr, label in zip(y_arr_lst, label_lst):
             plt.plot(y_arr, label = label)
@@ -691,6 +700,21 @@ class ReportFactory:
                 num_trip_requests_region = df_table[f"num_trip_requests_{region}"]
                 num_cars_region = df_table[f"num_cars_region_{region}"]
                 self.plot_multi([num_trip_requests_region, num_cars_region], ["# Trip Requests", "# Available Cars"], "Time Steps", "Supply & Demand", "", f"supply_demand_{region}_{suffix}", dir = "TablePlots")
+        ## Visualize charging car distribution across regions
+        if detailed:
+            regions = [int(x.split("_")[-1]) for x in df_table.columns if x.startswith("num_charging_cars")]
+            num_regions = np.max(regions) + 1
+            y_lst = []
+            label_lst = []
+            for region in range(num_regions):
+                num_charging_cars_region = df_table[f"num_charging_cars_region_{region}"]
+                y_lst.append(num_charging_cars_region)
+                label_lst.append(f"# Charging Cars @ Region {region}")
+            self.plot_multi(y_lst, label_lst, "Time Steps", "# Charging Cars", "", f"region_charging_distribution_{suffix}", dir = "TablePlots")
+            y_arr = np.array([np.sum(x) for x in y_lst])
+            y_arr = y_arr / np.sum(y_arr)
+            self.plot_bar([str(x) for x in range(num_regions)], y_arr, "Region", "% Charging Cars", "", f"region_charging_frac_{suffix}", dir = "TablePlots")
+#            self.plot_stacked(df_table["t"], y_lst, label_lst = label_lst, xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"region_charging_distribution_{suffix}")
     
     def get_table(self, markov_decision_process, action_lst, detailed = False):
         prev_t = -1
@@ -713,9 +737,11 @@ class ReportFactory:
         frac_high_battery_cars_lst = []
         num_trip_requests_dct = {}
         num_cars_dct = {}
+        charging_car_dct = {}
         for i in range(num_regions):
             num_trip_requests_dct[i] = []
             num_cars_dct[i] = []
+            charging_car_dct[i] = []
         for i in tqdm(range(len(action_lst)), leave = False):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
@@ -752,6 +778,12 @@ class ReportFactory:
                 num_low_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "L")
                 num_med_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "M")
                 num_high_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "H")
+                for region in range(num_regions):
+                    if detailed:
+                        num_charging_cars_region = markov_decision_process.get_num_charging_cars_region(region, state_counts = curr_state_counts)
+                    else:
+                        num_charging_cars_region = None
+                    charging_car_dct[region].append(num_charging_cars_region)
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
                 frac_idling_cars = num_idling_cars_end / num_total_cars
@@ -771,5 +803,6 @@ class ReportFactory:
         for region in range(num_regions):
             dct[f"num_trip_requests_{region}"] = num_trip_requests_dct[region]
             dct[f"num_cars_region_{region}"] = num_cars_dct[region]
+            dct[f"num_charging_cars_region_{region}"] = charging_car_dct[region]
         df = pd.DataFrame.from_dict(dct)
         return df
