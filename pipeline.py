@@ -106,7 +106,7 @@ def main(args, json_name = ""):
         print(f"Total Payoff = {payoff}")
         df_table_all = df_table_all.groupby("trial").mean().reset_index()
         df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
-        report_factory.visualize_table(df_table, f"{json_name}_{descriptor}", detailed = True)
+        report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}", detailed = True)
 #        for tup in action_lst:
 #            curr_state_counts, action, t, car_idx = tup
 #            if action is not None:

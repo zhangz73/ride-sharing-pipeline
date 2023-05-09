@@ -390,7 +390,7 @@ class PPO_Solver(Solver):
                         df_table_all = pd.concat([df_table_all, df_table], axis = 0)
                 payoff /= num_trials
                 df_table_all = df_table_all.groupby("trial").mean().reset_index()
-                report_factory.visualize_table(df_table, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
+                report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
             
 #            if return_payoff:
 #                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
