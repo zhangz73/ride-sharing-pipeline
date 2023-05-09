@@ -104,7 +104,11 @@ def main(args, json_name = ""):
                 df_table_all = pd.concat([df_table_all, df_table], axis = 0)
         payoff /= num_trials
         print(f"Total Payoff = {payoff}")
-        df_table_all = df_table_all.groupby("trial").mean().reset_index()
+        df_table_all_cp = df_table_all.copy()
+        df_table_all_cp = df_table_all_cp.groupby("t").quantile(0.95).reset_index().sort_values("t")
+        df_table_all = df_table_all.groupby(["t"]).mean().reset_index().sort_values("t")
+        for col in [x for x in df_table_all.columns if x.startswith("num_charging_cars_region_")]:
+            df_table_all[col] = df_table_all_cp[col].copy()
         df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
         report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}", detailed = True)
 #        for tup in action_lst:
@@ -123,7 +127,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_48charger_15min_fullycharged_nyc_ppo" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
