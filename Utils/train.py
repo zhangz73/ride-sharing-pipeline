@@ -596,6 +596,48 @@ class PPO_Solver(Solver):
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
         return None, None, payoff_lst, action_lst
 
+class D_Closest_Car_Solver(Solver):
+    def __init__(self, markov_decision_process = None, d = 1):
+        super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
+        self.d = d
+    
+    def evaluate(self, return_action = True, seed = None):
+        if seed is not None:
+            torch.manual_seed(seed)
+        self.markov_decision_process.reset_states()
+        action_lst_ret = []
+        payoff_lst = []
+        for t in range(self.time_horizon):
+            any_action_applied = False
+            ## Assign all trip requests with d-closest cars
+            active_trip_ods = self.markov_decision_process.get_all_active_trip_ods()
+            for active_trip_od in active_trip_ods:
+                origin, dest, action = active_trip_od
+                selected_car_id = self.markov_decision_process.get_max_battery_car_id_among_d_closest(region = origin, d = self.d)
+                if selected_car_id is not None:
+                    self.markov_decision_process.transit_within_timestamp(action, car_id = selected_car_id)
+                    any_action_applied = True
+                    curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                    action_lst_ret.append((curr_state_counts_full, action, t, selected_car_id))
+            ## Charge all cars at low battery levels
+            low_battery_car_ids = self.markov_decision_process.get_all_low_battery_car_ids()
+            for tup in low_battery_car_ids:
+                car_id, region = tup
+                action_lst = self.markov_decision_process.get_charging_actions(region)
+                for action in action_lst:
+                    action_applied = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                    if action_applied:
+                        curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                        any_action_applied = True
+                        action_lst_ret.append((curr_state_counts_full, action, t, car_id))
+                        break
+            curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+            action_lst_ret.append((curr_state_counts_full, None, t, None))
+            self.markov_decision_process.transit_across_timestamp()
+            curr_payoff = self.markov_decision_process.get_payoff_curr_ts(deliver = True)
+            payoff_lst.append(curr_payoff)
+        return None, None, payoff_lst, action_lst_ret
+
 ## This module constructs a corresponding solver given parameters
 class SolverFactory:
     def __init__(self, type = "rl", markov_decision_process = None):

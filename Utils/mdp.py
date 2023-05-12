@@ -1001,7 +1001,7 @@ class MarkovDecisionProcess:
                 self.reduced_state_counts[trip_id_dest] -= 1
             stag_time -= 1
         ## Update car states
-        if origin != dest or not action_fulfilled:
+        if origin != dest or action_fulfilled:
             new_eta = eta + trip_time
             new_battery = battery - self.battery_per_step * trip_distance
         else:
@@ -1063,6 +1063,8 @@ class MarkovDecisionProcess:
         self.reduced_state_counts[target_car_id_reduced] += 1
         self.car_train_state_counts[curr_car_train_id] -= 1
         self.car_train_state_counts[target_car_train_id] += 1
+        self.state_counts[plug_id] -= 1
+        self.reduced_state_counts[plug_id] -= 1
         ## Update payoff
         atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts)
         self.payoff_curr_ts += atomic_payoff
@@ -1075,6 +1077,57 @@ class MarkovDecisionProcess:
             self.available_existing_car_types.remove(car_id)
         if next_id is not None:
             self.available_existing_car_types.add(next_id)
+    
+    def get_all_active_trip_ods(self):
+        active_trip_ods = []
+        for origin in self.regions:
+            for dest in self.regions:
+                for stag_time in range(self.connection_patience, -1, -1):
+                    curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    if self.state_counts[curr_id] > 0:
+                        curr_action_id = self.action_desc_to_id[("travel", origin, dest)]
+                        action = self.all_actions[curr_action_id]
+                        active_trip_ods.append((origin, dest, action))
+        return active_trip_ods
+    
+    def get_all_low_battery_car_ids(self):
+        low_battery_car_ids = []
+        for dest in self.regions:
+            for eta in range(self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.battery_cutoff[0]):
+                    curr_id = self.state_to_id["car"][("general", dest, eta, battery)]
+                    if self.state_counts[curr_id] > 0:
+                        low_battery_car_ids.append((curr_id, dest))
+        return low_battery_car_ids
+    
+    def get_charging_actions(self, region):
+        action_lst = []
+        for rate in self.charging_rates:
+            curr_action_id = self.action_desc_to_id[("charge", region, rate)]
+            curr_action = self.all_actions[curr_action_id]
+            action_lst.append(curr_action)
+        return action_lst
+    
+    def get_max_battery_car_id_among_d_closest(self, region, d = 1):
+        cnt = 0
+        candidate_car_ids = []
+        for eta in range(self.pickup_patience + 1):
+            for battery in range(self.num_battery_levels - 1, -1, -1):
+                curr_id = self.state_to_id["car"][("general", region, eta, battery)]
+                if self.state_counts[curr_id] > 0:
+                    candidate_car_ids.append((curr_id, battery))
+                    cnt += int(self.state_counts[curr_id])
+                if cnt >= d:
+                    break
+            if cnt >= d:
+                break
+        max_battery, selected_car_id = 0, None
+        for tup in candidate_car_ids:
+            curr_id, battery = tup
+            if battery > max_battery:
+                max_battery = battery
+                selected_car_id = curr_id
+        return selected_car_id
     
     def select_feasible_car(self, origin, dest, type):
         car_ret = None

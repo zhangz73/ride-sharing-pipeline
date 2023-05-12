@@ -27,7 +27,7 @@ def main(args, json_name = ""):
     else:
         n_threads = 4
     torch.set_num_threads(n_threads)
-    if "state_reduction" in args["neural"] and args["neural"]["state_reduction"]:
+    if "neural" in args and "state_reduction" in args["neural"] and args["neural"]["state_reduction"]:
         descriptor = "reduced"
     else:
         descriptor = "full"
@@ -45,6 +45,8 @@ def main(args, json_name = ""):
         model_descriptor = args["neural"]["descriptor"] + f"_{json_name}_{descriptor}"
         del args["neural"]["descriptor"]
         solver = train.PPO_Solver(markov_decision_process = markov_decision_process, descriptor = model_descriptor, device = DEVICE, **args["neural"])
+    elif solver_type == "d_closest":
+        solver = train.D_Closest_Car_Solver(markov_decision_process = markov_decision_process, **args["d_closest"])
     
     ## Training
     if solver_type == "dp":
@@ -85,32 +87,34 @@ def main(args, json_name = ""):
     #            f.write(f"{payoff_lst}\n")
                 f.write(",".join([str(x) for x in payoff_arr]))
         #        print(markov_decision_process.describe_state_counts())
+    elif solver_type == "d_closest":
+        report_factory = train.ReportFactory()
     
-        df_table_all = None
-        payoff = 0
-        num_trials = 10#args["neural"]["num_episodes"]
-        for i in tqdm(range(num_trials)):
-            _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = None)
-            #            print(f"Policy Loss = {policy_loss}")
+    df_table_all = None
+    payoff = 0
+    num_trials = 10#args["neural"]["num_episodes"]
+    for i in tqdm(range(num_trials)):
+        _, _, payoff_lst, action_lst = solver.evaluate(return_action = True, seed = None)
+        #            print(f"Policy Loss = {policy_loss}")
 #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
-                #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-    #            print(payoff_lst)
-            payoff += float(payoff_lst[-1].data)
-            df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
-            df_table["trial"] = i
-            if df_table_all is None:
-                df_table_all = df_table
-            else:
-                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
-        payoff /= num_trials
-        print(f"Total Payoff = {payoff}")
-        df_table_all_cp = df_table_all.copy()
-        df_table_all_cp = df_table_all_cp.groupby("t").quantile(0.95).reset_index().sort_values("t")
-        df_table_all = df_table_all.groupby(["t"]).mean().reset_index().sort_values("t")
-        for col in [x for x in df_table_all.columns if x.startswith("num_charging_cars_region_")]:
-            df_table_all[col] = df_table_all_cp[col].copy()
-        df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
-        report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}", detailed = True)
+            #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+#            print(payoff_lst)
+        payoff += float(payoff_lst[-1].data)
+        df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
+        df_table["trial"] = i
+        if df_table_all is None:
+            df_table_all = df_table
+        else:
+            df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+    payoff /= num_trials
+    print(f"Total Payoff = {payoff}")
+    df_table_all_cp = df_table_all.copy()
+    df_table_all_cp = df_table_all_cp.groupby("t").quantile(0.95).reset_index().sort_values("t")
+    df_table_all = df_table_all.groupby(["t"]).mean().reset_index().sort_values("t")
+    for col in [x for x in df_table_all.columns if x.startswith("num_charging_cars_region_")]:
+        df_table_all[col] = df_table_all_cp[col].copy()
+    df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
+    report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}", detailed = True)
 #        for tup in action_lst:
 #            curr_state_counts, action, t, car_idx = tup
 #            if action is not None:
@@ -127,7 +131,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "12car_4region_48charger_15min_demandScale2_fullycharged_nyc_ppo" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"1car_2region_ppo" #"200car_4region_nyc_ppo" #"1car_2region_ppo" #"100car_3region_ppo" # "1car_2region_ppo" #"1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

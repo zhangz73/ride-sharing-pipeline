@@ -1,0 +1,42 @@
+{
+    "map": {
+        "data_dir": "Map/map_12car4region48chargers15mins_fullycharged_nyc.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_12car4region48chargers15mins_fullycharged_nyc.tsv",
+        "data": null,
+        "scaling_factor": 4
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_12car4region48chargers15mins_fullycharged_nyc.tsv"
+    },
+    "mdp": {
+        "time_horizon": 48,
+        "connection_patience": 1,
+        "pickup_patience": 1,
+        "num_battery_levels": 264,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            150
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 2,
+        "normalize_by_tripnums": true,
+        "battery_cutoff": [90, 180],
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_12car4region48chargers15mins_fullycharged_nyc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_12car4region2chargers15mins_fullycharged_airfood_nyc.tsv"
+    },
+    "solver": {
+        "type": "d_closest"
+    },
+    "d_closest": {
+        "d": 2
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}
