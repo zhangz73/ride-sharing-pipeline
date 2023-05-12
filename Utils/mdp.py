@@ -1087,7 +1087,8 @@ class MarkovDecisionProcess:
                     if self.state_counts[curr_id] > 0:
                         curr_action_id = self.action_desc_to_id[("travel", origin, dest)]
                         action = self.all_actions[curr_action_id]
-                        active_trip_ods.append((origin, dest, action))
+                        for _ in range(int(self.state_counts[curr_id])):
+                            active_trip_ods.append((origin, dest, action))
         return active_trip_ods
     
     def get_all_low_battery_car_ids(self):
@@ -1121,7 +1122,7 @@ class MarkovDecisionProcess:
                     break
             if cnt >= d:
                 break
-        max_battery, selected_car_id = 0, None
+        max_battery, selected_car_id = -1, None
         for tup in candidate_car_ids:
             curr_id, battery = tup
             if battery > max_battery:
@@ -1364,7 +1365,7 @@ class MarkovDecisionProcess:
             trip_distance = self.map.distance(dest, new_dest)
             min_battery_needed = self.battery_per_step * trip_distance
             trip_id_begin = self.state_to_id["trip"][(dest, new_dest, 0)]
-            if torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience)]) == 0:
+            if torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) == 0:
                 return eta == 0 and battery >= min_battery_needed
             return eta <= self.pickup_patience and battery >= min_battery_needed
         ## If not in the state reduction scheme
@@ -1394,7 +1395,7 @@ class MarkovDecisionProcess:
             trip_distance = self.map.distance(origin, dest)
             min_battery_needed = self.battery_per_step * trip_distance
             trip_id_begin = self.state_to_id["trip"][(origin, dest, 0)]
-            has_trip_requests = torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience)]) > 0
+            has_trip_requests = torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) > 0
             if has_trip_requests:
                 for eta in range(self.pickup_patience + 1):
                     start = self.general_car_id_region_eta_map[(origin, eta)]

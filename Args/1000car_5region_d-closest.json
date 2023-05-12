@@ -1,0 +1,40 @@
+{
+    "map": {
+        "data_dir": "Map/map_1000car5region.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_1000car5region.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1000car5region.tsv"
+    },
+    "mdp": {
+        "time_horizon": 360,
+        "connection_patience": 0,
+        "pickup_patience": 5,
+        "num_battery_levels": 1,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            2
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 0,
+        "normalize_by_tripnums": true,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1000car5region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1000car5region.tsv"
+    },
+    "solver": {
+        "type": "d_closest"
+    },
+    "d_closest": {
+        "d": 1
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}
