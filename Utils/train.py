@@ -521,7 +521,7 @@ class PPO_Solver(Solver):
                             f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}, inferred state value = {inferred_value}:\n")
                             f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
                             f.write(msg)
-                    if train: #True:#train:
+                    if True:#train:
                         is_feasible = False
                         while not is_feasible:
                             action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
