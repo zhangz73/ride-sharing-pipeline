@@ -16,6 +16,7 @@
         "connection_patience": 0,
         "pickup_patience": 0,
         "num_battery_levels": 3,
+        "battery_cutoff": [1, 2],
         "battery_jump": 0.3,
         "charging_rates": [
             2
@@ -32,11 +33,11 @@
         "value_hidden_dim_lst": [64, 64, 64],
         "value_activation_lst": ["relu", "relu", "relu"],
         "value_batch_norm": false,
-        "value_lr": 1e-2,
+        "value_lr": 1e-3,
         "value_epoch": 100,
         "value_batch": 100,
         "value_decay": 0.1,
-        "value_scheduler_step": 50,
+        "value_scheduler_step": 1000,
         "value_solver": "Adam",
         "value_retrain": true,
         "policy_model_name": "discretized_feedforward",
