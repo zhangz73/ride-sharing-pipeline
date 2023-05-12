@@ -144,8 +144,19 @@ def write_data_traffic_map(scenario_name, num_regions, time_horizon, payoff = {"
 #tau = [[9, 15, 75, 12, 24], [15, 6, 66, 6, 18], [75, 66, 6, 60, 39], [12, 6, 60, 9, 15], [24, 18, 39, 15, 12]]
 #write_data_traffic_map("1000car5region", 5, 360, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 2, 200), (1, 2, 200), (2, 2, 200), (3, 2, 200), (4, 2, 200)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (120, lam_2), (240, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
 
-## 100 cars 3 regions
-lam_1 = [3, 20, 8]
-p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
-tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
-write_data_traffic_map("100car3region", 3, 10, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1)], traffic_time = [(0, tau)])
+## 10 cars 5 regions
+lam_1 = [0.18, 0.18, 0.18, 0.18, 1.8]
+lam_2 = [1.2, 0.8, 0.8, 0.8, 0.2]
+lam_3 = [0.2, 0.2, 0.2, 2.2, 0.2]
+p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 0.2, 0.2, 0.2, 0.2], [0.3, 0.3, 0.3, 0.1, 0]]
+p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
+p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
+tau = [[1, 2, 8, 1, 2], [2, 1, 7, 1, 2], [8, 7, 1, 6, 4], [1, 1, 6, 1, 2], [2, 2, 4, 2, 1]]
+write_data_traffic_map("10car5region", 5, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 2, 2), (1, 2, 2), (2, 2, 2), (3, 2, 2), (4, 2, 2)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
+
+
+### 100 cars 3 regions
+#lam_1 = [3, 20, 8]
+#p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
+#tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
+#write_data_traffic_map("100car3region", 3, 10, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1)], traffic_time = [(0, tau)])
