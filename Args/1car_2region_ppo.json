@@ -31,7 +31,7 @@
     "neural": {
         "value_model_name": "discretized_feedforward",
         "value_hidden_dim_lst": [64, 64, 64],
-        "value_activation_lst": ["relu", "relu", "relu"],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
         "value_batch_norm": false,
         "value_lr": 1e-3,
         "value_epoch": 100,

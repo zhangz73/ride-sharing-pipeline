@@ -31,7 +31,7 @@
         "type": "d_closest"
     },
     "d_closest": {
-        "d": 3
+        "d": 1
     },
     "metric": ["total_payoff"],
     "report": {

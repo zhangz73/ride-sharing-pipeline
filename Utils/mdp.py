@@ -359,7 +359,7 @@ class MarkovDecisionProcess:
         self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
-        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + 3
+        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 #len(self.regions) * (self.connection_patience + 1) + 3
         ## Variables keeping track of states
         self.state_dict = {}
         self.state_to_id = {}
@@ -1336,11 +1336,14 @@ class MarkovDecisionProcess:
     def get_local_state(self, car):
         dest, eta, battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
         local_state_counts = torch.zeros(self.num_total_local_states)
-        local_state_counts[0] = dest
-        local_state_counts[1] = eta
-        local_state_counts[2] = battery
+        local_state_counts[0] = eta
+        local_state_counts[1 + dest] = 1
+        local_state_counts[1 + len(self.regions) + self.get_battery_pos(battery)] = 1
+#        local_state_counts[0] = dest
+#        local_state_counts[1] = eta
+#        local_state_counts[2] = battery
         begin, end = self.local_order_map[dest]
-        local_state_counts[3:] = self.state_counts[begin:end]
+        local_state_counts[(1 + len(self.regions) + self.num_binned_battery):] = self.state_counts[begin:end]
         return local_state_counts
     
     ## Check if the action has the potential to be feasible
