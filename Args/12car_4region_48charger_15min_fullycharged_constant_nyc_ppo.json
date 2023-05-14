@@ -4,7 +4,7 @@
     },
     "trip_demand": {
         "parameter_source": "given",
-        "arrival_type": "poisson",
+        "arrival_type": "constant",
         "parameter_fname": "TripDemand/trip_demand_12car4region48chargers15mins_fullycharged_nyc.tsv",
         "data": null,
         "scaling_factor": 4
