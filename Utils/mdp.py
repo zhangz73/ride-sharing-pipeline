@@ -359,7 +359,7 @@ class MarkovDecisionProcess:
         self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
-        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + 1 #len(self.regions) * (self.connection_patience + 1) + 3
+        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + len(self.regions) #+ 1 #len(self.regions) * (self.connection_patience + 1) + 3
         ## Variables keeping track of states
         self.state_dict = {}
         self.state_to_id = {}
@@ -1346,8 +1346,9 @@ class MarkovDecisionProcess:
         start = 1 + len(self.regions) + self.num_binned_battery
         term = start + (end - begin)
         local_state_counts[start:term] = self.state_counts[begin:end]
-        if torch.sum(self.state_counts[begin:end]) > 0:
-            local_state_counts[term] = 1
+        local_state_counts[term:] = torch.from_numpy((np.add.reduceat(self.state_counts[begin:end].numpy(), np.arange(0, len(self.regions) * (self.connection_patience + 1), self.connection_patience + 1)) > 0) + 0.0)
+#        if torch.sum(self.state_counts[begin:end]) > 0:
+#            local_state_counts[term] = 1
         return local_state_counts
     
     ## Check if the action has the potential to be feasible
