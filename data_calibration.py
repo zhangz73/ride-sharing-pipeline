@@ -29,13 +29,14 @@ dct_key = {
 ###     Residential: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
 REGION = "small" # small or big
 if REGION == "small":
-    LOCATIONS_ID_OF_INTEREST = [132, 230, 79, 238]
+    LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
 else:
     LOCATIONS_ID_OF_INTEREST = [138, 132, 161, 230, 158, 249, 114, 79, 148, 238, 141, 263]
 LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
-    LOCATIONS_ID = LOCATIONS_ID_OF_INTEREST[i]
-    LOCATION_MAP[LOCATIONS_ID] = i
+    LOCATIONS_ID_LST = LOCATIONS_ID_OF_INTEREST[i]
+    for LOCATIONS_ID in LOCATIONS_ID_LST:
+        LOCATION_MAP[LOCATIONS_ID] = i
 
 ## Time of interest
 TIME_RANGE = (8, 20)
@@ -43,14 +44,14 @@ TIME_FREQ = 15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 100#50 #200
+TOTAL_CARS_NEW = 12#50 #200
 CHARGING_RATE = 0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -66,7 +67,8 @@ df_data["day_of_week"] = df_data["request_datetime"].apply(lambda x: x.weekday()
 df_data["holiday"] = df_data["request_datetime"].apply(lambda x: 1 if x.day == 4 else 0)
 
 ## Filter data of interest
-df_data = df_data[(df_data["PULocationID"].isin(LOCATIONS_ID_OF_INTEREST)) & (df_data["DOLocationID"].isin(LOCATIONS_ID_OF_INTEREST))]
+LOCATIONS_ID_OF_INTEREST_SINGLE = list(chain(*LOCATIONS_ID_OF_INTEREST))
+df_data = df_data[(df_data["PULocationID"].isin(LOCATIONS_ID_OF_INTEREST_SINGLE)) & (df_data["DOLocationID"].isin(LOCATIONS_ID_OF_INTEREST_SINGLE))]
 df_data = df_data[(df_data["hour"] >= TIME_RANGE[0]) & (df_data["hour"] < TIME_RANGE[1])]
 df_data = df_data[df_data["day_of_week"].isin([0, 1, 2, 3])]
 df_data = df_data[df_data["holiday"] == 0]
