@@ -23,10 +23,10 @@ dct_key = {
 }
 ## Locations of interest
 ###  Airport, working area, restaurant area, residential area
-###     Airports: (138, LaGuardia Airport), (132, JFK Airport)
-###     Working Area: (161, "Midtown Center"), (230, Times Sq/Theatre District)
-###     Restaurants: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
-###     Residential: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
+###     Airports 0: (138, LaGuardia Airport), (132, JFK Airport)
+###     Working Area 1: (161, "Midtown Center"), (230, Times Sq/Theatre District)
+###     Restaurants 2: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
+###     Residential 3: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
 REGION = "small" # small or big
 if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
