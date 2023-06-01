@@ -119,7 +119,8 @@ def write_data_traffic_map(scenario_name, num_regions, time_horizon, payoff = {"
             for origin in range(num_regions):
                 for dest in range(num_regions):
                     trip_time = traffic_time_mat[origin][dest]
-                    map_sys.append((t, origin, dest, 1, trip_time))
+                    #map_sys.append((t, origin, dest, 1, trip_time))
+                    map_sys.append((t, origin, dest, trip_time, trip_time))
         else:
             break
     map_df = lst_2_df(map_sys, ["T", "Origin", "Destination", "Distance", "TripTime"])
@@ -131,6 +132,25 @@ def write_data_traffic_map(scenario_name, num_regions, time_horizon, payoff = {"
     trip_demand_df.to_csv(f"Data/TripDemand/trip_demand_{scenario_name}.tsv", index = False, sep = "\t")
     payoff_df.to_csv(f"Data/Payoff/payoff_{scenario_name}.tsv", index = False, sep = "\t")
     map_df.to_csv(f"Data/Map/map_{scenario_name}.tsv", index = False, sep = "\t")
+
+def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5):
+    A_star = np.zeros((num_regions, num_regions))
+    A_star[0,1:] = 1 / (num_regions - 1)
+    A_star[1:,0] = 1
+    A_complete = np.ones((num_regions, num_regions)) / (num_regions - 1)
+    np.fill_diagonal(A_complete, 0)
+    tau_star = np.ones((num_regions, num_regions))
+    tau_star[1:,0] = np.arange(1, num_regions)
+    tau_star[0,1:] = np.arange(1, num_regions)
+    np.fill_diagonal(tau_star, 0)
+    tau_complete = np.ones((num_regions, num_regions))
+    np.fill_diagonal(tau_complete, 0)
+    A = xi * A_complete + (1 - xi) * A_star
+    tau = xi * tau_complete + (1 - xi) * tau_star
+    tau = tau.astype(int)
+    lam = np.sum(A, axis = 1)
+    p = A / lam[:,np.newaxis]
+    return lam, p, tau
 
 #write_data_regular_map(scenario_name = "2car5grid", num_layers = 3, time_horizon = 16, map_system = "grid", payoff = {"pickup": 1, "reroute": -0.5, "charge": {3: -0.5}}, region_battery_car = [(0, 8, 1), (24, 5, 1)], region_rate_plug = [(6, 3, 1), (8, 3, 1), (17, 3, 1)], trip_demand = [(0, 1, 7, 1), (5, 11, 13, 1), (5, 16, 5, 1), (7, 7, 12, 1), (7, 7, 8, 1), (8, 12, 14, 1), (9, 16, 18, 1), (11, 7, 23, 1), (12, 13, 16, 1)])
 
@@ -145,14 +165,14 @@ def write_data_traffic_map(scenario_name, num_regions, time_horizon, payoff = {"
 #write_data_traffic_map("1000car5region", 5, 360, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 2, 200), (1, 2, 200), (2, 2, 200), (3, 2, 200), (4, 2, 200)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (120, lam_2), (240, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
 
 ## 10 cars 5 regions
-lam_1 = [0.18, 0.18, 0.18, 0.18, 1.8]
-lam_2 = [1.2, 0.8, 0.8, 0.8, 0.2]
-lam_3 = [0.2, 0.2, 0.2, 2.2, 0.2]
-p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 0.2, 0.2, 0.2, 0.2], [0.3, 0.3, 0.3, 0.1, 0]]
-p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
-p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
-tau = [[1, 2, 8, 1, 2], [2, 1, 7, 1, 2], [8, 7, 1, 6, 4], [1, 1, 6, 1, 2], [2, 2, 4, 2, 1]]
-write_data_traffic_map("10car5region", 5, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 2, 2), (1, 2, 2), (2, 2, 2), (3, 2, 2), (4, 2, 2)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
+#lam_1 = [0.18, 0.18, 0.18, 0.18, 1.8]
+#lam_2 = [1.2, 0.8, 0.8, 0.8, 0.2]
+#lam_3 = [0.2, 0.2, 0.2, 2.2, 0.2]
+#p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 0.2, 0.2, 0.2, 0.2], [0.3, 0.3, 0.3, 0.1, 0]]
+#p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
+#p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
+#tau = [[1, 2, 8, 1, 2], [2, 1, 7, 1, 2], [8, 7, 1, 6, 4], [1, 1, 6, 1, 2], [2, 2, 4, 2, 1]]
+#write_data_traffic_map("10car5region", 5, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 2, 2), (1, 2, 2), (2, 2, 2), (3, 2, 2), (4, 2, 2)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
 
 
 ### 100 cars 3 regions
@@ -160,3 +180,15 @@ write_data_traffic_map("10car5region", 5, 36, payoff = {"pickup": 1, "reroute": 
 #p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
 #tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
 #write_data_traffic_map("100car3region", 3, 10, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1)], traffic_time = [(0, tau)])
+
+## Spatial-Temporal Star-To-Complete Network (ST-STC)
+### 12 cars 4 regions
+xi = 0
+num_regions = 4
+num_cars = 12
+time_horizon = 48
+rate = 24
+pack_size = 24
+lam, p, tau = generate_spatialtemporal_star_to_complete_network(num_regions = num_regions, xi = xi)
+name = f"st-stc_{num_cars}car{num_regions}region0chargers_xi={xi}"
+write_data_traffic_map(name, num_regions, time_horizon, payoff = {"pickup": 1, "reroute": 0, "charge": {rate: 0}}, region_battery_car = [(x, pack_size, num_cars // num_regions) for x in range(num_regions)], region_rate_plug = [(x, rate, 0) for x in range(num_regions)], arrival_rate = [(0, lam)], transition_prob = [(0, p)], traffic_time = [(0, tau)])
