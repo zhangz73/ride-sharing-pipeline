@@ -140,8 +140,8 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
     A_complete = np.ones((num_regions, num_regions)) / (num_regions - 1)
     np.fill_diagonal(A_complete, 0)
     tau_star = np.ones((num_regions, num_regions))
-    tau_star[1:,0] = np.arange(1, num_regions)
-    tau_star[0,1:] = np.arange(1, num_regions)
+    tau_star[1:,0] = 1 #np.arange(1, num_regions)
+    tau_star[0,1:] = 1 #np.arange(1, num_regions)
     np.fill_diagonal(tau_star, 0)
     tau_complete = np.ones((num_regions, num_regions))
     np.fill_diagonal(tau_complete, 0)
@@ -183,12 +183,14 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 
 ## Spatial-Temporal Star-To-Complete Network (ST-STC)
 ### 12 cars 4 regions
-xi = 0
+xi = 1
 num_regions = 4
 num_cars = 12
 time_horizon = 48
 rate = 24
 pack_size = 24
+num_chargers = 0 #48
 lam, p, tau = generate_spatialtemporal_star_to_complete_network(num_regions = num_regions, xi = xi)
-name = f"st-stc_{num_cars}car{num_regions}region0chargers_xi={xi}"
-write_data_traffic_map(name, num_regions, time_horizon, payoff = {"pickup": 1, "reroute": 0, "charge": {rate: 0}}, region_battery_car = [(x, pack_size, num_cars // num_regions) for x in range(num_regions)], region_rate_plug = [(x, rate, 0) for x in range(num_regions)], arrival_rate = [(0, lam)], transition_prob = [(0, p)], traffic_time = [(0, tau)])
+lam = lam * num_cars / np.sum(lam)
+name = f"st-stc_{num_cars}car{num_regions}region{num_chargers}chargers_xi={xi}"
+write_data_traffic_map(name, num_regions, time_horizon, payoff = {"pickup": 1, "reroute": 0, "charge": {rate: 0}}, region_battery_car = [(x, pack_size - 1, num_cars // num_regions) for x in range(num_regions)], region_rate_plug = [(x, rate, num_chargers // num_regions) for x in range(num_regions)], arrival_rate = [(0, lam)], transition_prob = [(0, p)], traffic_time = [(0, tau)])
