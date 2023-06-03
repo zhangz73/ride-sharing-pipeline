@@ -1,0 +1,42 @@
+{
+    "map": {
+        "data_dir": "Map/map_st-stc_12car4region0chargers_xi=1.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_st-stc_12car4region0chargers_xi=1.tsv",
+        "data": null,
+        "scaling_factor": 4
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_st-stc_12car4region0chargers_xi=1.tsv"
+    },
+    "mdp": {
+        "time_horizon": 48,
+        "connection_patience": 0,
+        "pickup_patience": 1,
+        "num_battery_levels": 24,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            24
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 1,
+        "normalize_by_tripnums": true,
+        "battery_cutoff": [8, 16],
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_st-stc_12car4region0chargers_xi=1.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_st-stc_12car4region0chargers_xi=1.tsv"
+    },
+    "solver": {
+        "type": "d_closest"
+    },
+    "d_closest": {
+        "d": 2
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}
