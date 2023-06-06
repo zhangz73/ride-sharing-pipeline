@@ -207,7 +207,7 @@ class PPO_Solver(Solver):
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
-                mu, sd = torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
+                mu, sd = 0, torch.std(payoff_lst) + 1 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
                 self.value_scale[t] = (mu, sd)
             mu, sd = self.value_scale[t]
             payoff_lst = (payoff_lst - mu) / sd
