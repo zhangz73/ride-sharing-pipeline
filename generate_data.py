@@ -187,7 +187,7 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 num_regions = 4
 num_cars = 12
 time_horizon = 48
-rate = 24
+rate = 36
 pack_size = 36
 #num_chargers = 0 #48
 for num_chargers in [0, 48]:

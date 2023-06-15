@@ -16,10 +16,10 @@
         "time_horizon": 48,
         "connection_patience": 0,
         "pickup_patience": 1,
-        "num_battery_levels": 24,
+        "num_battery_levels": 36,
         "battery_jump": 0.3,
         "charging_rates": [
-            24
+            36
         ],
         "battery_offset": 0,
         "battery_per_step": 1,
