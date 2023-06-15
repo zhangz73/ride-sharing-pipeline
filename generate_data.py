@@ -188,7 +188,7 @@ num_regions = 4
 num_cars = 12
 time_horizon = 48
 rate = 24
-pack_size = 24
+pack_size = 36
 #num_chargers = 0 #48
 for num_chargers in [0, 48]:
     for xi in [0, 0.5, 1]:
