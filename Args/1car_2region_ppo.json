@@ -55,6 +55,7 @@
         "dir": ".",
         "num_itr": 20,
         "num_episodes": 300,
+        "num_days": 3,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,

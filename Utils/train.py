@@ -57,7 +57,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -67,6 +67,7 @@ class PPO_Solver(Solver):
         self.discretized_len = self.time_horizon
         self.num_itr = num_itr
         self.num_episodes = num_episodes
+        self.num_days = num_days
         self.num_cars = self.markov_decision_process.num_cars
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
@@ -124,7 +125,8 @@ class PPO_Solver(Solver):
             mu2, sd2 = self.value_scale[next_ts]
             next_value = next_value * sd2 + mu2
         else:
-            next_value = 0
+            #next_value = 0
+            next_value = self.value_model((0, next)).reshape((-1,))
         return (payoff + next_value - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None):
@@ -224,10 +226,11 @@ class PPO_Solver(Solver):
     def get_data_single(self, num_episodes, worker_num = 0):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
-        for day in tqdm(range(num_episodes)):
-            state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num])
-            state_action_advantage_lst_episodes.append(state_action_advantage_lst)
-            total_payoff += payoff_val
+        for episode in tqdm(range(num_episodes)):
+            for day in range(self.num_days):
+                state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], new_episode = day == 0)
+                state_action_advantage_lst_episodes.append(state_action_advantage_lst)
+                total_payoff += payoff_val / self.num_days
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
@@ -477,7 +480,7 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, new_episode = True):
         if True: #not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -486,7 +489,7 @@ class PPO_Solver(Solver):
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)
-        markov_decision_process.reset_states()
+        markov_decision_process.reset_states(new_episode = new_episode)
         payoff_lst = []
         model_value_lst = []
         action_lst = []

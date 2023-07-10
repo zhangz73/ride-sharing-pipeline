@@ -438,9 +438,10 @@ class MarkovDecisionProcess:
             self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region * (self.connection_patience + 1)] = dest_arrivals_single_region
     
     ## Reset all states to the initial one
-    def reset_states(self):
-        self.state_counts = self.state_counts_init.clone()
-        self.reduced_state_counts = self.reduced_state_counts_init.clone()
+    def reset_states(self, new_episode = True):
+        if new_episode:
+            self.state_counts = self.state_counts_init.clone()
+            self.reduced_state_counts = self.reduced_state_counts_init.clone()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
         self.payoff_curr_ts = torch.tensor(0.)
