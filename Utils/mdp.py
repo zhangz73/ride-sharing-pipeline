@@ -442,9 +442,9 @@ class MarkovDecisionProcess:
         if new_episode:
             self.state_counts = self.state_counts_init.clone()
             self.reduced_state_counts = self.reduced_state_counts_init.clone()
+            self.payoff_curr_ts = torch.tensor(0.)
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
-        self.payoff_curr_ts = torch.tensor(0.)
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
         self.trip_demand_map_prepare()
 #        print("Trip Arrival Map:")
@@ -715,7 +715,7 @@ class MarkovDecisionProcess:
         self.ts_cache = 0
         self.origin_cache = 0
 #        self.trip_arrivals_cache = self.trip_arrivals[(self.trip_arrivals["Origin"] == self.origin_cache) & (self.trip_arrivals["T"] == self.ts_cache)]
-        self.payoff_curr_ts = torch.tensor(0.)
+#        self.payoff_curr_ts = torch.tensor(0.)
         self.total_arrivals = torch.sum(self.trip_arrivals) #self.trip_arrivals["Count"].sum()
         self.total_market_revenue = self.compute_total_market_revenue()
 #        print(self.trip_arrivals["Count"].sum())

@@ -57,7 +57,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, useful_days = 1, gamma = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -68,6 +68,8 @@ class PPO_Solver(Solver):
         self.num_itr = num_itr
         self.num_episodes = num_episodes
         self.num_days = num_days
+        self.useful_days = useful_days
+        self.gamma = gamma
         self.num_cars = self.markov_decision_process.num_cars
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
@@ -169,6 +171,7 @@ class PPO_Solver(Solver):
             ratio, clipped_ratio = 0, 0
         return ratio, clipped_ratio
     
+    ## Deprecated
     def get_value_loss_single(self, state_action_advantage_lst_episodes):
         total_value_loss = 0
         val_num = 0
@@ -200,12 +203,13 @@ class PPO_Solver(Solver):
                 final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
-                curr_state_counts, action_id, _, t, curr_payoff, _, _ = tup
-                payoff = final_payoff - curr_payoff
+                curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
+                payoff = atomic_payoff + self.gamma * payoff
                 lens = len(curr_state_counts)
-                value_dct[t]["payoff"].append(payoff)
-                value_dct[t]["state_counts"].append(curr_state_counts.reshape((1, lens)))
-                val_num += 1
+                if day_num < self.useful_days:
+                    value_dct[t]["payoff"].append(payoff)
+                    value_dct[t]["state_counts"].append(curr_state_counts.reshape((1, lens)))
+                    val_num += 1
         for t in range(self.time_horizon):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
@@ -227,10 +231,12 @@ class PPO_Solver(Solver):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
         for episode in tqdm(range(num_episodes)):
+            tmp = []
             for day in range(self.num_days):
-                state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], new_episode = day == 0)
-                state_action_advantage_lst_episodes.append(state_action_advantage_lst)
-                total_payoff += payoff_val / self.num_days
+                state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
+                tmp += state_action_advantage_lst
+            total_payoff += payoff_val / self.num_days
+            state_action_advantage_lst_episodes.append(tmp)
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
@@ -327,7 +333,9 @@ class PPO_Solver(Solver):
                     state_num = len(state_action_advantage_lst_episodes[day])
                     for i in range(state_num):
                         tup = state_action_advantage_lst_episodes[day][i]
-                        curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff = tup
+                        curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
+                        if day_num >= self.useful_days:
+                            break
                         lens = len(curr_state_counts)
                         policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
                         policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
@@ -480,7 +488,7 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, new_episode = True):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, day_num = 0):
         if True: #not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -489,7 +497,7 @@ class PPO_Solver(Solver):
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)
-        markov_decision_process.reset_states(new_episode = new_episode)
+        markov_decision_process.reset_states(new_episode = day_num == 0)
         payoff_lst = []
         model_value_lst = []
         action_lst = []
@@ -553,7 +561,7 @@ class PPO_Solver(Solver):
                     next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
                     payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
-                        state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff))
+                        state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
                     ## Compute loss
                     if not return_data:
 #                        if car_idx < num_available_cars - 1:
