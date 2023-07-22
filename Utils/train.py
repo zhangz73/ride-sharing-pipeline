@@ -612,7 +612,7 @@ class PPO_Solver(Solver):
 #            value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
         discount_lst = torch.tensor(discount_lst)
         atomic_payoff_lst = torch.tensor(atomic_payoff_lst)
-        discounted_payoff = torch.sum(discount_lst * atomic_payoff_lst)
+        discounted_payoff = torch.sum(discount_lst * atomic_payoff_lst) / markov_decision_process.get_total_market_revenue()
         if return_data:
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
             return state_action_advantage_lst, final_payoff, discounted_payoff

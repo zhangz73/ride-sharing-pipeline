@@ -704,6 +704,9 @@ class MarkovDecisionProcess:
             ret = ret #/ self.max_atomic_payoff
         return ret
     
+    def get_total_market_revenue(self):
+        return self.total_market_revenue
+    
     ## Zero out the payoff at the current timestamp
     def reset_payoff_curr_ts(self):
         self.payoff_curr_ts = torch.tensor(0.)
