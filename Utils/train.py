@@ -35,9 +35,12 @@ class MetricFactory:
 ##      2. Train solvers
 ##      3. Generate actions given states
 class Solver:
-    def __init__(self, type = "sequential", markov_decision_process = None, state_reduction = False):
+    def __init__(self, type = "sequential", markov_decision_process = None, state_reduction = False, num_days = 1, useful_days = 1, gamma = 1):
         assert type in ["sequential", "group"]
         self.type = type
+        self.num_days = num_days
+        self.useful_days = useful_days
+        self.gamma = gamma
         self.markov_decision_process = markov_decision_process
         self.state_reduction = state_reduction
         ## Save some commonly used variables from MDP
@@ -201,10 +204,15 @@ class PPO_Solver(Solver):
             payoff = 0
             if state_num > 0:
                 final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
+            curr_t = self.time_horizon - 1
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
-                payoff = atomic_payoff + self.gamma * payoff
+                if t != curr_t:
+                    payoff = atomic_payoff + self.gamma * payoff
+                    curr_t = t
+                else:
+                    t = atomic_payoff + payoff
                 lens = len(curr_state_counts)
                 if day_num < self.useful_days:
                     value_dct[t]["payoff"].append(payoff)
@@ -233,9 +241,9 @@ class PPO_Solver(Solver):
         for episode in tqdm(range(num_episodes)):
             tmp = []
             for day in range(self.num_days):
-                state_action_advantage_lst, payoff_val = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
+                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
                 tmp += state_action_advantage_lst
-            total_payoff += payoff_val / self.num_days
+                total_payoff += discounted_payoff / self.num_days #payoff_val / self.num_days
             state_action_advantage_lst_episodes.append(tmp)
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
@@ -391,8 +399,8 @@ class PPO_Solver(Solver):
                 payoff = 0
                 df_table_all = None
                 for i in tqdm(range(num_trials)):
-                    _, _, payoff_lst, action_lst = self.evaluate(return_action = True, seed = None)
-                    payoff += float(payoff_lst[-1].data)
+                    _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None)
+                    payoff += float(discounted_payoff.data) #float(payoff_lst[-1].data)
                     df_table = report_factory.get_table(self.markov_decision_process, action_lst)
                     df_table["trial"] = i
                     if df_table_all is None:
@@ -499,6 +507,8 @@ class PPO_Solver(Solver):
             torch.manual_seed(seed)
         markov_decision_process.reset_states(new_episode = day_num == 0)
         payoff_lst = []
+        atomic_payoff_lst = []
+        discount_lst = []
         model_value_lst = []
         action_lst = []
         policy_loss = 0
@@ -562,6 +572,8 @@ class PPO_Solver(Solver):
                     payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
+                    atomic_payoff_lst.append(payoff - curr_payoff)
+                    discount_lst.append(self.gamma ** t)
                     ## Compute loss
                     if not return_data:
 #                        if car_idx < num_available_cars - 1:
@@ -598,19 +610,25 @@ class PPO_Solver(Solver):
 #                value_loss += torch.sum((model_value_lst[t] - empirical_value_lst[t]) ** 2)
 #            model_value_lst = torch.tensor(model_value_lst)
 #            value_loss = torch.sum((model_value_lst - empirical_value_lst) ** 2)
+        discount_lst = torch.tensor(discount_lst)
+        atomic_payoff_lst = torch.tensor(atomic_payoff_lst)
+        discounted_payoff = torch.sum(discount_lst * atomic_payoff_lst)
         if return_data:
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
-            return state_action_advantage_lst, final_payoff
+            return state_action_advantage_lst, final_payoff, discounted_payoff
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)
 #        print("payoff", float(payoff_lst[-1].data))
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
-        return None, None, payoff_lst, action_lst
+        return None, None, payoff_lst, action_lst, discounted_payoff
 
 class D_Closest_Car_Solver(Solver):
-    def __init__(self, markov_decision_process = None, d = 1):
+    def __init__(self, markov_decision_process = None, d = 1, num_days = 1, useful_days = 1, gamma = 1):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         self.d = d
+        self.num_days = num_days
+        self.useful_days = useful_days
+        self.gamma = gamma
     
     def evaluate(self, return_action = True, seed = None):
         if seed is not None:
@@ -618,6 +636,8 @@ class D_Closest_Car_Solver(Solver):
         self.markov_decision_process.reset_states()
         action_lst_ret = []
         payoff_lst = []
+        discount_lst = []
+        atomic_payoff_lst = []
         for t in range(self.time_horizon):
             any_action_applied = False
             ## Assign all trip requests with d-closest cars
@@ -647,7 +667,12 @@ class D_Closest_Car_Solver(Solver):
             self.markov_decision_process.transit_across_timestamp()
             curr_payoff = self.markov_decision_process.get_payoff_curr_ts(deliver = True)
             payoff_lst.append(curr_payoff)
-        return None, None, payoff_lst, action_lst_ret
+            discount_lst.append(self.gamma ** t)
+        discount_lst = torch.tensor(discount_lst)
+        atomic_payoff_lst = torch.tensor([0] + payoff_lst)
+        atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
+        discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff
 
 ## This module constructs a corresponding solver given parameters
 class SolverFactory:
