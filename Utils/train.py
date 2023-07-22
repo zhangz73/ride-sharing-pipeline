@@ -212,7 +212,7 @@ class PPO_Solver(Solver):
                     payoff = atomic_payoff + self.gamma * payoff
                     curr_t = t
                 else:
-                    t = atomic_payoff + payoff
+                    payoff = atomic_payoff + payoff
                 lens = len(curr_state_counts)
                 if day_num < self.useful_days:
                     value_dct[t]["payoff"].append(payoff)
