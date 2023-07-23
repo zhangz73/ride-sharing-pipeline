@@ -245,7 +245,7 @@ class PPO_Solver(Solver):
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
             state_action_advantage_lst_episodes.append(tmp)
-        norm_factor = torch.sum(self.gamma ** torch.arange(self.num_days))
+        norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
         total_payoff /= norm_factor
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
