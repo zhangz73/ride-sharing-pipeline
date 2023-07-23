@@ -243,8 +243,10 @@ class PPO_Solver(Solver):
             for day in range(self.num_days):
                 state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
                 tmp += state_action_advantage_lst
-                total_payoff += discounted_payoff / self.num_days #payoff_val / self.num_days
+                total_payoff += discounted_payoff * self.gamma ** day #discounted_payoff / self.num_days #payoff_val / self.num_days
             state_action_advantage_lst_episodes.append(tmp)
+        norm_factor = torch.sum(self.gamma ** torch.arange(self.num_days))
+        total_payoff /= norm_factor
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
