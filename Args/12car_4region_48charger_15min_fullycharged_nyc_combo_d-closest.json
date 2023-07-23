@@ -35,7 +35,7 @@
         "d": 2,
         "num_days": 4,
         "useful_days": 2,
-        "gamma": 0.99
+        "gamma": 0.97
     },
     "metric": ["total_payoff"],
     "report": {
