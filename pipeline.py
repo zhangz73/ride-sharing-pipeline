@@ -92,20 +92,31 @@ def main(args, json_name = ""):
     
     df_table_all = None
     payoff = 0
+    if "eval_days" in args["report"]:
+        eval_days = args["report"]["eval_days"]
+    else:
+        eval_days = 1
+    if "gamma" in args["report"]:
+        gamma = args["report"]["gamma"]
+    else:
+        gamma = 1
     num_trials = 10#args["neural"]["num_episodes"]
+    norm_factor = torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
     for i in tqdm(range(num_trials)):
-        _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None)
-        #            print(f"Policy Loss = {policy_loss}")
-#            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
-            #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-#            print(payoff_lst)
-        payoff += float(discounted_payoff.data) #float(payoff_lst[-1].data)
-        df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
-        df_table["trial"] = i
-        if df_table_all is None:
-            df_table_all = df_table
-        else:
-            df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+        for day in range(eval_days):
+            _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None, day_num = day)
+            #            print(f"Policy Loss = {policy_loss}")
+    #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
+                #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
+    #            print(payoff_lst)
+            payoff += float(discounted_payoff.data) * gamma ** (day * time_horizon) / norm_factor #float(payoff_lst[-1].data)
+            df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
+            df_table["trial"] = i
+            df_table["t"] += day * time_horizon
+            if df_table_all is None:
+                df_table_all = df_table
+            else:
+                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
     payoff /= num_trials
     print(f"Total Payoff = {payoff}")
     df_table_all_cp = df_table_all.copy()

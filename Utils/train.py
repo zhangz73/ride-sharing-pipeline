@@ -60,7 +60,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, useful_days = 1, gamma = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -73,6 +73,7 @@ class PPO_Solver(Solver):
         self.num_days = num_days
         self.useful_days = useful_days
         self.gamma = gamma
+        self.eval_days = eval_days
         self.num_cars = self.markov_decision_process.num_cars
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
@@ -400,15 +401,18 @@ class PPO_Solver(Solver):
                 num_trials = 10
                 payoff = 0
                 df_table_all = None
+                norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
                 for i in tqdm(range(num_trials)):
-                    _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None)
-                    payoff += float(discounted_payoff.data) #float(payoff_lst[-1].data)
-                    df_table = report_factory.get_table(self.markov_decision_process, action_lst)
-                    df_table["trial"] = i
-                    if df_table_all is None:
-                        df_table_all = df_table
-                    else:
-                        df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+                    for day in range(self.eval_days):
+                        _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
+                        payoff += float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
+                        df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+                        df_table["trial"] = i
+                        df_table["t"] += self.time_horizon * day
+                        if df_table_all is None:
+                            df_table_all = df_table
+                        else:
+                            df_table_all = pd.concat([df_table_all, df_table], axis = 0)
                 payoff /= num_trials
                 df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
                 report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")

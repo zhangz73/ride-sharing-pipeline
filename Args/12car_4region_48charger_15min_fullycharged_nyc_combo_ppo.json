@@ -57,10 +57,11 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 80,
-        "num_episodes": 300,
+        "num_episodes": 500,
         "num_days": 4,
         "useful_days": 2,
         "gamma": 0.99,
+        "eval_days": 4,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
@@ -74,6 +75,8 @@
     "metric": ["total_payoff"],
     "report": {
         "plot": ["training_loss"],
-        "table": []
+        "table": [],
+        "eval_days": 4,
+        "gamma": 0.99
     }
 }
