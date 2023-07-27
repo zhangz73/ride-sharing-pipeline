@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "random"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -323,6 +323,7 @@ class MarkovDecisionProcess:
         self.pickup_patience = pickup_patience
         self.num_battery_levels = num_battery_levels
         self.charging_rates = charging_rates
+        self.car_deployment_type = car_deployment_type
         self.num_charging_rates = len(charging_rates)
         self.battery_jump = battery_jump
         self.battery_per_step = battery_per_step
@@ -381,6 +382,8 @@ class MarkovDecisionProcess:
         self.max_battery_per_region = {}
         for region in self.regions:
             self.max_battery_per_region[region] = 0
+        ## Initialize car deployment distribution
+        self.region_battery_car_distribution = np.zeros(self.num_total_states)
         ## Populate state variables
         self.define_all_states()
         self.define_all_reduced_states()
@@ -426,7 +429,7 @@ class MarkovDecisionProcess:
             return self.num_total_reduced_states + self.num_total_local_states
         return self.num_total_reduced_states
     
-    ## prepare trip demands
+    ## Prepare trip demands
     def trip_demand_map_prepare(self):
         state_trip_end = self.state_trip_begin + (self.connection_patience + 1) * len(self.regions) ** 2
         reduced_state_trip_half_len = (self.connection_patience + 1) * len(self.regions)
@@ -437,12 +440,40 @@ class MarkovDecisionProcess:
             dest_arrivals_single_region = torch.sum(self.trip_arrivals[:, region::len(self.regions)], axis = 1)
             self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region * (self.connection_patience + 1)] = dest_arrivals_single_region
     
+    ## Prepare car deployment vectors
+    def car_deployment_prepare(self):
+        if self.car_deployment_type == "random":
+            self.region_battery_car_map = np.random.multinomial(n = self.num_total_cars, pvals = self.region_battery_car_distribution)
+        else:
+            self.region_battery_car_map = self.region_battery_car_distribution #(self.num_total_cars * self.region_battery_car_distribution).astype(int)
+        self.region_battery_car_reduced_map = np.zeros(self.num_total_reduced_states)
+        begin = self.full_car_state_range[0]
+        eta_len = self.pickup_patience + self.max_travel_time
+        for region in self.regions:
+            for battery_cutoff_idx in range(self.num_binned_battery):
+                if battery_cutoff_idx == 0:
+                    battery_cutoff_begin, battery_cutoff_end = 0, self.battery_cutoff[0]
+                elif battery_cutoff_idx < self.num_binned_battery - 1:
+                    battery_cutoff_begin, battery_cutoff_end = self.battery_cutoff[battery_cutoff_idx - 1], self.battery_cutoff[battery_cutoff_idx]
+                else:
+                    battery_cutoff_begin, battery_cutoff_end = self.battery_cutoff[-1], self.num_battery_levels
+                id = self.reduced_state_to_id["car"][("general", region, 0, battery_cutoff_idx)]
+                start = begin + region * eta_len * self.num_binned_battery + battery_cutoff_begin
+                end = begin + region * eta_len * self.num_binned_battery + battery_cutoff_end
+                cnt = np.sum(self.region_battery_car_map[start:end])
+                self.region_battery_car_reduced_map[id] = cnt
+        self.region_battery_car_map = torch.from_numpy(self.region_battery_car_map)
+        self.region_battery_car_reduced_map = torch.from_numpy(self.region_battery_car_reduced_map)
+    
     ## Reset all states to the initial one
     def reset_states(self, new_episode = True):
         if new_episode:
             self.state_counts = self.state_counts_init.clone()
             self.reduced_state_counts = self.reduced_state_counts_init.clone()
             self.payoff_curr_ts = torch.tensor(0.)
+            self.car_deployment_prepare()
+            self.state_counts += self.region_battery_car_map
+            self.reduced_state_counts += self.region_battery_car_reduced_map
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp()
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
@@ -636,6 +667,7 @@ class MarkovDecisionProcess:
         region_battery_car_df = pd.read_csv(f"Data/{self.region_battery_car_fname}", sep = "\t")
         region_rate_plug_df = pd.read_csv(f"Data/{self.region_rate_plug_fname}", sep = "\t")
         self.region_battery_car_num = self.df_to_dct(region_battery_car_df, keynames = ["region", "battery"], valname = "num")
+        self.num_total_cars = int(region_battery_car_df["num"].sum())
         self.region_rate_plug_num = self.df_to_dct(region_rate_plug_df, keynames = ["region", "rate"], valname = "num")
     
     ## Construct the list of all actions
@@ -774,7 +806,11 @@ class MarkovDecisionProcess:
                     car = Car(curr_id, dest, None, battery, None, type = "general", time_to_dest = eta)
                     self.state_to_id["car"][("general", dest, eta, battery)] = curr_id
                     self.state_dict[curr_id] = car
+                    if (dest, battery) in self.region_battery_car_num and eta == 0:
+                        self.region_battery_car_distribution[curr_id] = self.region_battery_car_num[(dest, battery)]
                     curr_id += 1
+        if self.car_deployment_type == "random":
+            self.region_battery_car_distribution = self.region_battery_car_distribution / np.sum(self.region_battery_car_distribution)
         ## Define car states -- Assigned type
         for dest in self.regions:
             for battery in range(self.num_battery_levels):
@@ -794,15 +830,16 @@ class MarkovDecisionProcess:
         full_car_state_range_end = curr_id
         self.full_car_state_range = (full_car_state_range_begin, full_car_state_range_end)
         ## Populate state counts for initial car deployment
-        for region in self.regions:
-            for battery in range(self.num_battery_levels):
-                if (region, battery) in self.region_battery_car_num:
-                    cnt = self.region_battery_car_num[(region, battery)]
-                    self.max_battery_per_region[region] = max(self.max_battery_per_region[region], battery)
-                else:
-                    cnt = 0
-                id = self.state_to_id["car"][("general", region, 0, battery)]
-                self.state_counts[id] = cnt
+        ## TODO: Modify!!!
+#        for region in self.regions:
+#            for battery in range(self.num_battery_levels):
+#                if (region, battery) in self.region_battery_car_num:
+#                    cnt = self.region_battery_car_num[(region, battery)]
+#                    self.max_battery_per_region[region] = max(self.max_battery_per_region[region], battery)
+#                else:
+#                    cnt = 0
+#                id = self.state_to_id["car"][("general", region, 0, battery)]
+#                self.state_counts[id] = cnt
         ## Define trip states
         self.state_to_id["trip"] = {}
         self.state_trip_begin = curr_id
@@ -894,17 +931,18 @@ class MarkovDecisionProcess:
                     self.reduced_state_dict[car] = curr_id
                     curr_id += 1
         ## Populate state counts for initial car deployment
-        for region in self.regions:
-            idx = 0
-            for battery in range(self.num_battery_levels):
-                if (region, battery) in self.region_battery_car_num:
-                    cnt = self.region_battery_car_num[(region, battery)]
-                else:
-                    cnt = 0
-                if idx < len(self.battery_cutoff) - 1 and battery > self.battery_cutoff[idx]:
-                    idx += 1
-                id = self.reduced_state_to_id["car"][("general", region, 0, idx)]
-                self.reduced_state_counts[id] += cnt
+        ## TODO: Modify!!!
+#        for region in self.regions:
+#            idx = 0
+#            for battery in range(self.num_battery_levels):
+#                if (region, battery) in self.region_battery_car_num:
+#                    cnt = self.region_battery_car_num[(region, battery)]
+#                else:
+#                    cnt = 0
+#                if idx < len(self.battery_cutoff) - 1 and battery > self.battery_cutoff[idx]:
+#                    idx += 1
+#                id = self.reduced_state_to_id["car"][("general", region, 0, idx)]
+#                self.reduced_state_counts[id] += cnt
         ## Define trip states
         self.reduced_state_to_id["trip"] = {}
         self.reduced_state_trip_begin = curr_id

@@ -133,7 +133,7 @@ class PPO_Solver(Solver):
         else:
             #next_value = 0
             next_value = self.value_model((0, next)).reshape((-1,))
-        return (payoff + next_value - curr_value) / sd
+        return (payoff + next_value * self.gamma - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None):
         prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, car_id = car_id)
@@ -259,9 +259,9 @@ class PPO_Solver(Solver):
         ## Policy Iteration
         dct_outer = {}
         report_factory = ReportFactory()
-        if debug:
-            with open(debug_dir, "w") as f:
-                f.write("------------ Debugging output for day 0 ------------\n")
+#        if debug:
+#            with open(debug_dir, "w") as f:
+#                f.write("------------ Debugging output for day 0 ------------\n")
 #         payoff_tot = 0
 #         num_trials = 50
 #         for i in tqdm(range(num_trials), leave = False):
@@ -278,9 +278,9 @@ class PPO_Solver(Solver):
         eps = self.eps
         for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
-            if debug:
-                with open(debug_dir, "a") as f:
-                    f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
+#            if debug:
+#                with open(debug_dir, "a") as f:
+#                    f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
             ## Obtain simulated data from each episode
             state_action_advantage_lst_episodes = []
             print("\tGathering data...")
@@ -324,9 +324,9 @@ class PPO_Solver(Solver):
 #             plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
 #             plt.clf()
 #             plt.close()
-            if debug:
-                with open(debug_dir, "a") as f:
-                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
+#            if debug:
+#                with open(debug_dir, "a") as f:
+#                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
             
             ## Update policy models
             print("\tUpdating policy models...")

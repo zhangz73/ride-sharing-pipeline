@@ -51,7 +51,8 @@ SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo"
+CAR_DEPLOYMENT = "uniform"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_randomlycharged_nyc_combo"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -161,15 +162,21 @@ def get_region_battery_car_df():
     num_lst = []
     car_cnt = 0
     for region in range(len(LOCATIONS_ID_OF_INTEREST)):
-        region_lst.append(region)
         #battery_lst.append(NUM_BATTERY_LEVELS // 2)
-        battery_lst.append(NUM_BATTERY_LEVELS - 1)
-        if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
-            curr_car = TOTAL_CARS_NEW - car_cnt
+        if CAR_DEPLOYMENT == "uniform":
+            for battery in range(NUM_BATTERY_LEVELS):
+                region_lst.append(region)
+                battery_lst.append(battery)
+                num_lst.append(TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST) / NUM_BATTERY_LEVELS)
         else:
-            curr_car = car_num_per_region
-        car_cnt += curr_car
-        num_lst.append(curr_car)
+            region_lst.append(region)
+            battery_lst.append(NUM_BATTERY_LEVELS - 1)
+            if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
+                curr_car = TOTAL_CARS_NEW - car_cnt
+            else:
+                curr_car = car_num_per_region
+            car_cnt += curr_car
+            num_lst.append(curr_car)
     dct = {"region": region_lst, "battery": battery_lst, "num": num_lst}
     return pd.DataFrame.from_dict(dct)
 

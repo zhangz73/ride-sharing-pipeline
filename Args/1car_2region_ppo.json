@@ -22,6 +22,7 @@
             2
         ],
         "battery_offset": 0,
+        "car_deployment_type": "random",
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"
     },
@@ -70,6 +71,7 @@
     "metric": ["total_payoff"],
     "report": {
         "plot": ["training_loss"],
-        "table": []
+        "table": [],
+        "eval_days": 5
     }
 }

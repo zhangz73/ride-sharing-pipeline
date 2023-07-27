@@ -1,2 +1,0 @@
------------- Debugging output for day 0 ------------
-Itr = 1/80:
