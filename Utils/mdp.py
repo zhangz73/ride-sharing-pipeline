@@ -667,7 +667,7 @@ class MarkovDecisionProcess:
         region_battery_car_df = pd.read_csv(f"Data/{self.region_battery_car_fname}", sep = "\t")
         region_rate_plug_df = pd.read_csv(f"Data/{self.region_rate_plug_fname}", sep = "\t")
         self.region_battery_car_num = self.df_to_dct(region_battery_car_df, keynames = ["region", "battery"], valname = "num")
-        self.num_total_cars = int(region_battery_car_df["num"].sum())
+        self.num_total_cars = int(round(region_battery_car_df["num"].sum()))
         self.region_rate_plug_num = self.df_to_dct(region_rate_plug_df, keynames = ["region", "rate"], valname = "num")
     
     ## Construct the list of all actions
