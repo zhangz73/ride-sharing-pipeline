@@ -167,7 +167,7 @@ def get_region_battery_car_df():
             for battery in range(int(NUM_BATTERY_LEVELS * 0.2), int(NUM_BATTERY_LEVELS * 0.8)):
                 region_lst.append(region)
                 battery_lst.append(battery)
-                num_lst.append(TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST) / NUM_BATTERY_LEVELS)
+                num_lst.append(TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST) / NUM_BATTERY_LEVELS / 0.6)
         else:
             region_lst.append(region)
             battery_lst.append(NUM_BATTERY_LEVELS - 1)
