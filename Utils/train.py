@@ -345,8 +345,8 @@ class PPO_Solver(Solver):
                     for i in range(state_num):
                         tup = state_action_advantage_lst_episodes[day][i]
                         curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
-                        if day_num >= self.useful_days:
-                            break
+#                        if day_num >= self.useful_days:
+#                            break
                         lens = len(curr_state_counts)
                         policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
                         policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
