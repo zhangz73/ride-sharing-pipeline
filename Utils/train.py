@@ -479,10 +479,13 @@ class PPO_Solver(Solver):
             return output
         return torch.argmax(output, dim = 1).unsqueeze(-1)
     
-    def remove_infeasible_actions(self, state_counts, ts, output, lazy_removal = False, car_id = None, state_count_check = None):
+    def remove_infeasible_actions(self, state_counts, ts, output, lazy_removal = True, car_id = None, state_count_check = None):
         ## Eliminate infeasible actions
         ret = torch.ones(len(output))
-        mask = self.markov_decision_process.state_counts_to_potential_feasible_actions(self.state_reduction, state_count_check)
+        if self.state_reduction:
+            mask = self.markov_decision_process.state_counts_to_potential_feasible_actions(self.state_reduction, state_counts = state_count_check, car_id = car_id)
+        else:
+            mask = self.markov_decision_process.state_counts_to_potential_feasible_actions(self.state_reduction, state_counts = state_count_check)
         ret = ret * mask
         if not lazy_removal and self.state_reduction:
             potential_feasible_action_ids = torch.where(ret > 0)[0]
@@ -566,7 +569,8 @@ class PPO_Solver(Solver):
                             action_id = np.random.choice(len(action_id_prob), p = action_id_prob)
                             is_feasible = self.action_is_feasible(curr_state_counts, t, int(action_id), car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full)
                             if not is_feasible:
-                                print(self.all_actions[action_id].describe())
+                                print(self.all_actions[action_id].describe(), action_id)
+                                print(self.all_actions[action_id].get_type())
                                 print(self.markov_decision_process.describe_state_counts())
                                 assert False
                     else:

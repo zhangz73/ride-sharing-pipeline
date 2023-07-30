@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "random"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -343,6 +343,14 @@ class MarkovDecisionProcess:
         self.load_initial_data()
         ## Auxiliary variables
         self.regions = self.map.get_regions()
+        num_regions = len(self.regions)
+        self.trip_distance_matrix = torch.zeros((num_regions, num_regions))
+        self.load_initial_data()
+        for origin in self.regions:
+            for dest in self.regions:
+                self.trip_distance_matrix[origin, dest] = self.map.distance(origin, dest)
+        self.trip_request_matrix = torch.zeros((num_regions, num_regions))
+        
         self.reward_df = reward_query.get_reward_df()
         self.reward_wide = torch.tensor(self.reward_query.get_wide_reward(self.time_horizon, len(self.regions)))
         self.max_atomic_payoff = self.reward_df["Payoff"].max()
@@ -484,6 +492,7 @@ class MarkovDecisionProcess:
 #        print(self.trip_arrivals_reduced_map)
         self.state_counts += self.trip_arrivals_map[0,:]
         self.reduced_state_counts += self.trip_arrivals_reduced_map[0,:]
+        self.trip_request_matrix = self.update_trip_request_matrix()
     
     ## Set the states and payoff_schedule_dct according to the given ones
     ## Only useful for checking action feasibilities
@@ -1042,6 +1051,7 @@ class MarkovDecisionProcess:
                 trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, stag_time)]
                 self.reduced_state_counts[trip_id_origin] -= 1
                 self.reduced_state_counts[trip_id_dest] -= 1
+                self.trip_request_matrix[origin, dest] -= 1
             stag_time -= 1
         ## Update car states
         if origin != dest or action_fulfilled:
@@ -1347,6 +1357,17 @@ class MarkovDecisionProcess:
         ret = torch.tensor(map_to_clean)
         return ret
     
+    def update_trip_request_matrix(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        num_regions = len(self.regions)
+        trip_request_matrix = torch.zeros((num_regions, num_regions))
+        for origin in self.regions:
+            for dest in self.regions:
+                trip_id_begin = self.state_to_id["trip"][(origin, dest, 0)]
+                trip_request_matrix[origin, dest] = torch.sum(self.state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)])
+        return trip_request_matrix
+    
     def transit_across_timestamp(self):
         assert self.curr_ts < self.time_horizon
         state_counts_new = torch.zeros(self.num_total_states)
@@ -1360,6 +1381,9 @@ class MarkovDecisionProcess:
         state_counts_new = self.plug_tracking_map + trip_arrivals_map + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
         ## Update state counts
         self.state_counts = state_counts_new.clone()
+        
+        ## Update trip request matrix
+        self.trip_request_matrix = self.update_trip_request_matrix()
 
 #        reduced_state_counts_aug = torch.cat((self.reduced_state_counts, torch.tensor([0])))
         reduced_state_counts_new = self.plug_tracking_reduced_map + trip_arrivals_reduced_map + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
@@ -1403,7 +1427,7 @@ class MarkovDecisionProcess:
         if reduced:
             if car_id is None:
                 return True
-            action = self.all_actions[action_id]
+            action = self.all_reduced_actions[action_id]
             if action.get_type() == "nothing":
                 return True
             car = self.state_dict[car_id]
@@ -1464,19 +1488,42 @@ class MarkovDecisionProcess:
 #                        return True
         return False
     
-    def state_counts_to_potential_feasible_actions(self, reduced, state_counts = None):
+    def state_counts_to_potential_feasible_actions(self, reduced, state_counts = None, car_id = None):
         if state_counts is None:
             state_counts = self.state_counts
+#        else:
+#            trip_request_matrix = self.update_trip_request_matrix(state_counts = state_counts)
         if reduced:
             total_actions = len(self.all_reduced_actions)
         else:
             total_actions = len(self.all_actions)
         mask = torch.zeros(total_actions)
-        has_feasible_action = False
-        for action_id in range(total_actions):
-            if self.action_is_potentially_feasible(action_id, reduced, state_counts = state_counts):
-                mask[action_id] = 1
-                has_feasible_action = True
+        if reduced:
+            if car_id is None:
+                return torch.ones(total_actions)
+            mask = torch.ones(total_actions)
+            num_regions = len(self.regions)
+            ## Fill in travel actions
+            car = self.state_dict[car_id]
+            origin, eta, battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
+            if eta > self.pickup_patience:
+                mask[:num_regions] = 0
+            else:
+                ## Check if battery is enough
+                mask[:num_regions] *= battery >= (self.battery_per_step * self.trip_distance_matrix[origin,:])
+                ## Check if trip has requests
+                if eta > 0:
+                    mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
+            ## Check charge action
+            if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
+                mask[num_regions] = 0
+            ## Do-nothing is always feasible
+        else:
+            has_feasible_action = False
+            for action_id in range(total_actions):
+                if self.action_is_potentially_feasible(action_id, reduced, state_counts = state_counts):
+                    mask[action_id] = 1
+                    has_feasible_action = True
         return mask
     
     ## Return a list of feasible actions
