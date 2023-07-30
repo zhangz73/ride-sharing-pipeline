@@ -312,7 +312,7 @@ class PPO_Solver(Solver):
             with open(f"payoff_log_{label}.txt", "a") as f:
                 f.write(f"{float(payoff_val)}\n")
             with open(f"payoff_log_multi_{label}.csv", "a") as f:
-                f.write(f"{','.join(list(single_day_payoffs))}\n")
+                f.write(f"{','.join([str(x) for x in list(single_day_payoffs)])}\n")
             if itr == self.num_itr:
                 break
                 
