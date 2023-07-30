@@ -242,11 +242,13 @@ class PPO_Solver(Solver):
         single_day_payoffs = np.zeros(self.num_days)
         for episode in tqdm(range(num_episodes)):
             tmp = []
+            payoff_prev = 0
             for day in range(self.num_days):
                 state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
-                single_day_payoffs[day] += payoff_val
+                single_day_payoffs[day] += payoff_val - payoff_prev
+                payoff_prev = payoff_val
             state_action_advantage_lst_episodes.append(tmp)
         norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
         total_payoff /= norm_factor
