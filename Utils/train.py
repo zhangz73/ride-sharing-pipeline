@@ -239,16 +239,18 @@ class PPO_Solver(Solver):
     def get_data_single(self, num_episodes, worker_num = 0):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
+        single_day_payoffs = np.zeros(self.num_days)
         for episode in tqdm(range(num_episodes)):
             tmp = []
             for day in range(self.num_days):
                 state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
+                single_day_payoffs[day] += payoff_val
             state_action_advantage_lst_episodes.append(tmp)
         norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
         total_payoff /= norm_factor
-        return state_action_advantage_lst_episodes, (num_episodes, total_payoff)
+        return state_action_advantage_lst_episodes, (num_episodes, total_payoff), single_day_payoffs
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
         value_loss_arr = []
@@ -275,6 +277,8 @@ class PPO_Solver(Solver):
 #            payoff_arr.append(payoff_val)
         with open(f"payoff_log_{label}.txt", "w") as f:
             f.write("Payoff Logs:\n")
+        with open(f"payoff_log_multi_{label}.csv", "w") as f:
+            f.write(f"{','.join(['Day_' + str(x) for x in range(self.num_days)])}\n")
         eps = self.eps
         for itr in range(self.num_itr + 0):
             print(f"Iteration #{itr+1}/{self.num_itr}:")
@@ -285,8 +289,9 @@ class PPO_Solver(Solver):
             state_action_advantage_lst_episodes = []
             print("\tGathering data...")
             if self.n_cpu == 1:
-                state_action_advantage_lst_episodes, tup = self.get_data_single(self.num_episodes)
+                state_action_advantage_lst_episodes, tup, single_day_payoffs = self.get_data_single(self.num_episodes)
                 payoff_val = float(tup[1] / tup[0])
+                single_day_payoffs = single_day_payoffs / tup[0]
             else:
                 batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
                 results = Parallel(n_jobs = self.n_cpu)(delayed(
@@ -294,15 +299,20 @@ class PPO_Solver(Solver):
                 )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i) for i in range(self.n_cpu))
                 print("Gathering results...")
                 payoff_val = 0
+                single_day_payoffs = np.zeros(self.num_days)
                 for res in results:
                     state_action_advantage_lst_episodes += res[0]
                     tup = res[1]
                     payoff_val += tup[1]
+                    single_day_payoffs += res[2]
                 payoff_val /= self.num_episodes
+                single_day_payoffs /= self.num_episodes
                 results = None
             payoff_arr.append(payoff_val)
             with open(f"payoff_log_{label}.txt", "a") as f:
                 f.write(f"{float(payoff_val)}\n")
+            with open(f"payoff_log_multi_{label}.csv", "a") as f:
+                f.write(f"{','.join(list(single_day_payoffs))}\n")
             if itr == self.num_itr:
                 break
                 
@@ -636,10 +646,11 @@ class D_Closest_Car_Solver(Solver):
         self.useful_days = useful_days
         self.gamma = gamma
     
-    def evaluate(self, return_action = True, seed = None):
+    def evaluate(self, return_action = True, seed = None, day_num = 0):
         if seed is not None:
             torch.manual_seed(seed)
-        self.markov_decision_process.reset_states()
+        self.markov_decision_process.reset_states(new_episode = day_num == 0)
+        init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
         payoff_lst = []
         discount_lst = []
@@ -675,7 +686,7 @@ class D_Closest_Car_Solver(Solver):
             payoff_lst.append(curr_payoff)
             discount_lst.append(self.gamma ** t)
         discount_lst = torch.tensor(discount_lst)
-        atomic_payoff_lst = torch.tensor([0] + payoff_lst)
+        atomic_payoff_lst = torch.tensor([init_payoff] + payoff_lst)
         atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
         discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
         return None, None, payoff_lst, action_lst_ret, discounted_payoff

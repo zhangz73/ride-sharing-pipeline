@@ -110,6 +110,8 @@ def main(args, json_name = ""):
                 #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
     #            print(payoff_lst)
             payoff += float(discounted_payoff.data) * gamma ** (day * time_horizon) / norm_factor #float(payoff_lst[-1].data)
+#            if i == 0:
+#                print(day, payoff_lst[-1])
             df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
             df_table["trial"] = i
             df_table["t"] += day * time_horizon
@@ -138,7 +140,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_48charger_15min_halfcharged_nyc_combo_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "12car_4region_48charger_15min_halfcharged_nyc_combo_d-closest" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
