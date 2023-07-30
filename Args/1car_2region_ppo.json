@@ -55,10 +55,10 @@
         "descriptor": "PPO",
         "dir": ".",
         "num_itr": 20,
-        "num_episodes": 200,
-        "num_days": 5,
+        "num_episodes": 300,
+        "num_days": 1,
         "useful_days": 2,
-        "gamma": 0.9,
+        "gamma": 1,
         "ckpt_freq": 1000,
         "benchmarking_policy": "uniform",
         "eps": 0.1,
@@ -72,6 +72,6 @@
     "report": {
         "plot": ["training_loss"],
         "table": [],
-        "eval_days": 5
+        "eval_days": 1
     }
 }

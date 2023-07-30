@@ -521,8 +521,8 @@ class PPO_Solver(Solver):
         if True: #not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
-        if markov_decision_process is None:
-            markov_decision_process = self.markov_decision_process
+        #if markov_decision_process is None:
+        markov_decision_process = self.markov_decision_process
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)

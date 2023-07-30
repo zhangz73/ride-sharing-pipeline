@@ -140,7 +140,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_48charger_15min_halfcharged_nyc_combo_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "1car_2region_ppo" #"12car_4region_48charger_15min_halfcharged_nyc_combo_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
