@@ -1517,8 +1517,8 @@ class MarkovDecisionProcess:
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0
-            ## Do-nothing is feasible when all others are infeasible
-            if torch.sum(mask[:-1]) > 0:
+            ## Do-nothing is feasible when the idling action is infeasible
+            if eta == 0:
                 mask[-1] = 0
         else:
             has_feasible_action = False
