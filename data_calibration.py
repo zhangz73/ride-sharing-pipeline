@@ -39,8 +39,8 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
         LOCATION_MAP[LOCATIONS_ID] = i
 
 ## Time of interest
-TIME_RANGE = (8, 20)
-TIME_FREQ = 15 # E.g. 5 minutes per decision epoch
+TIME_RANGE = (0, 24) #(8, 20)
+TIME_FREQ = 30 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
@@ -52,7 +52,7 @@ NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW +
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_halfcharged_nyc_combo"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -170,8 +170,8 @@ def get_region_battery_car_df():
                 num_lst.append(TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST) / NUM_BATTERY_LEVELS / 0.6)
         else:
             region_lst.append(region)
-            #battery_lst.append(NUM_BATTERY_LEVELS - 1)
-            battery_lst.append(NUM_BATTERY_LEVELS // 2)
+            battery_lst.append(NUM_BATTERY_LEVELS - 1)
+            #battery_lst.append(NUM_BATTERY_LEVELS // 2)
             if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
                 curr_car = TOTAL_CARS_NEW - car_cnt
             else:
