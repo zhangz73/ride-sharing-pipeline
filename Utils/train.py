@@ -282,152 +282,153 @@ class PPO_Solver(Solver):
         with open(f"payoff_log_multi_{label}.csv", "w") as f:
             f.write(f"{','.join(['Day_' + str(x) for x in range(self.num_days)])}\n")
         eps = self.eps
-        for itr in range(self.num_itr + 0):
-            print(f"Iteration #{itr+1}/{self.num_itr}:")
-#            if debug:
-#                with open(debug_dir, "a") as f:
-#                    f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
-            ## Obtain simulated data from each episode
-            state_action_advantage_lst_episodes = []
-            print("\tGathering data...")
-            if self.n_cpu == 1:
-                state_action_advantage_lst_episodes, tup, single_day_payoffs = self.get_data_single(self.num_episodes)
-                payoff_val = float(tup[1] / tup[0])
-                single_day_payoffs = single_day_payoffs / tup[0]
-            else:
-                batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
-                results = Parallel(n_jobs = self.n_cpu)(delayed(
-                    self.get_data_single
-                )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i) for i in range(self.n_cpu))
-                print("Gathering results...")
-                payoff_val = 0
-                single_day_payoffs = np.zeros(self.num_days)
-                for res in results:
-                    state_action_advantage_lst_episodes += res[0]
-                    tup = res[1]
-                    payoff_val += tup[1]
-                    single_day_payoffs += res[2]
-                payoff_val /= self.num_episodes
-                single_day_payoffs /= self.num_episodes
-                results = None
-            payoff_arr.append(payoff_val)
-            with open(f"payoff_log_{label}.txt", "a") as f:
-                f.write(f"{float(payoff_val)}\n")
-            with open(f"payoff_log_multi_{label}.csv", "a") as f:
-                f.write(f"{','.join([str(x) for x in list(single_day_payoffs)])}\n")
-            if itr == self.num_itr:
-                break
+        with Parallel(n_jobs = self.n_cpu) as parallel:
+            for itr in range(self.num_itr + 0):
+                print(f"Iteration #{itr+1}/{self.num_itr}:")
+    #            if debug:
+    #                with open(debug_dir, "a") as f:
+    #                    f.write(f"Itr = {itr+1}/{self.num_itr}:\n")
+                ## Obtain simulated data from each episode
+                state_action_advantage_lst_episodes = []
+                print("\tGathering data...")
+                if self.n_cpu == 1:
+                    state_action_advantage_lst_episodes, tup, single_day_payoffs = self.get_data_single(self.num_episodes)
+                    payoff_val = float(tup[1] / tup[0])
+                    single_day_payoffs = single_day_payoffs / tup[0]
+                else:
+                    batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
+                    results = parallel(delayed(
+                        self.get_data_single
+                    )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i) for i in range(self.n_cpu))
+                    print("Gathering results...")
+                    payoff_val = 0
+                    single_day_payoffs = np.zeros(self.num_days)
+                    for res in results:
+                        state_action_advantage_lst_episodes += res[0]
+                        tup = res[1]
+                        payoff_val += tup[1]
+                        single_day_payoffs += res[2]
+                    payoff_val /= self.num_episodes
+                    single_day_payoffs /= self.num_episodes
+                    results = None
+                payoff_arr.append(payoff_val)
+                with open(f"payoff_log_{label}.txt", "a") as f:
+                    f.write(f"{float(payoff_val)}\n")
+                with open(f"payoff_log_multi_{label}.csv", "a") as f:
+                    f.write(f"{','.join([str(x) for x in list(single_day_payoffs)])}\n")
+                if itr == self.num_itr:
+                    break
+                    
+                ## Update models
+                ## Update value models
+                print("\tUpdating value models...")
+                value_curr_arr = []
+                for _ in tqdm(range(self.value_epoch)):
+                    batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
+                    self.value_optimizer.zero_grad(set_to_none=True)
+    #                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
+                    total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx], update_value_scale = itr == 0)
+                    value_curr_arr.append(float(total_value_loss.data))
+                    total_value_loss.backward()
+                    self.value_optimizer.step()
+                    self.value_scheduler.step()
+    #             plt.plot(value_curr_arr)
+    #             plt.title(f"Itr = {itr + 1}\nFinal Loss = {value_curr_arr[-1]}")
+    #             plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
+    #             plt.clf()
+    #             plt.close()
+    #            if debug:
+    #                with open(debug_dir, "a") as f:
+    #                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
                 
-            ## Update models
-            ## Update value models
-            print("\tUpdating value models...")
-            value_curr_arr = []
-            for _ in tqdm(range(self.value_epoch)):
-                batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
-                self.value_optimizer.zero_grad(set_to_none=True)
-#                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
-                total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx], update_value_scale = itr == 0)
-                value_curr_arr.append(float(total_value_loss.data))
-                total_value_loss.backward()
-                self.value_optimizer.step()
-                self.value_scheduler.step()
-#             plt.plot(value_curr_arr)
-#             plt.title(f"Itr = {itr + 1}\nFinal Loss = {value_curr_arr[-1]}")
-#             plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
-#             plt.clf()
-#             plt.close()
-#            if debug:
-#                with open(debug_dir, "a") as f:
-#                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
-            
-            ## Update policy models
-            print("\tUpdating policy models...")
-            policy_curr_arr = []
-            for _ in tqdm(range(self.policy_epoch)):
-                policy_dct = {}
-                for t in range(self.time_horizon):
-                    for offset in [0, 1]:
-                        tup = (t, t + offset)
-                        policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
-                batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
-                total_policy_loss = 0
-                self.policy_optimizer.zero_grad(set_to_none=True)
-                for day in batch_idx:
-                    state_num = len(state_action_advantage_lst_episodes[day])
-                    for i in range(state_num):
-                        tup = state_action_advantage_lst_episodes[day][i]
-                        curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
-                        if day_num >= self.useful_days:
-                            break
-                        lens = len(curr_state_counts)
-                        policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
-                        policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
-                        policy_dct[(t, next_t)]["action_id"].append(action_id)
-                        policy_dct[(t, next_t)]["atomic_payoff"].append(atomic_payoff)
-#                        advantage = self.get_advantage(curr_state_counts, next_state_counts, action_id, t, next_t)
-#                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
-#                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-#                        total_policy_loss += loss_curr[0]
-                for t in range(self.time_horizon):
-                    for offset in [0, 1]:
-                        next_t = t + offset
-                        if len(policy_dct[(t, next_t)]["curr_state_counts"]) > 0:
-                            curr_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["curr_state_counts"], dim = 0)
-                            next_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["next_state_counts"], dim = 0)
-                            action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"]).to(device = self.device)
-                            atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t)]["atomic_payoff"]).to(device = self.device)
-                            advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst)
-                            ## TODO: Fix it!!!
-                            ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps)
-                            loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                            total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
-#                total_policy_loss /= len(batch_idx)
-                policy_curr_arr.append(float(total_policy_loss.data))
-                total_policy_loss.backward()
-                self.policy_optimizer.step()
-                self.policy_scheduler.step()
-                policy_dct = None
-#             plt.plot(policy_curr_arr)
-#             plt.title(f"Itr = {itr + 1}\nFinal Loss = {policy_curr_arr[-1]}")
-#             plt.savefig(f"DebugPlots/policy_itr={itr+1}.png")
-#             plt.clf()
-#             plt.close()
-            if itr % self.value_syncing_freq == 0:
-                self.benchmark_value_model = copy.deepcopy(self.value_model)
-            if itr % self.policy_syncing_freq == 0:
-                self.benchmark_policy_model = copy.deepcopy(self.policy_model)
-            ## Save loss data
-            value_loss_arr.append(float(total_value_loss.data))
-            policy_loss_arr.append(float(total_policy_loss.data))
-            
-            ## Update eps according to scheduler
-            if itr > 0 and itr % self.eps_sched == 0:
-                eps = max(eps * self.eps_eta, 0.01)
-            ## Checkpoint
-            if itr > 0 and itr % self.ckpt_freq == 0:
-                self.value_model_factory.update_model(self.value_model, update_ts = False)
-                self.policy_model_factory.update_model(self.policy_model, update_ts = False)
-                descriptor = f"_itr={itr}"
-                self.value_model_factory.save_to_file(descriptor, include_ts = True)
-                self.policy_model_factory.save_to_file(descriptor, include_ts = True)
-                num_trials = 10
-                payoff = 0
-                df_table_all = None
-                norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
-                for i in tqdm(range(num_trials)):
-                    for day in range(self.eval_days):
-                        _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
-                        payoff += float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
-                        df_table = report_factory.get_table(self.markov_decision_process, action_lst)
-                        df_table["trial"] = i
-                        df_table["t"] += self.time_horizon * day
-                        if df_table_all is None:
-                            df_table_all = df_table
-                        else:
-                            df_table_all = pd.concat([df_table_all, df_table], axis = 0)
-                payoff /= num_trials
-                df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
-                report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
+                ## Update policy models
+                print("\tUpdating policy models...")
+                policy_curr_arr = []
+                for _ in tqdm(range(self.policy_epoch)):
+                    policy_dct = {}
+                    for t in range(self.time_horizon):
+                        for offset in [0, 1]:
+                            tup = (t, t + offset)
+                            policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
+                    batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
+                    total_policy_loss = 0
+                    self.policy_optimizer.zero_grad(set_to_none=True)
+                    for day in batch_idx:
+                        state_num = len(state_action_advantage_lst_episodes[day])
+                        for i in range(state_num):
+                            tup = state_action_advantage_lst_episodes[day][i]
+                            curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
+                            if day_num >= self.useful_days:
+                                break
+                            lens = len(curr_state_counts)
+                            policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
+                            policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
+                            policy_dct[(t, next_t)]["action_id"].append(action_id)
+                            policy_dct[(t, next_t)]["atomic_payoff"].append(atomic_payoff)
+    #                        advantage = self.get_advantage(curr_state_counts, next_state_counts, action_id, t, next_t)
+    #                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
+    #                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+    #                        total_policy_loss += loss_curr[0]
+                    for t in range(self.time_horizon):
+                        for offset in [0, 1]:
+                            next_t = t + offset
+                            if len(policy_dct[(t, next_t)]["curr_state_counts"]) > 0:
+                                curr_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["curr_state_counts"], dim = 0)
+                                next_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["next_state_counts"], dim = 0)
+                                action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"]).to(device = self.device)
+                                atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t)]["atomic_payoff"]).to(device = self.device)
+                                advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst)
+                                ## TODO: Fix it!!!
+                                ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps)
+                                loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+                                total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
+    #                total_policy_loss /= len(batch_idx)
+                    policy_curr_arr.append(float(total_policy_loss.data))
+                    total_policy_loss.backward()
+                    self.policy_optimizer.step()
+                    self.policy_scheduler.step()
+                    policy_dct = None
+    #             plt.plot(policy_curr_arr)
+    #             plt.title(f"Itr = {itr + 1}\nFinal Loss = {policy_curr_arr[-1]}")
+    #             plt.savefig(f"DebugPlots/policy_itr={itr+1}.png")
+    #             plt.clf()
+    #             plt.close()
+                if itr % self.value_syncing_freq == 0:
+                    self.benchmark_value_model = copy.deepcopy(self.value_model)
+                if itr % self.policy_syncing_freq == 0:
+                    self.benchmark_policy_model = copy.deepcopy(self.policy_model)
+                ## Save loss data
+                value_loss_arr.append(float(total_value_loss.data))
+                policy_loss_arr.append(float(total_policy_loss.data))
+                
+                ## Update eps according to scheduler
+                if itr > 0 and itr % self.eps_sched == 0:
+                    eps = max(eps * self.eps_eta, 0.01)
+                ## Checkpoint
+                if itr > 0 and itr % self.ckpt_freq == 0:
+                    self.value_model_factory.update_model(self.value_model, update_ts = False)
+                    self.policy_model_factory.update_model(self.policy_model, update_ts = False)
+                    descriptor = f"_itr={itr}"
+                    self.value_model_factory.save_to_file(descriptor, include_ts = True)
+                    self.policy_model_factory.save_to_file(descriptor, include_ts = True)
+                    num_trials = 10
+                    payoff = 0
+                    df_table_all = None
+                    norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
+                    for i in tqdm(range(num_trials)):
+                        for day in range(self.eval_days):
+                            _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
+                            payoff += float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
+                            df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+                            df_table["trial"] = i
+                            df_table["t"] += self.time_horizon * day
+                            if df_table_all is None:
+                                df_table_all = df_table
+                            else:
+                                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+                    payoff /= num_trials
+                    df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
+                    report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
             
 #            if return_payoff:
 #                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
