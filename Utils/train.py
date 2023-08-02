@@ -132,9 +132,12 @@ class PPO_Solver(Solver):
             next_value = next_value * sd2 + mu2
         else:
             #next_value = 0
-            next_value = self.value_model((0, next)).reshape((-1,))
-            mu2, sd2 = self.value_scale[0]
-            next_value = next_value * sd2 + mu2
+            if self.num_days > 1:
+                next_value = self.value_model((0, next)).reshape((-1,))
+                mu2, sd2 = self.value_scale[0]
+                next_value = next_value * sd2 + mu2
+            else:
+                next_value = 0
         return (payoff + next_value * self.gamma - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None):
