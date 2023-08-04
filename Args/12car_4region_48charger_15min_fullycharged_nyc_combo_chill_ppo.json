@@ -59,6 +59,7 @@
         "num_itr": 80,
         "num_episodes": 500,
         "num_days": 1,
+        "network_horizon_repeat": 1,
         "useful_days": 2,
         "gamma": 1,
         "eval_days": 1,

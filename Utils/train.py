@@ -60,14 +60,15 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
         self.policy_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "policy")
         self.value_output_dim = 1
         self.policy_output_dim = len(self.action_lst)
-        self.discretized_len = self.time_horizon
+        self.network_horizon_repeat = network_horizon_repeat
+        self.discretized_len = self.time_horizon * self.network_horizon_repeat
         self.num_itr = num_itr
         self.num_episodes = num_episodes
         self.num_days = num_days
@@ -115,36 +116,41 @@ class PPO_Solver(Solver):
     def get_policy_model(self):
         return self.policy_model_factory.get_model()
     
-    def get_advantage(self, curr_state_counts, next_state_counts, action_id, ts, next_ts, payoff):
+    def get_offset(self, day_num):
+        return min(day_num, self.network_horizon_repeat - 1)
+    
+    def get_advantage(self, curr_state_counts, next_state_counts, action_id, ts, next_ts, payoff, day_num = 0):
 #        payoff = self.payoff_map[ts, action_id]
+        offset = self.get_offset(day_num) * self.time_horizon
         if len(curr_state_counts.shape) > 1:
             curr, next = curr_state_counts[:,:self.value_input_dim], next_state_counts[:,:self.value_input_dim]
         else:
             curr, next = curr_state_counts[:self.value_input_dim], next_state_counts[:self.value_input_dim]
         with torch.no_grad():
-            curr_value = self.value_model((ts, curr)).reshape((-1,))
-        mu, sd = self.value_scale[ts]
+            curr_value = self.value_model((ts + offset, curr)).reshape((-1,))
+        mu, sd = self.value_scale[ts + offset]
         curr_value = curr_value * sd + mu
         if next_ts < self.time_horizon - 1:
             with torch.no_grad():
-                next_value = self.value_model((next_ts, next)).reshape((-1,))
-            mu2, sd2 = self.value_scale[next_ts]
+                next_value = self.value_model((next_ts + offset, next)).reshape((-1,))
+            mu2, sd2 = self.value_scale[next_ts + offset]
             next_value = next_value * sd2 + mu2
         else:
             #next_value = 0
             if self.num_days > 1:
-                next_value = self.value_model((0, next)).reshape((-1,))
-                mu2, sd2 = self.value_scale[0]
+                next_value = self.value_model((0 + offset, next)).reshape((-1,))
+                mu2, sd2 = self.value_scale[0 + offset]
                 next_value = next_value * sd2 + mu2
             else:
                 next_value = 0
         return (payoff + next_value * self.gamma - curr_value) / sd
     
-    def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None):
-        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, car_id = car_id)
+    def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None, day_num = 0):
+        offset = self.get_offset(day_num) * self.time_horizon
+        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, car_id = car_id, day_num = day_num)
         action_id = action_id.reshape((len(action_id), 1))
         prob = prob_output.gather(1, action_id) #prob_output[action_id]
-        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, use_benchmark = True, car_id = car_id)
+        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, use_benchmark = True, car_id = car_id, day_num = day_num)
 #         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
         prob_benchmark = prob_benchmark_output.gather(1, action_id) #prob_benchmark_output[action_id]
         prob = prob.reshape((-1,))
@@ -164,6 +170,7 @@ class PPO_Solver(Solver):
 #            ratio, clipped_ratio = 0
         return ratio, clipped_ratio
     
+    ## Deprecated
     def get_ratio_single(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None, state_count_check = None):
         prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = True, car_id = car_id, state_count_check = state_count_check)
         prob = prob_output[action_id]
@@ -203,7 +210,7 @@ class PPO_Solver(Solver):
         total_value_loss = 0
         val_num = 0
         value_dct = {}
-        for t in range(self.time_horizon):
+        for t in range(self.time_horizon * self.network_horizon_repeat):
             value_dct[t] = {"state_counts": [], "payoff": []}
         for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
@@ -214,6 +221,7 @@ class PPO_Solver(Solver):
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
+                offset = self.get_offset(day_num) * self.time_horizon
                 if t != curr_t:
                     payoff = atomic_payoff + self.gamma * payoff
                     curr_t = t
@@ -221,10 +229,10 @@ class PPO_Solver(Solver):
                     payoff = atomic_payoff + payoff
                 lens = len(curr_state_counts)
                 if day_num < self.useful_days:
-                    value_dct[t]["payoff"].append(payoff)
-                    value_dct[t]["state_counts"].append(curr_state_counts.reshape((1, lens)))
+                    value_dct[t + offset]["payoff"].append(payoff)
+                    value_dct[t + offset]["state_counts"].append(curr_state_counts.reshape((1, lens)))
                     val_num += 1
-        for t in range(self.time_horizon):
+        for t in range(self.time_horizon * self.network_horizon_repeat):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
                 mu, sd = 0, torch.std(payoff_lst) + 1 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
@@ -351,10 +359,11 @@ class PPO_Solver(Solver):
                 policy_curr_arr = []
                 for _ in tqdm(range(self.policy_epoch)):
                     policy_dct = {}
-                    for t in range(self.time_horizon):
-                        for offset in [0, 1]:
-                            tup = (t, t + offset)
-                            policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
+                    for day_num in range(self.network_horizon_repeat):
+                        for t in range(self.time_horizon):
+                            for offset in [0, 1]:
+                                tup = (t, t + offset, day_num)
+                                policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
                     batch_idx = np.random.choice(self.num_episodes, size = self.policy_batch, replace = False)
                     total_policy_loss = 0
                     self.policy_optimizer.zero_grad(set_to_none=True)
@@ -363,30 +372,32 @@ class PPO_Solver(Solver):
                         for i in range(state_num):
                             tup = state_action_advantage_lst_episodes[day][i]
                             curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
+                            offset = self.get_offset(day_num)
 #                            if day_num >= self.useful_days:
 #                                break
                             lens = len(curr_state_counts)
-                            policy_dct[(t, next_t)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
-                            policy_dct[(t, next_t)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
-                            policy_dct[(t, next_t)]["action_id"].append(action_id)
-                            policy_dct[(t, next_t)]["atomic_payoff"].append(atomic_payoff)
+                            policy_dct[(t, next_t, offset)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
+                            policy_dct[(t, next_t, offset)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
+                            policy_dct[(t, next_t, offset)]["action_id"].append(action_id)
+                            policy_dct[(t, next_t, offset)]["atomic_payoff"].append(atomic_payoff)
     #                        advantage = self.get_advantage(curr_state_counts, next_state_counts, action_id, t, next_t)
     #                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
     #                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
     #                        total_policy_loss += loss_curr[0]
-                    for t in range(self.time_horizon):
-                        for offset in [0, 1]:
-                            next_t = t + offset
-                            if len(policy_dct[(t, next_t)]["curr_state_counts"]) > 0:
-                                curr_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["curr_state_counts"], dim = 0)
-                                next_state_counts_lst = torch.cat(policy_dct[(t, next_t)]["next_state_counts"], dim = 0)
-                                action_id_lst = torch.tensor(policy_dct[(t, next_t)]["action_id"]).to(device = self.device)
-                                atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t)]["atomic_payoff"]).to(device = self.device)
-                                advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst)
-                                ## TODO: Fix it!!!
-                                ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps)
-                                loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                                total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
+                    for day_num in range(self.network_horizon_repeat):
+                        for t in range(self.time_horizon):
+                            for offset in [0, 1]:
+                                next_t = t + offset
+                                if len(policy_dct[(t, next_t, day_num)]["curr_state_counts"]) > 0:
+                                    curr_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["curr_state_counts"], dim = 0)
+                                    next_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["next_state_counts"], dim = 0)
+                                    action_id_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["action_id"]).to(device = self.device)
+                                    atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["atomic_payoff"]).to(device = self.device)
+                                    advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
+                                    ## TODO: Fix it!!!
+                                    ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
+                                    loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
+                                    total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
     #                total_policy_loss /= len(batch_idx)
                     policy_curr_arr.append(float(total_policy_loss.data))
                     total_policy_loss.backward()
@@ -457,12 +468,13 @@ class PPO_Solver(Solver):
             ret += f"\t\t{msg}\n"
         return ret
     
-    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = True, car_id = None, state_count_check = None):
+    def policy_predict(self, state_counts, ts, prob = True, remove_infeasible = True, use_benchmark = False, lazy_removal = True, car_id = None, state_count_check = None, day_num = 0):
+        offset = self.get_offset(day_num)
         if not use_benchmark:
-            output = self.policy_model((ts, state_counts))
+            output = self.policy_model((ts + offset, state_counts))
         else:
             with torch.no_grad():
-                output = self.benchmark_policy_model((ts, state_counts))
+                output = self.benchmark_policy_model((ts + offset, state_counts))
         if remove_infeasible:
             if len(state_counts.shape) == 1:
                 ret = self.remove_infeasible_actions(state_counts.cpu(), ts, output, car_id = car_id, state_count_check = state_count_check)
@@ -507,6 +519,7 @@ class PPO_Solver(Solver):
 #        action = self.all_actions[action_id]
 #        return self.markov_decision_process_pg.transit_within_timestamp(action, reduced = self.state_reduction, car_id = car_id)
     
+    ## Deprecated
     def policy_benchmark_predict(self, state_counts, ts, prob = True, remove_infeasible = True):
         if self.benchmarking_policy == "uniform":
             policy_output = torch.ones(self.policy_output_dim)
@@ -557,7 +570,7 @@ class PPO_Solver(Solver):
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
 #                if return_action:
                 curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
-                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full)
+                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full, day_num = day_num)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:
