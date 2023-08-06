@@ -218,13 +218,15 @@ class PPO_Solver(Solver):
             if state_num > 0:
                 final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
             curr_t = self.time_horizon - 1
+            curr_day = self.num_days
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
                 offset = self.get_offset(day_num) * self.time_horizon
-                if t != curr_t:
+                if t != curr_t: #day_num != curr_day: #
                     payoff = atomic_payoff + self.gamma * payoff
                     curr_t = t
+#                    curr_day = day_num
                 else:
                     payoff = atomic_payoff + payoff
                 lens = len(curr_state_counts)
@@ -260,10 +262,12 @@ class PPO_Solver(Solver):
                 state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
+#                total_payoff += payoff_val * self.gamma ** day
                 single_day_payoffs[day] += payoff_val - payoff_prev
                 payoff_prev = payoff_val
             state_action_advantage_lst_episodes.append(tmp)
         norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
+#        norm_factor = torch.sum(self.gamma ** torch.arange(self.num_days))
         total_payoff /= norm_factor
         return state_action_advantage_lst_episodes, (num_episodes, total_payoff), single_day_payoffs
     
@@ -394,8 +398,8 @@ class PPO_Solver(Solver):
                                     action_id_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["action_id"]).to(device = self.device)
                                     atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["atomic_payoff"]).to(device = self.device)
                                     advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
-                                    advantage_tails = torch.quantile(advantage, torch.tensor([0.05, 0.95]))
-                                    advantage = torch.max(torch.min(advantage, advantage_tails[1]), advantage_tails[0])
+#                                    advantage_tails = torch.quantile(advantage, torch.tensor([0.025, 0.975]))
+#                                    advantage = torch.max(torch.min(advantage, advantage_tails[1]), advantage_tails[0])
                                     ## TODO: Fix it!!!
                                     ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
                                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
@@ -433,10 +437,12 @@ class PPO_Solver(Solver):
                     payoff = 0
                     df_table_all = None
                     norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
+#                    norm_factor = torch.sum(self.gamma ** torch.arange(self.eval_days))
                     for i in tqdm(range(num_trials)):
                         for day in range(self.eval_days):
                             _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
                             payoff += float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
+#                            payoff += float(payoff_lst[-1].data) * self.gamma ** day / norm_factor
                             df_table = report_factory.get_table(self.markov_decision_process, action_lst)
                             df_table["trial"] = i
                             df_table["t"] += self.time_horizon * day

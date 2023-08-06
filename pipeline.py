@@ -102,6 +102,7 @@ def main(args, json_name = ""):
         gamma = 1
     num_trials = 10#args["neural"]["num_episodes"]
     norm_factor = torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
+#    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
     for i in tqdm(range(num_trials)):
         for day in range(eval_days):
             _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None, day_num = day)
@@ -110,6 +111,7 @@ def main(args, json_name = ""):
                 #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
     #            print(payoff_lst)
             payoff += float(discounted_payoff.data) * gamma ** (day * time_horizon) / norm_factor #float(payoff_lst[-1].data)
+#            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
 #            if i == 0:
 #                print(day, payoff_lst[-1])
             df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
