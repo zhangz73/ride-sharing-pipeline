@@ -394,6 +394,8 @@ class PPO_Solver(Solver):
                                     action_id_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["action_id"]).to(device = self.device)
                                     atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["atomic_payoff"]).to(device = self.device)
                                     advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
+                                    advantage_tails = torch.quantile(advantage, torch.tensor([0.05, 0.95]))
+                                    advantage = torch.max(torch.min(advantage, advantage_tails[1]), advantage_tails[0])
                                     ## TODO: Fix it!!!
                                     ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
                                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
