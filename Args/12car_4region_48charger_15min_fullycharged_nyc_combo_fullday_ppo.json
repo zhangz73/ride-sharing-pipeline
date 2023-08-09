@@ -13,7 +13,7 @@
         "reward_fname": "Payoff/payoff_12car4region48chargers15mins_fullycharged_nyc_combo_fullday.tsv"
     },
     "mdp": {
-        "time_horizon": 48,
+        "time_horizon": 96,
         "connection_patience": 1,
         "pickup_patience": 1,
         "num_battery_levels": 264,
@@ -47,7 +47,7 @@
         "policy_hidden_dim_lst": [500, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
-        "policy_lr": 5e-4,
+        "policy_lr": 1e-4,
         "policy_epoch": 3,
         "policy_batch": 100,
         "policy_decay": 0.1,
@@ -61,7 +61,7 @@
         "num_days": 1,
         "network_horizon_repeat": 1,
         "useful_days": 2,
-        "gamma": 0.95,
+        "gamma": 0.97,
         "eval_days": 1,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
@@ -78,6 +78,6 @@
         "plot": ["training_loss"],
         "table": [],
         "eval_days": 1,
-        "gamma": 0.95
+        "gamma": 0.97
     }
 }
