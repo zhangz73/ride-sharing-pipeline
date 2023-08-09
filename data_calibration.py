@@ -39,7 +39,7 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
         LOCATION_MAP[LOCATIONS_ID] = i
 
 ## Time of interest
-TIME_RANGE = (2, 14) #(8, 20)
+TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
 TIME_FREQ = 15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
@@ -52,7 +52,7 @@ NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW +
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_chill"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
