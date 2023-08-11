@@ -377,6 +377,9 @@ class PPO_Solver(Solver):
                             tup = state_action_advantage_lst_episodes[day][i]
                             curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
                             offset = self.get_offset(day_num)
+                            if i < state_num - 1:
+                                tup_next = state_action_advantage_lst_episodes[day][i + 1]
+                                next_state_counts = tup_next[0]
 #                            if day_num >= self.useful_days:
 #                                break
                             lens = len(curr_state_counts)
@@ -617,7 +620,10 @@ class PPO_Solver(Solver):
                             action_lst.append((curr_state_counts_full, None, t, None))
                         markov_decision_process.transit_across_timestamp()
                         next_t += 1
-                    next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
+                    if t == self.time_horizon - 1 and car_idx == num_available_cars - 1:
+                        next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx]).to(device = self.device)
+                    else:
+                        next_state_counts = None
                     payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
