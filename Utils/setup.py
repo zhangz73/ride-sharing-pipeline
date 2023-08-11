@@ -168,6 +168,10 @@ class TripDemands:
         elif self.arrival_type == "poisson":
             return self.generate_poisson_arrivals()
         return self.generate_data_driven_arrivals()
+    
+    ## Get arrival rates
+    def get_arrival_rates(self):
+        return self.data_wide.copy()
 
     ## Generate 1 trial of the constant arrival process
     def generate_constant_arrivals(self):

@@ -1101,6 +1101,7 @@ class MarkovDecisionProcess:
         if self.state_counts[plug_id] == 0:
             return False
         battery = car.get_battery()
+        next_battery = min(battery + rate, self.num_battery_levels - 1)
         reduced_id = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
         target_car_state = ("charged", region, battery, rate)
         curr_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
@@ -1119,7 +1120,7 @@ class MarkovDecisionProcess:
         self.state_counts[plug_id] -= 1
         self.reduced_state_counts[plug_id] -= 1
         ## Update payoff
-        atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts)
+        atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts) * (next_battery - battery) / rate
         self.payoff_curr_ts += atomic_payoff
         ## Update existing car types
         self.update_available_existing_car_types(id)

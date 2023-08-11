@@ -45,9 +45,9 @@ PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
 TOTAL_CARS_NEW = 12#50 #200
-CHARGING_RATE = 0.833 #[0.128, 0.833]
+CHARGING_RATE = 1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
-SCALE_DEMAND_UP = 0.5#1
+SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
@@ -143,7 +143,7 @@ def get_charging_cost(cost_rate_per_min_lst):
     region_lst = []
     for cost_rate_per_min in cost_rate_per_min_lst:
         cost_rate, tup = cost_rate_per_min
-        cost_rate = 0
+        cost_rate = 0.35 #0
         lo, hi = tup
         for region in range(len(LOCATIONS_ID_OF_INTEREST)):
             cost_rate_lst += [-cost_rate * TIME_FREQ * CHARGING_RATE] * (hi - lo)
