@@ -25,6 +25,7 @@ class LP_Solver(train.Solver):
         pass
     
     def train(self):
+        print("Training...")
         m, n = self.A.shape
         A_cvx = cvx.Parameter(shape = (m, n), name = "A")
         b_cvx = cvx.Parameter(shape = (m,), name = "b")
