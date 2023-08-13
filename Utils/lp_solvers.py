@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import torch
 import cvxpy as cvx
+import gurobipy as gp
+from gurobipy import GRB
 import scipy
 from scipy.sparse import csr_matrix, csr_array, dia_matrix, vstack
 import matplotlib.pyplot as plt
@@ -25,6 +27,23 @@ class LP_Solver(train.Solver):
         pass
     
     def train(self):
+        print("Training...")
+        model = gp.Model()
+        m, n = self.A.shape
+        x = model.addVars(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
+        model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
+        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
+        model.setObjective(objective, GRB.MAXIMIZE)
+        model.optimize()
+        obj_val = model.ObjVal
+        print(obj_val)
+        self.x = np.zeros(n)
+        for i in range(n):
+            self.x[i] = x[i].x
+#        print(self.describe_x())
+        return self.x, obj_val
+    
+    def train_cvxpy(self):
         print("Training...")
         m, n = self.A.shape
 #        A_cvx = cvx.Parameter(shape = (m, n), name = "A")
