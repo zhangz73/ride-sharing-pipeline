@@ -6,6 +6,7 @@ import Utils.setup as setup
 import Utils.neural as neural
 import Utils.mdp as mdp
 import Utils.train as train
+import Utils.lp_solvers as lp_solvers
 from tqdm import tqdm
 
 ## Check if CUDA is available
@@ -47,6 +48,8 @@ def main(args, json_name = ""):
         solver = train.PPO_Solver(markov_decision_process = markov_decision_process, descriptor = model_descriptor, device = DEVICE, **args["neural"])
     elif solver_type == "d_closest":
         solver = train.D_Closest_Car_Solver(markov_decision_process = markov_decision_process, **args["d_closest"])
+    elif solver_type == "LP-AugmentedGraph":
+        solver = lp_solvers.LP_On_AugmentedGraph(markov_decision_process = markov_decision_process, **args["LP-AugmentedGraph"])
     
     ## Training
     if solver_type == "dp":
@@ -89,6 +92,9 @@ def main(args, json_name = ""):
         #        print(markov_decision_process.describe_state_counts())
     elif solver_type == "d_closest":
         report_factory = train.ReportFactory()
+    elif solver_type == "LP-AugmentedGraph":
+        report_factory = train.ReportFactory()
+        solver.train()
     
     df_table_all = None
     payoff = 0

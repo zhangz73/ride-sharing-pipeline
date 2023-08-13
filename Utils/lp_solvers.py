@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 import cvxpy as cvx
 import scipy
+from scipy.sparse import csr_matrix, dia_matrix
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import joblib
@@ -16,7 +17,6 @@ import Utils.train as train
 class LP_Solver(train.Solver):
     def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
-        self.trip_demand = self.markov_decision_process.trip_demand
         self.reward_df = self.markov_decision_process.reward_df
         self.num_days = num_days
         self.gamma = gamma
@@ -24,8 +24,8 @@ class LP_Solver(train.Solver):
     def evaluate(self, **kargs):
         pass
     
-    def train(self, A, b, c):
-        m, n = A.shape
+    def train(self):
+        m, n = self.A.shape
         A_cvx = cvx.Parameter(shape = (m, n), name = "A")
         b_cvx = cvx.Parameter(shape = (m,), name = "b")
         c_cvx = cvx.Parameter(shape = (n,), name = "c")
@@ -33,12 +33,14 @@ class LP_Solver(train.Solver):
         constraints = [A_cvx @ x == b_cvx]
         objective = cvx.Maximize(c_cvx @ x)
         problem = cvx.Problem(objective, constraints)
-        problem.param_dict["A"].value = A
-        problem.param_dict["b"].value = b
-        problem.param_dict["c"].value = c
+        problem.param_dict["A"].value = self.A
+        problem.param_dict["b"].value = self.b
+        problem.param_dict["c"].value = self.c
         obj_val = problem.solve()
-        x = problem.var_dict["x"].value
-        return x, obj_val
+        self.x = problem.var_dict["x"].value
+        print(self.x, obj_val)
+        print(self.A)
+        return self.x, obj_val
 
 class LP_On_AugmentedGraph(LP_Solver):
     def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1):
@@ -53,6 +55,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     ##   - Charging facility per region d_i^{\delta}
     ##   - Travel time \tau_ij^t
     ##   - Battery consumption b_ij
+    ##   - Initial car battery num per region
     ## Parameters to fetch:
     ##   - Total EVs N
     ##   - Time horizon T
@@ -114,27 +117,221 @@ class LP_On_AugmentedGraph(LP_Solver):
             for dest in range(self.num_regions):
                 distance = map.distance(origin, dest)
                 self.battery_consumption[origin * self.num_regions + dest] = distance * self.battery_per_step
+        ### Initial battery car num per region R x B
+        self.init_car_num = np.zeros(self.num_regions * self.num_battery_levels)
+        region_battery_car_df = self.markov_decision_process.region_battery_car_df
+        for i in range(region_battery_car_df.shape[0]):
+            region = region_battery_car_df.iloc[i]["region"]
+            battery = region_battery_car_df.iloc[i]["battery"]
+            num = region_battery_car_df.iloc[i]["num"]
+            self.init_car_num[region * self.num_battery_levels + battery] = num
     
     def construct_problem(self):
         self.construct_x()
         self.construct_obj()
         self.construct_constraints()
     
+    ## Variables:
+    ##   - Passenger-carry flow T x B x R^2
+    ##   - Rerouting flow T x B x R^2
+    ##   - Charging flow T x \Delta x B x R
     def construct_x(self):
-        pass
+        travel_flow_len = self.time_horizon * self.num_battery_levels * self.num_regions * self.num_regions
+        charging_flow_len = self.time_horizon * self.num_battery_levels * self.num_regions * self.num_charging_rates
+        self.rerouting_flow_begin = travel_flow_len
+        self.charging_flow_begin = travel_flow_len * 2
+        trip_demand_extra_len = self.time_horizon * self.num_regions * self.num_regions
+        charging_facility_extra_len = self.time_horizon * self.num_regions * self.num_charging_rates
+        self.trip_demand_extra_begin = self.charging_flow_begin + charging_flow_len
+        self.charging_facility_extra_begin = self.trip_demand_extra_begin + trip_demand_extra_len
+        self.x_len = travel_flow_len * 2 + charging_flow_len + trip_demand_extra_len + charging_facility_extra_len
+        self.x = np.zeros(self.x_len)
+    
+    def get_x_entry(self, entry_type, t, b, origin = None, dest = None, region = None, rate_idx = None):
+        assert entry_type in ["passenger-carry", "reroute", "charge"]
+        if entry_type == "charge":
+            assert region is not None and rate_idx is not None
+            ans = t * self.num_battery_levels * self.num_regions * self.num_charging_rates + b * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
+            return self.charging_flow_begin + ans
+        ans = ans = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
+        if entry_type == "reroute":
+            ans += self.rerouting_flow_begin
+        return int(ans)
+    
+    def get_flow_conserv_entry(self, t, b, region):
+        return int(t * self.num_battery_levels * self.num_regions + b * self.num_regions + region)
     
     def construct_obj(self):
-        pass
+        self.c = np.zeros(self.x_len)
+        for t in range(self.time_horizon):
+            for b in range(self.num_battery_levels):
+                begin = t * self.num_battery_levels * self.num_regions ** 2 + b * self.num_regions ** 2
+                self.c[begin:(begin + self.num_regions ** 2)] = self.trip_rewards[t,:] * self.gamma ** t
+        for t in range(self.time_horizon):
+            for rate_idx in range(self.num_charging_rates):
+                cost = self.charging_costs[t, rate_idx]
+                begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions
+                end = begin + self.num_battery_levels * self.num_regions
+                self.c[begin:end] = cost * self.gamma ** t
     
     ## Flows add up to initial car distribution
     ## Flow conservation at each time, battery, and region
     ## Passenger-carrying flows not exceed trip demands
     ## Charging flows not exceed charging facility nums
     ## Infeasible flows equal to 0 (i.e. trips with insufficient battery)
-    ## All flows add up to 1 at each time
+    ## All flows add up to total cars at each time
     ## All flows being non-negative
     def construct_constraints(self):
-        pass
+        ### Flow conservation
+        flow_conservation_mat, flow_conservation_target = self.construct_flow_conservation_matrix()
+        ### Trip demand
+        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
+        trip_demand_target = np.zeros(self.time_horizon * self.num_regions * self.num_regions)
+        for t in range(self.time_horizon):
+            for origin in range(self.num_regions):
+                for dest in range(self.num_regions):
+                    begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
+                    end = begin + self.num_battery_levels * self.num_regions * self.num_regions
+                    pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
+                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
+                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
+                    trip_demand_target[pos] = self.trip_demands[t, origin * self.num_regions + dest]
+        ### Charging facility
+        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
+        charging_facility_target = np.zeros(self.time_horizon * self.num_regions * self.num_charging_rates)
+        for t in range(self.time_horizon):
+            for region in range(self.num_regions):
+                for rate_idx in range(self.num_charging_rates):
+                    begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + rate_idx * self.num_battery_levels * self.num_regions + region
+                    end = begin + self.num_battery_levels * self.num_regions
+                    pos = t * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
+                    charging_facility_mat[pos, self.charging_facility_extra_begin + pos] = 1
+                    charging_facility_mat[pos, begin:end:(self.num_regions)] = 1
+                    charging_facility_target[pos] = self.charging_facility_num[region, rate_idx]
+        ### Total flows
+        total_flow_mat = np.ones((1, self.x_len))
+        total_flow_target = np.array([self.num_total_cars])
+        ### Concatenate together
+        self.A = np.vstack((flow_conservation_mat, trip_demand_mat, charging_facility_mat, total_flow_mat))
+        self.b = np.concatenate((flow_conservation_target, trip_demand_target, charging_facility_target, total_flow_target), axis = None)
     
-    def evaluate(self):
-        pass
+    ## Flow conservation at each (time, battery, region)
+    ##   - Passenger-carrying to & from each region
+    ##   - Rerouting to & from each region
+    ##   - Charging at each rate
+    def construct_flow_conservation_matrix(self):
+        flow_conservation_mat = np.zeros((self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
+        flow_conservation_target = np.zeros(self.time_horizon * self.num_battery_levels * self.num_regions)
+        ## Populate initial car flow
+        for region in range(self.num_regions):
+            for battery in range(self.num_battery_levels):
+                num = self.init_car_num[region * self.num_battery_levels + battery]
+                flow_conservation_target[battery * self.num_regions + region] = num
+        print(self.travel_time)
+        ## Populate flow conservation matrix
+        for t in range(self.time_horizon):
+            for b in range(self.num_battery_levels):
+                ## Populate traveling flows
+                for origin in range(self.num_regions):
+                    for dest in range(self.num_regions):
+                        trip_time = self.travel_time[t, origin * self.num_regions + dest]
+                        battery_cost = self.battery_consumption[origin * self.num_regions + dest]
+                        passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest)
+                        reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest)
+                        start_row = self.get_flow_conserv_entry(t, b, origin)
+                        flow_conservation_mat[start_row, passenger_pos] = 1
+                        flow_conservation_mat[start_row, reroute_pos] = 1
+                        if b >= battery_cost:
+                            end_time = t + trip_time
+                            if end_time >= self.time_horizon and self.num_days > 1:
+                                end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest)
+                            elif end_time < self.time_horizon:
+                                end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest)
+                            else:
+                                end_row = None
+                            if end_row is not None:
+                                if end_time == 0:
+                                    print(t, b, origin, dest)
+                                flow_conservation_mat[end_row, passenger_pos] = -1
+                                flow_conservation_mat[end_row, reroute_pos] = -1
+                ## Populate charging flows
+                for region in range(self.num_regions):
+                    for rate_idx in range(self.num_charging_rates):
+                        start_charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
+                        rate = self.charging_rates[rate_idx]
+                        end_time = t + 1
+                        end_battery = min(b + battery_cost, self.num_battery_levels - 1)
+                        charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
+                        start_row = self.get_flow_conserv_entry(t, b, region)
+                        flow_conservation_mat[start_row, charge_pos] = 1
+                        if end_time >= self.time_horizon and self.num_days > 1:
+                            end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, end_battery, region)
+                        elif end_time < self.time_horizon:
+                            end_row = self.get_flow_conserv_entry(end_time, end_battery, region)
+                        else:
+                            end_row = None
+                        if end_row is not None:
+                            flow_conservation_mat[end_row, charge_pos] = -1
+        return flow_conservation_mat, flow_conservation_target
+    
+    def get_relevant_x(self, t, region, battery):
+        passenger_carry_idx_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + battery * self.num_regions * self.num_regions + region
+        passenger_carry_idx_end = passenger_carry_idx_begin + self.num_regions
+        reroute_idx_begin = passenger_carry_idx_begin + self.rerouting_flow_begin
+        reroute_idx_end = reroute_idx_begin + self.num_regions
+        charge_idx_begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + battery * self.num_regions + region
+        charge_idx_end = charge_idx_begin + self.num_charging_rates * self.num_battery_levels * self.num_regions
+        travel_x_ids = list(range(passenger_carry_idx_begin, passenger_carry_idx_end)) + list(range(reroute_idx_begin, reroute_idx_end))
+        charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_battery_levels * self.num_regions))
+        return travel_x_ids, charge_x_ids
+    
+    def evaluate(self, return_action = True, seed = None, day_num = 0):
+        if seed is not None:
+            torch.manual_seed(seed)
+        self.markov_decision_process.reset_states(new_episode = day_num == 0)
+        init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
+        action_lst_ret = []
+        payoff_lst = []
+        discount_lst = []
+        atomic_payoff_lst = []
+        x_copy = self.x.round().astype(int).copy()
+        for t in range(self.time_horizon):
+            available_car_ids = self.markov_decision_process.get_available_car_ids(self.state_reduction)
+            num_available_cars = len(available_car_ids)
+            for car_idx in range(num_available_cars):
+                dest, eta, battery = self.markov_decision_process.get_car_info(available_car_ids[car_idx])
+                action_assigned = False
+                if eta == 0:
+                    travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery)
+                    for i in range(len(travel_x_ids)):
+                        x_id = travel_x_ids[i]
+                        if x_copy[x_id] > 0:
+                            action_assigned = True
+                            x_copy[x_id] -= 1
+                            action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
+                            break
+                    if not action_assigned:
+                        for i in range(len(charge_x_ids)):
+                            x_id = charge_x_ids[i]
+                            if x_copy[x_id] > 0:
+                                action_assigned = True
+                                x_copy[x_id] -= 1
+                                action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
+                                break
+                if not action_assigned:
+                    action_id = self.markov_decision_process.query_action(("nothing"))
+                action = self.all_actions[action_id]
+                self.markov_decision_process.transit_within_timestamp(action, car_id = available_car_ids[car_idx])
+                curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                action_lst_ret.append((curr_state_counts_full, action, t, selected_car_id))
+            curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+            action_lst_ret.append((curr_state_counts_full, None, t, None))
+            self.markov_decision_process.transit_across_timestamp()
+            curr_payoff = self.markov_decision_process.get_payoff_curr_ts(deliver = True)
+            payoff_lst.append(curr_payoff)
+            discount_lst.append(self.gamma ** t)
+        discount_lst = torch.tensor(discount_lst)
+        atomic_payoff_lst = torch.tensor([init_payoff] + payoff_lst)
+        atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
+        discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff

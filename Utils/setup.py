@@ -33,7 +33,7 @@ class Map:
         ## Auxiliary variables to speedup queries
         self.curr_ts = 0
         self.curr_origin = 0
-        self.df_cache = self.df[(self.df["T"] == 0) & (self.df["Origin"] == 0)]
+        self.df_cache = self.df[(self.df["T"] == 0)]
         self.distance_cache = self.distance_df[self.distance_df["Origin"] == 0]
     
     ## Construct the map

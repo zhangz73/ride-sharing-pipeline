@@ -658,6 +658,14 @@ class MarkovDecisionProcess:
         local_state_counts = self.get_local_state(car)
         return torch.cat([reduced_state_counts, local_state_counts])
     
+    ## Get the status of an unassigned car
+    def get_car_info(self, car_id):
+        car = self.state_dict[car_id]
+        dest = car.get_dest()
+        eta = car.get_time_to_dest()
+        battery = car.get_battery()
+        return dest, eta, battery
+    
     ## A helper function that converts a dataframe to a dictionary
     ##  with the specified key-value format
     def df_to_dct(self, df, keynames = [], valname = None):
@@ -673,11 +681,11 @@ class MarkovDecisionProcess:
     
     ## Load region_battery_car_num and region_rate_plug_num from files
     def load_initial_data(self):
-        region_battery_car_df = pd.read_csv(f"Data/{self.region_battery_car_fname}", sep = "\t")
-        region_rate_plug_df = pd.read_csv(f"Data/{self.region_rate_plug_fname}", sep = "\t")
-        self.region_battery_car_num = self.df_to_dct(region_battery_car_df, keynames = ["region", "battery"], valname = "num")
-        self.num_total_cars = int(round(region_battery_car_df["num"].sum()))
-        self.region_rate_plug_num = self.df_to_dct(region_rate_plug_df, keynames = ["region", "rate"], valname = "num")
+        self.region_battery_car_df = pd.read_csv(f"Data/{self.region_battery_car_fname}", sep = "\t")
+        self.region_rate_plug_df = pd.read_csv(f"Data/{self.region_rate_plug_fname}", sep = "\t")
+        self.region_battery_car_num = self.df_to_dct(self.region_battery_car_df, keynames = ["region", "battery"], valname = "num")
+        self.num_total_cars = int(round(self.region_battery_car_df["num"].sum()))
+        self.region_rate_plug_num = self.df_to_dct(self.region_rate_plug_df, keynames = ["region", "rate"], valname = "num")
     
     ## Construct the list of all actions
     def construct_all_actions(self):
@@ -1144,6 +1152,9 @@ class MarkovDecisionProcess:
                         for _ in range(int(self.state_counts[curr_id])):
                             active_trip_ods.append((origin, dest, action))
         return active_trip_ods
+    
+    def query_action(self, query_tup):
+        return self.action_desc_to_id[query_tup]
     
     def get_all_low_battery_car_ids(self):
         low_battery_car_ids = []

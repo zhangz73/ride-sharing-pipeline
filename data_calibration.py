@@ -61,7 +61,7 @@ NUM_TS_PER_HOUR = 60 // TIME_FREQ
 ## Load data from files
 df_data = pd.read_parquet("Data/MapData/fhvhv_tripdata_2022-07.parquet")
 
-df_data["trip_time"] = (df_data["dropoff_datetime"] - df_data["pickup_datetime"]).apply(lambda x: x.days / 24 / 60 + x.seconds / 60)
+df_data["trip_time"] = (df_data["dropoff_datetime"] - df_data["pickup_datetime"]).apply(lambda x: x.days * 24 * 60 + x.seconds / 60)
 df_data["hour"] = df_data["request_datetime"].apply(lambda x: x.hour)
 df_data["date"] = df_data["request_datetime"].apply(lambda x: f"{x.year}-{x.month}-{x.day}")
 df_data["day_of_week"] = df_data["request_datetime"].apply(lambda x: x.weekday())
