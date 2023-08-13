@@ -28,17 +28,22 @@ class LP_Solver(train.Solver):
     
     def train(self):
         print("Training...")
+        print("\tSetting up...")
         model = gp.Model()
         m, n = self.A.shape
-        x = model.addVars(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
-        model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
-        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
+        x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
+        #model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
+        model.addConstr(self.A @ x == self.b)
+#        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
+        objective = self.c @ x
         model.setObjective(objective, GRB.MAXIMIZE)
+        print("\tOptimizing...")
         model.optimize()
         obj_val = model.ObjVal
         print(obj_val)
+        print("\tGathering...")
         self.x = np.zeros(n)
-        for i in range(n):
+        for i in tqdm(range(n), leave = False):
             self.x[i] = x[i].x
 #        print(self.describe_x())
         return self.x, obj_val
