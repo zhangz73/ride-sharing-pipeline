@@ -66,6 +66,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     ##   - Number of regions R
     ##   - Number of charging rates \Delta
     def load_data(self):
+        print("\tLoading data...")
         ## Get parameters
         self.num_total_cars = self.markov_decision_process.num_total_cars
         self.time_horizon = self.markov_decision_process.time_horizon
@@ -204,13 +205,16 @@ class LP_On_AugmentedGraph(LP_Solver):
     ## All flows add up to total cars at each time
     ## All flows being non-negative
     def construct_constraints(self):
+        print("\tConstructing constraints...")
         ### Flow conservation
+        print("\t\tConstructing flow conservation matrix...")
         flow_conservation_mat, flow_conservation_target = self.construct_flow_conservation_matrix()
         ### Trip demand
+        print("\t\tConstructing trip demand matrix...")
 #        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
         trip_demand_target = np.zeros(self.time_horizon * self.num_regions * self.num_regions)
         trip_demand_lst = []
-        for t in range(self.time_horizon):
+        for t in tqdm(range(self.time_horizon), leave = False):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     trip_demand_vec = np.zeros(self.x_len)
@@ -226,10 +230,11 @@ class LP_On_AugmentedGraph(LP_Solver):
                     trip_demand_target[pos] = self.trip_demands[t, origin * self.num_regions + dest]
         trip_demand_mat = vstack(trip_demand_lst)
         ### Charging facility
+        print("\t\tConstructing charging facility matrix...")
 #        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
         charging_facility_target = np.zeros(self.time_horizon * self.num_regions * self.num_charging_rates)
         charging_facility_lst = []
-        for t in range(self.time_horizon):
+        for t in tqdm(range(self.time_horizon), leave = False):
             for region in range(self.num_regions):
                 for rate_idx in range(self.num_charging_rates):
                     charging_facility_vec = np.zeros(self.x_len)
@@ -245,8 +250,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                     charging_facility_target[pos] = self.charging_facility_num[region, rate_idx]
         charging_facility_mat = vstack(charging_facility_lst)
         ### Total flows
+        print("\t\tConstructing total flow matrix...")
         total_flow_mat = np.zeros((self.time_horizon, self.x_len))
-        for t in range(self.time_horizon):
+        for t in tqdm(range(self.time_horizon), leave = False):
             passenger_len = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_charging_rates * self.num_battery_levels * self.num_regions
             total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
@@ -268,16 +274,16 @@ class LP_On_AugmentedGraph(LP_Solver):
 #        flow_conservation_mat = np.zeros((self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
         flow_conservation_target = np.zeros(self.time_horizon * self.num_battery_levels * self.num_regions)
         flow_conservation_dct = {}
-        for i in range(self.time_horizon * self.num_battery_levels * self.num_regions):
+        for i in tqdm(range(self.time_horizon * self.num_battery_levels * self.num_regions), leave = False):
             flow_conservation_dct[i] = []
         ## Populate initial car flow
-        for region in range(self.num_regions):
+        for region in tqdm(range(self.num_regions), leave = False):
             for battery in range(self.num_battery_levels):
                 num = self.init_car_num[region * self.num_battery_levels + battery]
                 flow_conservation_target[battery * self.num_regions + region] = num
         ## Populate flow conservation matrix
-        for t in range(self.time_horizon):
-            for b in range(self.num_battery_levels):
+        for t in tqdm(range(self.time_horizon), leave = False):
+            for b in tqdm(range(self.num_battery_levels), leave = False):
                 ## Populate traveling flows
                 for origin in range(self.num_regions):
                     for dest in range(self.num_regions):
@@ -323,7 +329,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                             flow_conservation_dct[end_row] += [(charge_pos, -1)]
         ## Construct flow_conservation_mat row by row
         flow_conservation_lst = []
-        for i in range(self.time_horizon * self.num_battery_levels * self.num_regions):
+        for i in tqdm(range(self.time_horizon * self.num_battery_levels * self.num_regions), leave = False):
             flow_conservation_vec = np.zeros(self.x_len)
             for tup in flow_conservation_dct[i]:
                 pos, val = tup
