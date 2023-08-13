@@ -38,8 +38,8 @@ class LP_Solver(train.Solver):
         problem.param_dict["c"].value = self.c
         obj_val = problem.solve()
         self.x = problem.var_dict["x"].value
-        print(self.x, obj_val)
-        print(self.A)
+        print(obj_val)
+#        print(self.describe_x())
         return self.x, obj_val
 
 class LP_On_AugmentedGraph(LP_Solver):
@@ -158,6 +158,25 @@ class LP_On_AugmentedGraph(LP_Solver):
             ans += self.rerouting_flow_begin
         return int(ans)
     
+    def describe_x(self):
+        for entry_type in ["passenger-carry", "reroute"]:
+            for t in range(self.time_horizon):
+                for b in range(self.num_battery_levels):
+                    for origin in range(self.num_regions):
+                        for dest in range(self.num_regions):
+                            x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
+                            if self.x[x_entry] > 1e-4:
+                                val = self.x[x_entry]
+                                print(entry_type, f"t = {t}", f"b = {b}", f"origin = {origin}", f"dest = {dest}", f"val = {val}")
+        for t in range(self.time_horizon):
+            for b in range(self.num_battery_levels):
+                for region in range(self.num_regions):
+                    for rate_idx in range(self.num_charging_rates):
+                            x_entry = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
+                            if self.x[x_entry] > 1e-4:
+                                val = self.x[x_entry]
+                                print("charge", f"t = {t}", f"b = {b}", f"region = {region}", f"rate = {self.charging_rates[rate_idx]}", f"val = {val}")
+    
     def get_flow_conserv_entry(self, t, b, region):
         return int(t * self.num_battery_levels * self.num_regions + b * self.num_regions + region)
     
@@ -209,8 +228,15 @@ class LP_On_AugmentedGraph(LP_Solver):
                     charging_facility_mat[pos, begin:end:(self.num_regions)] = 1
                     charging_facility_target[pos] = self.charging_facility_num[region, rate_idx]
         ### Total flows
-        total_flow_mat = np.ones((1, self.x_len))
-        total_flow_target = np.array([self.num_total_cars])
+        total_flow_mat = np.zeros((self.time_horizon, self.x_len))
+        for t in range(self.time_horizon):
+            passenger_len = self.num_battery_levels * self.num_regions * self.num_regions
+            charge_len = self.num_charging_rates * self.num_battery_levels * self.num_regions
+            total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
+            total_flow_mat[t, (self.rerouting_flow_begin + t * passenger_len):(self.rerouting_flow_begin + (t + 1) * passenger_len)] = 1
+            total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
+            
+        total_flow_target = np.ones(self.time_horizon) * self.num_total_cars
         ### Concatenate together
         self.A = np.vstack((flow_conservation_mat, trip_demand_mat, charging_facility_mat, total_flow_mat))
         self.b = np.concatenate((flow_conservation_target, trip_demand_target, charging_facility_target, total_flow_target), axis = None)
@@ -227,14 +253,13 @@ class LP_On_AugmentedGraph(LP_Solver):
             for battery in range(self.num_battery_levels):
                 num = self.init_car_num[region * self.num_battery_levels + battery]
                 flow_conservation_target[battery * self.num_regions + region] = num
-        print(self.travel_time)
         ## Populate flow conservation matrix
         for t in range(self.time_horizon):
             for b in range(self.num_battery_levels):
                 ## Populate traveling flows
                 for origin in range(self.num_regions):
                     for dest in range(self.num_regions):
-                        trip_time = self.travel_time[t, origin * self.num_regions + dest]
+                        trip_time = max(self.travel_time[t, origin * self.num_regions + dest], 1)
                         battery_cost = self.battery_consumption[origin * self.num_regions + dest]
                         passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest)
                         reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest)
@@ -250,8 +275,6 @@ class LP_On_AugmentedGraph(LP_Solver):
                             else:
                                 end_row = None
                             if end_row is not None:
-                                if end_time == 0:
-                                    print(t, b, origin, dest)
                                 flow_conservation_mat[end_row, passenger_pos] = -1
                                 flow_conservation_mat[end_row, reroute_pos] = -1
                 ## Populate charging flows
@@ -260,7 +283,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                         start_charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         rate = self.charging_rates[rate_idx]
                         end_time = t + 1
-                        end_battery = min(b + battery_cost, self.num_battery_levels - 1)
+                        end_battery = min(b + rate, self.num_battery_levels - 1)
                         charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         start_row = self.get_flow_conserv_entry(t, b, region)
                         flow_conservation_mat[start_row, charge_pos] = 1
@@ -275,7 +298,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         return flow_conservation_mat, flow_conservation_target
     
     def get_relevant_x(self, t, region, battery):
-        passenger_carry_idx_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + battery * self.num_regions * self.num_regions + region
+        passenger_carry_idx_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + battery * self.num_regions * self.num_regions + region * self.num_regions
         passenger_carry_idx_end = passenger_carry_idx_begin + self.num_regions
         reroute_idx_begin = passenger_carry_idx_begin + self.rerouting_flow_begin
         reroute_idx_end = reroute_idx_begin + self.num_regions
@@ -296,10 +319,11 @@ class LP_On_AugmentedGraph(LP_Solver):
         atomic_payoff_lst = []
         x_copy = self.x.round().astype(int).copy()
         for t in range(self.time_horizon):
-            available_car_ids = self.markov_decision_process.get_available_car_ids(self.state_reduction)
+            available_car_ids = self.markov_decision_process.get_available_car_ids(True)
             num_available_cars = len(available_car_ids)
             for car_idx in range(num_available_cars):
-                dest, eta, battery = self.markov_decision_process.get_car_info(available_car_ids[car_idx])
+                car_id = available_car_ids[car_idx]
+                dest, eta, battery = self.markov_decision_process.get_car_info(car_id)
                 action_assigned = False
                 if eta == 0:
                     travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery)
@@ -321,9 +345,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                 if not action_assigned:
                     action_id = self.markov_decision_process.query_action(("nothing"))
                 action = self.all_actions[action_id]
-                self.markov_decision_process.transit_within_timestamp(action, car_id = available_car_ids[car_idx])
+                self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
                 curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
-                action_lst_ret.append((curr_state_counts_full, action, t, selected_car_id))
+                action_lst_ret.append((curr_state_counts_full, action, t, car_id))
             curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
             action_lst_ret.append((curr_state_counts_full, None, t, None))
             self.markov_decision_process.transit_across_timestamp()
