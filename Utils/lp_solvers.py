@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 import cvxpy as cvx
 import scipy
-from scipy.sparse import csr_matrix, dia_matrix
+from scipy.sparse import csr_matrix, csr_array, dia_matrix, vstack
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import joblib
@@ -27,15 +27,16 @@ class LP_Solver(train.Solver):
     def train(self):
         print("Training...")
         m, n = self.A.shape
-        A_cvx = cvx.Parameter(shape = (m, n), name = "A")
-        b_cvx = cvx.Parameter(shape = (m,), name = "b")
+#        A_cvx = cvx.Parameter(shape = (m, n), name = "A")
+#        b_cvx = cvx.Parameter(shape = (m,), name = "b")
         c_cvx = cvx.Parameter(shape = (n,), name = "c")
         x = cvx.Variable(shape = (n,), nonneg = True, name = "x")
-        constraints = [A_cvx @ x == b_cvx]
+#        constraints = [A_cvx @ x == b_cvx]
+        constraints = [self.A @ x == self.b]
         objective = cvx.Maximize(c_cvx @ x)
         problem = cvx.Problem(objective, constraints)
-        problem.param_dict["A"].value = self.A
-        problem.param_dict["b"].value = self.b
+#        problem.param_dict["A"].value = self.A
+#        problem.param_dict["b"].value = self.b
         problem.param_dict["c"].value = self.c
         obj_val = problem.solve()
         self.x = problem.var_dict["x"].value
@@ -46,6 +47,7 @@ class LP_Solver(train.Solver):
 class LP_On_AugmentedGraph(LP_Solver):
     def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1):
         super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma)
+        print("Constructing the solver...")
         self.load_data()
         self.construct_problem()
     
@@ -205,29 +207,43 @@ class LP_On_AugmentedGraph(LP_Solver):
         ### Flow conservation
         flow_conservation_mat, flow_conservation_target = self.construct_flow_conservation_matrix()
         ### Trip demand
-        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
+#        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
         trip_demand_target = np.zeros(self.time_horizon * self.num_regions * self.num_regions)
+        trip_demand_lst = []
         for t in range(self.time_horizon):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
+                    trip_demand_vec = np.zeros(self.x_len)
                     begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     end = begin + self.num_battery_levels * self.num_regions * self.num_regions
                     pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
-                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
-                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
+                    trip_demand_vec[begin:end:(self.num_regions ** 2)] = 1
+                    trip_demand_vec[self.trip_demand_extra_begin + pos] = 1
+                    trip_demand_vec = csr_matrix(trip_demand_vec)
+                    trip_demand_lst.append(trip_demand_vec)
+#                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
+#                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
                     trip_demand_target[pos] = self.trip_demands[t, origin * self.num_regions + dest]
+        trip_demand_mat = vstack(trip_demand_lst)
         ### Charging facility
-        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
+#        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
         charging_facility_target = np.zeros(self.time_horizon * self.num_regions * self.num_charging_rates)
+        charging_facility_lst = []
         for t in range(self.time_horizon):
             for region in range(self.num_regions):
                 for rate_idx in range(self.num_charging_rates):
+                    charging_facility_vec = np.zeros(self.x_len)
                     begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + rate_idx * self.num_battery_levels * self.num_regions + region
                     end = begin + self.num_battery_levels * self.num_regions
                     pos = t * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
-                    charging_facility_mat[pos, self.charging_facility_extra_begin + pos] = 1
-                    charging_facility_mat[pos, begin:end:(self.num_regions)] = 1
+                    charging_facility_vec[self.charging_facility_extra_begin + pos] = 1
+                    charging_facility_vec[begin:end:(self.num_regions)] = 1
+                    charging_facility_vec = csr_matrix(charging_facility_vec)
+                    charging_facility_lst.append(charging_facility_vec)
+#                    charging_facility_mat[pos, self.charging_facility_extra_begin + pos] = 1
+#                    charging_facility_mat[pos, begin:end:(self.num_regions)] = 1
                     charging_facility_target[pos] = self.charging_facility_num[region, rate_idx]
+        charging_facility_mat = vstack(charging_facility_lst)
         ### Total flows
         total_flow_mat = np.zeros((self.time_horizon, self.x_len))
         for t in range(self.time_horizon):
@@ -236,19 +252,24 @@ class LP_On_AugmentedGraph(LP_Solver):
             total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
             total_flow_mat[t, (self.rerouting_flow_begin + t * passenger_len):(self.rerouting_flow_begin + (t + 1) * passenger_len)] = 1
             total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
+        total_flow_mat = csr_matrix(total_flow_mat)
             
         total_flow_target = np.ones(self.time_horizon) * self.num_total_cars
         ### Concatenate together
-        self.A = np.vstack((flow_conservation_mat, trip_demand_mat, charging_facility_mat, total_flow_mat))
+        self.A = vstack((flow_conservation_mat, trip_demand_mat, charging_facility_mat, total_flow_mat))
         self.b = np.concatenate((flow_conservation_target, trip_demand_target, charging_facility_target, total_flow_target), axis = None)
+#        self.b = csr_matrix(self.b.reshape((len(self.b), 1)))
     
     ## Flow conservation at each (time, battery, region)
     ##   - Passenger-carrying to & from each region
     ##   - Rerouting to & from each region
     ##   - Charging at each rate
     def construct_flow_conservation_matrix(self):
-        flow_conservation_mat = np.zeros((self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
+#        flow_conservation_mat = np.zeros((self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
         flow_conservation_target = np.zeros(self.time_horizon * self.num_battery_levels * self.num_regions)
+        flow_conservation_dct = {}
+        for i in range(self.time_horizon * self.num_battery_levels * self.num_regions):
+            flow_conservation_dct[i] = []
         ## Populate initial car flow
         for region in range(self.num_regions):
             for battery in range(self.num_battery_levels):
@@ -265,8 +286,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                         passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest)
                         reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest)
                         start_row = self.get_flow_conserv_entry(t, b, origin)
-                        flow_conservation_mat[start_row, passenger_pos] = 1
-                        flow_conservation_mat[start_row, reroute_pos] = 1
+#                        flow_conservation_mat[start_row, passenger_pos] = 1
+#                        flow_conservation_mat[start_row, reroute_pos] = 1
+                        flow_conservation_dct[start_row] += [(passenger_pos, 1), (reroute_pos, 1)]
                         if b >= battery_cost:
                             end_time = t + trip_time
                             if end_time >= self.time_horizon and self.num_days > 1:
@@ -276,8 +298,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                             else:
                                 end_row = None
                             if end_row is not None:
-                                flow_conservation_mat[end_row, passenger_pos] = -1
-                                flow_conservation_mat[end_row, reroute_pos] = -1
+#                                flow_conservation_mat[end_row, passenger_pos] = -1
+#                                flow_conservation_mat[end_row, reroute_pos] = -1
+                                flow_conservation_dct[end_row] += [(passenger_pos, -1), (reroute_pos, -1)]
                 ## Populate charging flows
                 for region in range(self.num_regions):
                     for rate_idx in range(self.num_charging_rates):
@@ -287,7 +310,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         end_battery = min(b + rate, self.num_battery_levels - 1)
                         charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         start_row = self.get_flow_conserv_entry(t, b, region)
-                        flow_conservation_mat[start_row, charge_pos] = 1
+#                        flow_conservation_mat[start_row, charge_pos] = 1
+                        flow_conservation_dct[start_row] += [(charge_pos, 1)]
                         if end_time >= self.time_horizon and self.num_days > 1:
                             end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, end_battery, region)
                         elif end_time < self.time_horizon:
@@ -295,7 +319,18 @@ class LP_On_AugmentedGraph(LP_Solver):
                         else:
                             end_row = None
                         if end_row is not None:
-                            flow_conservation_mat[end_row, charge_pos] = -1
+#                            flow_conservation_mat[end_row, charge_pos] = -1
+                            flow_conservation_dct[end_row] += [(charge_pos, -1)]
+        ## Construct flow_conservation_mat row by row
+        flow_conservation_lst = []
+        for i in range(self.time_horizon * self.num_battery_levels * self.num_regions):
+            flow_conservation_vec = np.zeros(self.x_len)
+            for tup in flow_conservation_dct[i]:
+                pos, val = tup
+                flow_conservation_vec[pos] = val
+            flow_conservation_vec = csr_matrix(flow_conservation_vec)
+            flow_conservation_lst.append(flow_conservation_vec)
+        flow_conservation_mat = vstack(flow_conservation_lst)
         return flow_conservation_mat, flow_conservation_target
     
     def get_relevant_x(self, t, region, battery):
