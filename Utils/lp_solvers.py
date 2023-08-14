@@ -64,7 +64,7 @@ class LP_Solver(train.Solver):
         problem.param_dict["c"].value = self.c
         obj_val = problem.solve()
         self.x = problem.var_dict["x"].value
-        print(obj_val)
+        print(obj_val / self.total_revenue)
 #        print(self.describe_x())
         return self.x, obj_val
 
@@ -119,6 +119,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                 self.charging_costs[t, rate_idx] = cost
         ### Trip demand T x R^2
         self.trip_demands = self.markov_decision_process.trip_demands.get_arrival_rates()
+        self.total_revenue = np.sum(self.trip_demands * self.trip_rewards)
         ### Charging facility R x \Delta
         self.charging_facility_num = np.zeros((self.num_regions, self.num_charging_rates))
         region_rate_plug_df = self.markov_decision_process.region_rate_plug_df
@@ -185,6 +186,22 @@ class LP_On_AugmentedGraph(LP_Solver):
         if entry_type == "reroute":
             ans += self.rerouting_flow_begin
         return int(ans)
+    
+    def reset_x_infer(self, strict = True):
+        if strict:
+            ## Travel: t, b, origin, dest
+            ## Charge: t, \delta, b, region
+            x_travel = self.x[:self.rerouting_flow_begin] + self.x[self.rerouting_flow_begin:self.charging_flow_begin]
+            x_charge = self.x[self.charging_flow_begin:self.trip_demand_extra_begin].copy()
+        else:
+            ## Travel: t, origin, dest
+            ## Charge: t, \delta, region
+            travel_len = self.num_battery_levels * self.num_regions * self.num_regions
+            charge_len = self.num_battery_levels * self.num_regions
+            x_travel = np.array([[self.x[:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.time_horizon * 2)]).sum(axis = 2).flatten()
+            x_charge = np.array([[self.x[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
+        self.x_travel = x_travel.round().astype(int)
+        self.x_charge = x_charge.round().astype(int)
     
     def describe_x(self):
         for entry_type in ["passenger-carry", "reroute"]:
@@ -356,7 +373,8 @@ class LP_On_AugmentedGraph(LP_Solver):
         flow_conservation_mat = csr_matrix((val_lst, (row_lst, col_lst)), shape = (self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
         return flow_conservation_mat, flow_conservation_target
     
-    def get_relevant_x(self, t, region, battery):
+    ## Deprecated!!
+    def get_relevant_x_prev(self, t, region, battery):
         passenger_carry_idx_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + battery * self.num_regions * self.num_regions + region * self.num_regions
         passenger_carry_idx_end = passenger_carry_idx_begin + self.num_regions
         reroute_idx_begin = passenger_carry_idx_begin + self.rerouting_flow_begin
@@ -367,7 +385,26 @@ class LP_On_AugmentedGraph(LP_Solver):
         charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_battery_levels * self.num_regions))
         return travel_x_ids, charge_x_ids
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0):
+    def get_relevant_x(self, t, region, battery, strict = True):
+        if strict:
+            travel_idx_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + battery * self.num_regions * self.num_regions + region * self.num_regions
+            travel_idx_end = travel_idx_begin + self.num_regions
+            charge_idx_begin = t * self.num_charging_rates * self.num_battery_levels * self.num_regions + battery * self.num_regions + region
+            charge_idx_end = charge_idx_begin + self.num_charging_rates * self.num_battery_levels * self.num_regions
+            travel_x_ids = list(range(travel_idx_begin, travel_idx_end))
+            charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_battery_levels * self.num_regions))
+        else:
+            ## Travel: t, origin, dest
+            ## Charge: t, \delta, region
+            travel_idx_begin = t * self.num_regions * self.num_regions + region * self.num_regions
+            travel_idx_end = travel_idx_begin + self.num_regions
+            charge_idx_begin = t * self.num_charging_rates * self.num_regions + region
+            charge_idx_end = charge_idx_begin + self.num_charging_rates * self.num_regions
+            travel_x_ids = list(range(travel_idx_begin, travel_idx_end))
+            charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
+        return travel_x_ids, charge_x_ids
+    
+    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
@@ -376,7 +413,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         payoff_lst = []
         discount_lst = []
         atomic_payoff_lst = []
-        x_copy = self.x.round().astype(int).copy()
+        self.reset_x_infer(strict = strict)
         for t in range(self.time_horizon):
             available_car_ids = self.markov_decision_process.get_available_car_ids(True)
             num_available_cars = len(available_car_ids)
@@ -385,21 +422,21 @@ class LP_On_AugmentedGraph(LP_Solver):
                 dest, eta, battery = self.markov_decision_process.get_car_info(car_id)
                 action_assigned = False
                 if eta == 0:
-                    travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery)
-                    for i in range(len(travel_x_ids)):
-                        x_id = travel_x_ids[i]
-                        if x_copy[x_id] > 0:
+                    travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery, strict = strict)
+                    for i in range(len(charge_x_ids)):
+                        x_id = charge_x_ids[i]
+                        if self.x_charge[x_id] > 0:
                             action_assigned = True
-                            x_copy[x_id] -= 1
-                            action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
+                            self.x_charge[x_id] -= 1
+                            action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
                             break
                     if not action_assigned:
-                        for i in range(len(charge_x_ids)):
-                            x_id = charge_x_ids[i]
-                            if x_copy[x_id] > 0:
+                        for i in range(len(travel_x_ids)):
+                            x_id = travel_x_ids[i]
+                            if self.x_travel[x_id] > 0:
                                 action_assigned = True
-                                x_copy[x_id] -= 1
-                                action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
+                                self.x_travel[x_id] -= 1
+                                action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
                                 break
                 if not action_assigned:
                     action_id = self.markov_decision_process.query_action(("nothing"))
