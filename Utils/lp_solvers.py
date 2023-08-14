@@ -40,12 +40,12 @@ class LP_Solver(train.Solver):
         print("\tOptimizing...")
         model.optimize()
         obj_val = model.ObjVal
-        print(obj_val)
+        print(obj_val / self.total_revenue)
         print("\tGathering...")
         self.x = np.zeros(n)
         for i in tqdm(range(n), leave = False):
             self.x[i] = x[i].x
-#        print(self.describe_x())
+        self.describe_x()
         return self.x, obj_val
     
     def train_cvxpy(self):
@@ -203,24 +203,26 @@ class LP_On_AugmentedGraph(LP_Solver):
         self.x_travel = x_travel.round().astype(int)
         self.x_charge = x_charge.round().astype(int)
     
-    def describe_x(self):
-        for entry_type in ["passenger-carry", "reroute"]:
+    def describe_x(self, fname = "lp_debug.txt"):
+        eps = 0.1
+        with open(fname, "w") as f:
+            for entry_type in ["passenger-carry", "reroute"]:
+                for t in range(self.time_horizon):
+                    for b in range(self.num_battery_levels):
+                        for origin in range(self.num_regions):
+                            for dest in range(self.num_regions):
+                                x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
+                                if self.x[x_entry] >= eps and (entry_type == "passenger-carry" or origin != dest):
+                                    val = self.x[x_entry]
+                                    f.write(f"{entry_type}, t = {t}, b = {b}, origin = {origin}, dest = {dest}, val = {val}\n")
             for t in range(self.time_horizon):
                 for b in range(self.num_battery_levels):
-                    for origin in range(self.num_regions):
-                        for dest in range(self.num_regions):
-                            x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
-                            if self.x[x_entry] > 1e-4:
-                                val = self.x[x_entry]
-                                print(entry_type, f"t = {t}", f"b = {b}", f"origin = {origin}", f"dest = {dest}", f"val = {val}")
-        for t in range(self.time_horizon):
-            for b in range(self.num_battery_levels):
-                for region in range(self.num_regions):
-                    for rate_idx in range(self.num_charging_rates):
-                            x_entry = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
-                            if self.x[x_entry] > 1e-4:
-                                val = self.x[x_entry]
-                                print("charge", f"t = {t}", f"b = {b}", f"region = {region}", f"rate = {self.charging_rates[rate_idx]}", f"val = {val}")
+                    for region in range(self.num_regions):
+                        for rate_idx in range(self.num_charging_rates):
+                                x_entry = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
+                                if self.x[x_entry] >= eps:
+                                    val = self.x[x_entry]
+                                    f.write(f"charge, t = {t}, b = {b}, region = {region}, rate = {self.charging_rates[rate_idx]}, val = {val}\n")
     
     def get_flow_conserv_entry(self, t, b, region):
         return int(t * self.num_battery_levels * self.num_regions + b * self.num_regions + region)
@@ -234,7 +236,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         for t in range(self.time_horizon):
             for rate_idx in range(self.num_charging_rates):
                 cost = self.charging_costs[t, rate_idx]
-                begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions
+                begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + rate_idx * self.num_battery_levels * self.num_regions
                 end = begin + self.num_battery_levels * self.num_regions
                 self.c[begin:end] = cost * self.gamma ** t
     
@@ -343,10 +345,23 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest)
                             else:
                                 end_row = None
-                            if end_row is not None:
-                                row_lst += [end_row, end_row]
-                                col_lst += [passenger_pos, reroute_pos]
-                                val_lst += [-1, -1]
+                            if origin != dest:
+                                if end_row is not None:
+                                    row_lst += [end_row, end_row]
+                                    col_lst += [passenger_pos, reroute_pos]
+                                    val_lst += [-1, -1]
+                            else:
+                                end_time_reroute = t + 1
+                                if end_time_reroute >= self.time_horizon and self.num_days > 1:
+                                    end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest)
+                                elif end_time_reroute < self.time_horizon:
+                                    end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest)
+                                else:
+                                    end_time_reroute = None
+                                if end_row is not None:
+                                    row_lst += [end_row, end_row_reroute]
+                                    col_lst += [passenger_pos, reroute_pos]
+                                    val_lst += [-1, -1]
                 ## Populate charging flows
                 for region in range(self.num_regions):
                     for rate_idx in range(self.num_charging_rates):
