@@ -651,12 +651,13 @@ class MarkovDecisionProcess:
             return self.state_counts.clone()
         if not state_reduction:
             ret = torch.cat([self.state_counts[:self.full_car_state_range[0]], self.car_train_state_counts, self.state_counts[self.full_car_state_range[1]:]])
-            return ret.clone()
+            return (ret.to_sparse(), ret.to_sparse()) #ret.clone()
         assert car_id is not None
         reduced_state_counts = self.reduced_state_counts.clone()
         car = self.state_dict[car_id]
         local_state_counts = self.get_local_state(car)
-        return torch.cat([reduced_state_counts, local_state_counts])
+        ret = torch.cat([reduced_state_counts, local_state_counts])
+        return (reduced_state_counts.to_sparse(), ret.to_sparse())
     
     ## Get the status of an unassigned car
     def get_car_info(self, car_id):
