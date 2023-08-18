@@ -60,11 +60,12 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, use_region = False, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
-        self.policy_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "policy")
+        self.policy_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "policy", use_region = use_region)
+        self.use_region = use_region
         self.value_output_dim = 1
         self.policy_output_dim = len(self.action_lst)
         self.network_horizon_repeat = network_horizon_repeat
@@ -385,10 +386,10 @@ class PPO_Solver(Solver):
                                 next_state_counts = tup_next[0]
 #                            if day_num >= self.useful_days:
 #                                break
-                            lens = len(curr_state_counts)
+                            curr_state_counts_policy = torch.cat([curr_state_counts[0].to_dense(), curr_state_counts[1]]).to_sparse()
                             policy_dct[(t, next_t, offset)]["curr_state_counts_value"].append(curr_state_counts[0])
                             policy_dct[(t, next_t, offset)]["next_state_counts_value"].append(next_state_counts[0])
-                            policy_dct[(t, next_t, offset)]["curr_state_counts_policy"].append(curr_state_counts[1])
+                            policy_dct[(t, next_t, offset)]["curr_state_counts_policy"].append(curr_state_counts_policy)
                             policy_dct[(t, next_t, offset)]["action_id"].append(action_id)
                             policy_dct[(t, next_t, offset)]["atomic_payoff"].append(atomic_payoff)
     #                        advantage = self.get_advantage(curr_state_counts, next_state_counts, action_id, t, next_t)
@@ -586,7 +587,8 @@ class PPO_Solver(Solver):
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
 #                if return_action:
                 curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
-                action_id_prob = self.policy_predict(curr_state_counts[1], t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full, day_num = day_num)
+                curr_state_counts_policy = torch.cat([curr_state_counts[0].to_dense(), curr_state_counts[1]]).to_sparse()
+                action_id_prob = self.policy_predict(curr_state_counts_policy, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full, day_num = day_num)
                 if action_id_prob is not None:
                     action_id_prob = action_id_prob.cpu().detach().numpy()
                     if debug:

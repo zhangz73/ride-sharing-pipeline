@@ -369,6 +369,7 @@ class MarkovDecisionProcess:
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
         self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + 1 #len(self.regions) #len(self.regions) * (self.connection_patience + 1) + 3
+        self.num_total_local_states_region = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + 1
 #        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + 3
         ## Variables keeping track of states
         self.state_dict = {}
@@ -430,11 +431,13 @@ class MarkovDecisionProcess:
         return idx
     
     ## Get the length of states
-    def get_state_len(self, state_reduction = False, model = "policy"):
+    def get_state_len(self, state_reduction = False, model = "policy", use_region = True):
         if not state_reduction:
             return self.num_total_states_train
         if model == "policy":
-            return self.num_total_reduced_states + self.num_total_local_states
+            if not use_region:
+                return self.num_total_reduced_states + self.num_total_local_states
+            return self.num_total_reduced_states + self.num_total_local_states_region
         return self.num_total_reduced_states
     
     ## Prepare trip demands
@@ -646,18 +649,21 @@ class MarkovDecisionProcess:
     
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
-    def get_state_counts(self, state_reduction = False, car_id = None, deliver = False):
+    def get_state_counts(self, state_reduction = False, car_id = None, deliver = False, region = None, use_region = False):
         if deliver:
             return self.state_counts.clone()
         if not state_reduction:
             ret = torch.cat([self.state_counts[:self.full_car_state_range[0]], self.car_train_state_counts, self.state_counts[self.full_car_state_range[1]:]])
             return (ret.to_sparse(), ret.to_sparse()) #ret.clone()
-        assert car_id is not None
+        assert (not use_region and car_id is not None) or (use_region and region is not None)
         reduced_state_counts = self.reduced_state_counts.clone()
-        car = self.state_dict[car_id]
-        local_state_counts = self.get_local_state(car)
+        if not use_region:
+            car = self.state_dict[car_id]
+            local_state_counts = self.get_local_state(car)
+        else:
+            local_state_counts = self.get_local_state_region(region)
         ret = torch.cat([reduced_state_counts, local_state_counts])
-        return (reduced_state_counts.to_sparse(), ret.to_sparse())
+        return (reduced_state_counts.to_sparse(), local_state_counts)
     
     ## Get the status of an unassigned car
     def get_car_info(self, car_id):
@@ -1427,6 +1433,18 @@ class MarkovDecisionProcess:
         term = start + (end - begin)
         local_state_counts[start:term] = self.state_counts[begin:end]
 #        local_state_counts[term:] = torch.from_numpy((np.add.reduceat(self.state_counts[begin:end].numpy(), np.arange(0, len(self.regions) * (self.connection_patience + 1), self.connection_patience + 1)) > 0) + 0.0)
+        if torch.sum(self.state_counts[begin:end]) > 0:
+            local_state_counts[term] = 1
+        return local_state_counts
+    
+    ## Get the local state information given a region
+    def get_local_state_region(self, car):
+        local_state_counts = torch.zeros(self.num_total_local_states_region)
+        local_state_counts[region] = 1
+        begin, end = self.local_order_map[region]
+        start = len(self.regions)
+        term = start + (end - begin)
+        local_state_counts[start:term] = self.state_counts[begin:end]
         if torch.sum(self.state_counts[begin:end]) > 0:
             local_state_counts[term] = 1
         return local_state_counts
