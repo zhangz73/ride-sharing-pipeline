@@ -246,7 +246,7 @@ class PPO_Solver(Solver):
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
 #                state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
-                state_counts_lst = torch.vstack(value_dct[t]["state_counts"])
+                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
                 value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
                 total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num #/ self.num_cars / self.time_horizon
 #        total_value_loss /= val_num #self.num_episodes
@@ -401,9 +401,9 @@ class PPO_Solver(Solver):
                             for offset in [0, 1]:
                                 next_t = t + offset
                                 if len(policy_dct[(t, next_t, day_num)]["curr_state_counts_policy"]) > 0:
-                                    curr_state_counts_lst_value = torch.vstack(policy_dct[(t, next_t, day_num)]["curr_state_counts_value"])
-                                    next_state_counts_lst_value = torch.vstack(policy_dct[(t, next_t, day_num)]["next_state_counts_value"])
-                                    curr_state_counts_lst_policy = torch.vstack(policy_dct[(t, next_t, day_num)]["curr_state_counts_policy"])
+                                    curr_state_counts_lst_value = torch.vstack(policy_dct[(t, next_t, day_num)]["curr_state_counts_value"]).to_dense()
+                                    next_state_counts_lst_value = torch.vstack(policy_dct[(t, next_t, day_num)]["next_state_counts_value"]).to_dense()
+                                    curr_state_counts_lst_policy = torch.vstack(policy_dct[(t, next_t, day_num)]["curr_state_counts_policy"]).to_dense()
                                     action_id_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["action_id"]).to(device = self.device)
                                     atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["atomic_payoff"]).to(device = self.device)
                                     advantage = self.get_advantage(curr_state_counts_lst_value, next_state_counts_lst_value, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
