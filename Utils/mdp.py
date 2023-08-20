@@ -472,7 +472,7 @@ class MarkovDecisionProcess:
                         charging_cost = tmp_df.iloc[0]["Payoff"]
                     else:
                         charging_cost = 0
-                    mat[t, origin * num_regions + dest] = revenue + battery_needed * charging_cost
+                    mat[t, origin * num_regions + dest] = revenue + battery_needed * charging_cost / rate_0
         return mat
     
     ## Prepare car deployment vectors
