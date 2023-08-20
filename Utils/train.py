@@ -76,7 +76,7 @@ class PPO_Solver(Solver):
         self.useful_days = useful_days
         self.gamma = gamma
         self.eval_days = eval_days
-        self.num_cars = self.markov_decision_process.num_cars
+        self.num_cars = self.markov_decision_process.num_total_cars
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.policy_epoch = policy_epoch

@@ -353,6 +353,9 @@ class MarkovDecisionProcess:
         
         self.reward_df = reward_query.get_reward_df()
         self.reward_wide = torch.tensor(self.reward_query.get_wide_reward(self.time_horizon, len(self.regions)))
+        self.adj_reward_wide = torch.tensor(self.get_wide_reward_adjusted(self.time_horizon, len(self.regions)))
+        self.adj_reward_wide_sorted = np.sort(self.adj_reward_wide.numpy(), axis = 1)[:,::-1]
+        self.adj_reward_wide_sorted_indices = np.argsort(self.adj_reward_wide.numpy(), axis = 1)[:,::-1]
         self.max_atomic_payoff = self.reward_df["Payoff"].max()
         self.max_travel_time = self.map.get_max_travel_time()
         if max_tracked_eta is None:
@@ -420,7 +423,6 @@ class MarkovDecisionProcess:
         ## Variables keeping track of available car types
         self.available_car_types, self.state_is_available_car = self.get_all_available_car_types()
         self.available_existing_car_types = self.get_all_available_existing_car_types()
-        self.num_cars = len(self.get_all_available_existing_car_ids())
         ## Map state transitions in a specific format so that it can be vectorized
         self.transit_across_timestamp_prepare()
     
@@ -450,6 +452,28 @@ class MarkovDecisionProcess:
         for region in self.regions:
             dest_arrivals_single_region = torch.sum(self.trip_arrivals[:, region::len(self.regions)], axis = 1)
             self.trip_arrivals_reduced_map[:, self.reduced_state_trip_begin + reduced_state_trip_half_len + region * (self.connection_patience + 1)] = dest_arrivals_single_region
+    
+    ## Get adjusted reward for each trip
+    def get_wide_reward_adjusted(self, time_horizon, num_regions):
+        mat = np.zeros((time_horizon, num_regions * num_regions))
+        for t in range(time_horizon):
+            for origin in range(num_regions):
+                for dest in range(num_regions):
+                    tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Origin"] == origin) & (self.reward_df["Destination"] == dest) & (self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
+                    if tmp_df.shape[0] > 0:
+                        revenue = tmp_df.iloc[0]["Payoff"]
+                    else:
+                        revenue = 0
+                    trip_distance = self.map.distance(origin, dest)
+                    battery_needed = self.battery_per_step * trip_distance
+                    rate_0 = self.charging_rates[0]
+                    tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Type"] == "Charge") & (self.reward_df["Rate"] == rate_0)]
+                    if tmp_df.shape[0] > 0:
+                        charging_cost = tmp_df.iloc[0]["Payoff"]
+                    else:
+                        charging_cost = 0
+                    mat[t, origin * num_regions + dest] = revenue + battery_needed * charging_cost
+        return mat
     
     ## Prepare car deployment vectors
     def car_deployment_prepare(self):
@@ -781,11 +805,17 @@ class MarkovDecisionProcess:
 #        print(self.trip_arrivals[self.trip_arrivals["T"] == 0])
 
     def compute_total_market_revenue(self):
-#        tmp_df = self.reward_df[(self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
-#        merged_df = tmp_df.merge(self.trip_arrivals, on = ["T", "Origin", "Destination"])
-#        merged_df["Revenue"] = merged_df["Payoff"] * merged_df["Count"]
-#        total_revenue = merged_df["Revenue"].sum()
-        total_revenue = torch.sum(self.reward_wide * self.trip_arrivals)
+#        total_revenue = torch.sum(self.adj_reward_wide * self.trip_arrivals)
+        trip_arrivals_sorted = np.zeros((self.time_horizon, len(self.regions) ** 2))
+        trip_arrivals_numpy = self.trip_arrivals.numpy()
+        for t in range(self.time_horizon):
+            trip_arrivals_sorted[t,:] = trip_arrivals_numpy[t,self.adj_reward_wide_sorted_indices[t,:]]
+        mask = np.ones(self.time_horizon) * self.num_total_cars
+        for pos in range(len(trip_arrivals_sorted[0,:])):
+            vec = np.minimum(mask, trip_arrivals_sorted[:,pos])
+            trip_arrivals_sorted[:,pos] = vec
+            mask -= vec
+        total_revenue = np.sum(trip_arrivals_sorted * self.adj_reward_wide_sorted)
         return total_revenue
     
     ## Query the trip arrivals
@@ -1548,6 +1578,10 @@ class MarkovDecisionProcess:
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0
+            ## Idle action is infeasible if charge is feasible
+            if mask[num_regions] == 1:
+                if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
+                    mask[origin] = 0
             ## Do-nothing is feasible when the idling action is infeasible
             if eta == 0:
                 mask[-1] = 0

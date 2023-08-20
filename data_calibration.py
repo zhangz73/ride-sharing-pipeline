@@ -27,7 +27,7 @@ dct_key = {
 ###     Working Area 1: (161, "Midtown Center"), (230, Times Sq/Theatre District)
 ###     Restaurants 2: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
 ###     Residential 3: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
-REGION = "big" #"small" # small or big
+REGION = "small" #"small" # small or big
 if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
 else:
@@ -51,7 +51,7 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
-TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 15 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
@@ -63,6 +63,7 @@ NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW +
 NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 10 * TIME_FREQ #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
+NUM_REGIONS = len(LOCATIONS_ID_OF_INTEREST)
 SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday"
 
 ## Compute time horizon
@@ -220,20 +221,31 @@ def get_numcars_prev():
     df_ret = df_ret.groupby("time_of_day").mean().reset_index()
     return df_ret["cnt"].median()
 
-def get_numcars():
+def get_numcars(trip_time_df):
     df = df_data.copy()
-    cnt_arr_all = np.zeros((31, TIME_HORIZON))
+    cnt_arr_all = np.zeros((31, TIME_HORIZON, NUM_REGIONS ** 2))
     df["T_PU"] = df["pickup_datetime"].apply(lambda x: (x.hour - TIME_RANGE[0]) * NUM_TS_PER_HOUR + x.minute // TIME_FREQ)
     df["T_DO"] = df["dropoff_datetime"].apply(lambda x: (x.hour - TIME_RANGE[0]) * NUM_TS_PER_HOUR + x.minute // TIME_FREQ)
     df["day"] = df["pickup_datetime"].apply(lambda x: x.day - 0)
-    cnt_arr_avg = np.zeros(TIME_HORIZON)
     for i in tqdm(range(df.shape[0])):
         s, e = df.iloc[i]["T_PU"], df.iloc[i]["T_DO"]
+        origin, dest = df.iloc[i]["Origin"], df.iloc[i]["Destination"]
         d = df.iloc[i]["day"]
-        cnt_arr_all[d, s:e] += 1
-    cnt_arr = np.mean(cnt_arr_all, axis = 0)
-    df_ret = pd.DataFrame.from_dict({"T": np.arange(TIME_HORIZON), "cnt": cnt_arr})
-    return df_ret["cnt"].median()
+        cnt_arr_all[d, s:e, origin * NUM_REGIONS + dest] += 1
+    trip_time_arr = np.zeros((TIME_HORIZON, NUM_REGIONS ** 2))
+    for t in range(TIME_HORIZON):
+        for origin in range(NUM_REGIONS):
+            for dest in range(NUM_REGIONS):
+                tmp_df = trip_time_df[(trip_time_df["Origin"] == origin) & (trip_time_df["Destination"] == dest) & (trip_time_df["T"] == t)]
+                if tmp_df.shape[0] > 0:
+                    trip_time = tmp_df.iloc[0]["TripTime"]
+                else:
+                    trip_time = 0
+                trip_time_arr[t, origin * NUM_REGIONS + dest] = trip_time
+    cnt_arr_max = np.max(cnt_arr_all, axis = 0)
+#    df_ret = pd.DataFrame.from_dict({"T": np.arange(TIME_HORIZON), "cnt": cnt_arr})
+#    return df_ret["cnt"].median()
+    return np.median(np.sum(cnt_arr_max * trip_time_arr, axis = 1))
 
 #avg_kwh_per_min = get_battery_consumption_rate()
 #print(avg_kwh_per_min)
@@ -253,7 +265,7 @@ region_battery_car_df = get_region_battery_car_df()
 region_rate_plug_df = get_region_rate_plug_df()
 
 ## Get median num of cars
-median_car_cnt = get_numcars()
+median_car_cnt = get_numcars(trip_time_df)
 scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean()) * SCALE_DEMAND_UP
 print(median_car_cnt, scale_factor, trip_time_df["TripTime"].quantile(0.5))
 
