@@ -678,7 +678,7 @@ class MarkovDecisionProcess:
             return self.state_counts.clone()
         if not state_reduction:
             ret = torch.cat([self.state_counts[:self.full_car_state_range[0]], self.car_train_state_counts, self.state_counts[self.full_car_state_range[1]:]])
-            return (ret.to_sparse(), ret.to_sparse()) #ret.clone()
+            return ret.clone() #(ret.to_sparse(), ret.to_sparse()) #
         assert (not use_region and car_id is not None) or (use_region and region is not None)
         reduced_state_counts = self.reduced_state_counts.clone()
         if not use_region:
@@ -687,7 +687,7 @@ class MarkovDecisionProcess:
         else:
             local_state_counts = self.get_local_state_region(region)
         ret = torch.cat([reduced_state_counts, local_state_counts])
-        return (reduced_state_counts.to_sparse(), local_state_counts)
+        return ret #(reduced_state_counts.to_sparse(), local_state_counts)
     
     ## Get the status of an unassigned car
     def get_car_info(self, car_id):
