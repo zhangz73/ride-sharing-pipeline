@@ -353,7 +353,8 @@ class MarkovDecisionProcess:
         
         self.reward_df = reward_query.get_reward_df()
         self.reward_wide = torch.tensor(self.reward_query.get_wide_reward(self.time_horizon, len(self.regions)))
-        self.adj_reward_wide = torch.tensor(self.get_wide_reward_adjusted(self.time_horizon, len(self.regions)))
+        self.adj_reward_wide, self.decomp_trip_counts_dct = self.get_wide_reward_adjusted(self.time_horizon, len(self.regions))
+        self.adj_reward_wide = torch.tensor(self.adj_reward_wide)
         self.adj_reward_wide_sorted = np.sort(self.adj_reward_wide.numpy(), axis = 1)[:,::-1]
         self.adj_reward_wide_sorted_indices = np.argsort(self.adj_reward_wide.numpy(), axis = 1)[:,::-1]
         self.max_atomic_payoff = self.reward_df["Payoff"].max()
@@ -456,7 +457,9 @@ class MarkovDecisionProcess:
     ## Get adjusted reward for each trip
     def get_wide_reward_adjusted(self, time_horizon, num_regions):
         mat = np.zeros((time_horizon, num_regions * num_regions))
+        dct = {}
         for t in range(time_horizon):
+            dct[t] = np.zeros((time_horizon, num_regions * num_regions))
             for origin in range(num_regions):
                 for dest in range(num_regions):
                     tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Origin"] == origin) & (self.reward_df["Destination"] == dest) & (self.reward_df["Type"] == "Travel") & (self.reward_df["Pickup"] == 1)]
@@ -465,6 +468,7 @@ class MarkovDecisionProcess:
                     else:
                         revenue = 0
                     trip_distance = self.map.distance(origin, dest)
+                    trip_time = self.map.time_to_location(origin, dest, t)
                     battery_needed = self.battery_per_step * trip_distance
                     rate_0 = self.charging_rates[0]
                     tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Type"] == "Charge") & (self.reward_df["Rate"] == rate_0)]
@@ -472,8 +476,13 @@ class MarkovDecisionProcess:
                         charging_cost = tmp_df.iloc[0]["Payoff"]
                     else:
                         charging_cost = 0
-                    mat[t, origin * num_regions + dest] = revenue + battery_needed * charging_cost / rate_0
-        return mat
+                    adj_reward = revenue + battery_needed * charging_cost / rate_0
+                    if trip_time > 0:
+                        adj_reward = adj_reward / trip_time
+                    indices = [x if x < time_horizon else x - time_horizon for x in range(t, t + max(trip_time, 1))]
+                    mat[indices, origin * num_regions + dest] = np.maximum(adj_reward, mat[indices, origin * num_regions + dest])
+                    dct[t][indices, origin * num_regions + dest] = 1
+        return mat, dct
     
     ## Prepare car deployment vectors
     def car_deployment_prepare(self):
@@ -808,6 +817,9 @@ class MarkovDecisionProcess:
 #        total_revenue = torch.sum(self.adj_reward_wide * self.trip_arrivals)
         trip_arrivals_sorted = np.zeros((self.time_horizon, len(self.regions) ** 2))
         trip_arrivals_numpy = self.trip_arrivals.numpy()
+        trip_arrivals_agg = np.zeros((self.time_horizon, len(self.regions) ** 2))
+        for t in range(self.time_horizon):
+            trip_arrivals_agg += trip_arrivals_numpy[t,:] * self.decomp_trip_counts_dct[t]
         for t in range(self.time_horizon):
             trip_arrivals_sorted[t,:] = trip_arrivals_numpy[t,self.adj_reward_wide_sorted_indices[t,:]]
         mask = np.ones(self.time_horizon) * self.num_total_cars
