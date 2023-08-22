@@ -587,6 +587,27 @@ class MarkovDecisionProcess:
             cnt += state_counts[curr_id]
         return float(cnt)
     
+    ## Get number of trip requests with o-d
+    def get_num_active_trip_requests_od(self, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        trip_counts = np.zeros(len(self.regions) ** 2)
+        for origin in self.regions:
+            for dest in self.regions:
+                for stag_time in range(self.connection_patience + 1):
+                    curr_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                    trip_counts[origin * len(self.regions) + dest] += state_counts[curr_id]
+        return trip_counts
+    
+    ## Get trip time
+    def get_trip_time(self):
+        trip_times = np.zeros((self.time_horizon, len(self.regions) ** 2))
+        for t in range(self.time_horizon):
+            for origin in self.regions:
+                for dest in self.regions:
+                    trip_times[t, origin * len(self.regions) + dest] += self.map.time_to_location(origin, dest, t)
+        return trip_times
+    
     ## Get number of cars close to each region
     def get_num_cars_region(self, region, state_counts = None):
         if state_counts is None:

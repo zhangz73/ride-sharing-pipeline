@@ -825,7 +825,7 @@ class ReportFactory:
         ## Visualize fulfilled requests
         self.plot_single(df_table["frac_requests_fulfilled"], xlabel = "Time Steps", ylabel = "% Fulfilled Trip Requests", title = title, figname = f"fulfilled_requests_{suffix}", x_arr = df_table["t"], dir = "TablePlots")
         ## Visualize car status
-        self.plot_stacked(df_table["t"], [df_table["frac_traveling_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Traveling Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"car_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table["frac_passenger-carrying_cars"], df_table["frac_rerouting_cars"], df_table["frac_charging_cars"], df_table["frac_idling_cars"]], label_lst = ["% Passenger-Carrying Cars", "% Rerouting Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"car_status_{suffix}")
         ## Visualize trip status
         self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = title, figname = f"trip_status_{suffix}")
         ## Visualize car battery status
@@ -861,9 +861,13 @@ class ReportFactory:
         num_active_requests_end, num_traveling_cars_end, num_idling_cars_end, num_charging_cars_end = 0, 0, 0, 0
         num_new_requests = 0
         num_regions = len(markov_decision_process.regions)
+        time_horizon = markov_decision_process.time_horizon
+        passenger_carrying_cars_arr = np.zeros(time_horizon)
         t_lst = []
         frac_requests_fulfilled_lst = []
         frac_traveling_cars_lst = []
+        frac_passenger_carrying_cars_lst = []
+        frac_rerouting_cars_lst = []
         frac_charging_cars_lst = []
         frac_idling_cars_lst = []
         num_new_requests_lst = []
@@ -880,6 +884,7 @@ class ReportFactory:
             num_trip_requests_dct[i] = []
             num_cars_dct[i] = []
             charging_car_dct[i] = []
+        trip_time_mat = markov_decision_process.get_trip_time()
         for i in tqdm(range(len(action_lst)), leave = False):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
@@ -891,6 +896,7 @@ class ReportFactory:
             if begin:
                 num_active_requests_begin = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
                 num_new_requests = markov_decision_process.get_num_new_trip_requests(curr_state_counts)
+                num_active_requests_vec_begin = markov_decision_process.get_num_active_trip_requests_od(curr_state_counts)
                 for region in range(num_regions):
                     if detailed:
                         num_trip_requests_region = markov_decision_process.get_num_trip_requests_region(region, state_counts = curr_state_counts)
@@ -902,6 +908,13 @@ class ReportFactory:
                     num_cars_dct[region].append(num_cars_region)
             if car_idx is None:
                 num_active_requests_end = markov_decision_process.get_num_active_trip_requests(curr_state_counts)
+                num_active_requests_vec_end = markov_decision_process.get_num_active_trip_requests_od(curr_state_counts)
+                num_fulfilled_requests_vec = num_active_requests_vec_begin - num_active_requests_vec_end
+                for origin in range(num_regions):
+                    for dest in range(num_regions):
+                        id = origin * num_regions + dest
+                        trip_time = max(int(trip_time_mat[t, id]), 1)
+                        passenger_carrying_cars_arr[t:(t + trip_time)] += num_fulfilled_requests_vec[id]
                 num_traveling_cars_end = markov_decision_process.get_num_traveling_cars(curr_state_counts)
                 num_idling_cars_end = markov_decision_process.get_num_idling_cars(curr_state_counts)
                 num_charging_cars_end = markov_decision_process.get_num_charging_cars(curr_state_counts)
@@ -925,9 +938,13 @@ class ReportFactory:
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
                 frac_idling_cars = num_idling_cars_end / num_total_cars
+                frac_passenger_carrying_cars = passenger_carrying_cars_arr[t] / num_total_cars
+                frac_rerouting_cars = (num_traveling_cars_end - passenger_carrying_cars_arr[t]) / num_total_cars
                 t_lst.append(t)
                 frac_requests_fulfilled_lst.append(frac_requests_fulfilled)
                 frac_traveling_cars_lst.append(frac_traveling_cars)
+                frac_passenger_carrying_cars_lst.append(frac_passenger_carrying_cars)
+                frac_rerouting_cars_lst.append(frac_rerouting_cars)
                 frac_charging_cars_lst.append(frac_charging_cars)
                 frac_idling_cars_lst.append(frac_idling_cars)
                 num_new_requests_lst.append(num_new_requests)
@@ -937,7 +954,7 @@ class ReportFactory:
                 frac_low_battery_cars_lst.append(num_low_battery_cars / num_total_cars)
                 frac_med_battery_cars_lst.append(num_med_battery_cars / num_total_cars)
                 frac_high_battery_cars_lst.append(num_high_battery_cars / num_total_cars)
-        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_traveling_cars": frac_traveling_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
+        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_passenger-carrying_cars": frac_passenger_carrying_cars_lst, "frac_rerouting_cars": frac_rerouting_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
         for region in range(num_regions):
             dct[f"num_trip_requests_{region}"] = num_trip_requests_dct[region]
             dct[f"num_cars_region_{region}"] = num_cars_dct[region]
