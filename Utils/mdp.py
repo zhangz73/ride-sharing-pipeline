@@ -821,7 +821,7 @@ class MarkovDecisionProcess:
         for t in range(self.time_horizon):
             trip_arrivals_agg += trip_arrivals_numpy[t,:] * self.decomp_trip_counts_dct[t]
         for t in range(self.time_horizon):
-            trip_arrivals_sorted[t,:] = trip_arrivals_numpy[t,self.adj_reward_wide_sorted_indices[t,:]]
+            trip_arrivals_sorted[t,:] = trip_arrivals_agg[t,self.adj_reward_wide_sorted_indices[t,:]]
         mask = np.ones(self.time_horizon) * self.num_total_cars
         for pos in range(len(trip_arrivals_sorted[0,:])):
             vec = np.minimum(mask, trip_arrivals_sorted[:,pos])
@@ -1112,7 +1112,7 @@ class MarkovDecisionProcess:
             stag_time -= 1
         ## Update car states
         if origin != dest or action_fulfilled:
-            new_eta = eta + trip_time
+            new_eta = eta + max(trip_time, 1)
             new_battery = battery - self.battery_per_step * trip_distance
         else:
             new_eta = eta
