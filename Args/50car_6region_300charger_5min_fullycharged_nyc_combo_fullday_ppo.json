@@ -16,15 +16,15 @@
         "time_horizon": 288,
         "connection_patience": 1,
         "pickup_patience": 1,
-        "num_battery_levels": 264,
+        "num_battery_levels": 132,
         "battery_jump": 0.3,
         "charging_rates": [
-            50
+            25
         ],
         "battery_offset": 0,
-        "battery_per_step": 2,
+        "battery_per_step": 1,
         "normalize_by_tripnums": true,
-        "battery_cutoff": [90, 180],
+        "battery_cutoff": [45, 90],
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_50car6region300chargers5mins_fullycharged_nyc_combo_fullday.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_50car6region300chargers5mins_fullycharged_nyc_combo_fullday.tsv"
     },
@@ -47,7 +47,7 @@
         "policy_hidden_dim_lst": [500, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
-        "policy_lr": 1e-4,
+        "policy_lr": 5e-4,
         "policy_epoch": 3,
         "policy_batch": 100,
         "policy_decay": 0.1,
