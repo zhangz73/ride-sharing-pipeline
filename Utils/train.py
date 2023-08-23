@@ -384,8 +384,8 @@ class PPO_Solver(Solver):
                             if i < state_num - 1:
                                 tup_next = state_action_advantage_lst_episodes[day][i + 1]
                                 next_state_counts = tup_next[0]
-#                            if day_num >= self.useful_days:
-#                                break
+                            if day_num >= self.useful_days:
+                                break
                             lens = len(curr_state_counts)
                             policy_dct[(t, next_t, offset)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
                             policy_dct[(t, next_t, offset)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
@@ -630,6 +630,8 @@ class PPO_Solver(Solver):
                         next_state_counts = None
                     payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
+                        if day_num >= self.useful_days:
+                            curr_state_counts, next_state_counts = None, None
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
                     atomic_payoff_lst.append(payoff - curr_payoff)
                     discount_lst.append(self.gamma ** t)
