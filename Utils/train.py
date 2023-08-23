@@ -232,8 +232,8 @@ class PPO_Solver(Solver):
 #                    curr_day = day_num
                 else:
                     payoff = atomic_payoff + payoff
-                lens = len(curr_state_counts)
                 if day_num < self.useful_days:
+                    lens = len(curr_state_counts)
                     value_dct[t + offset]["payoff"].append(payoff)
                     value_dct[t + offset]["state_counts"].append(curr_state_counts.reshape((1, lens)))
                     val_num += 1
@@ -381,7 +381,7 @@ class PPO_Solver(Solver):
                             tup = state_action_advantage_lst_episodes[day][i]
                             curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
                             offset = self.get_offset(day_num)
-                            if i < state_num - 1:
+                            if next_state_counts is None: #i < state_num - 1:
                                 tup_next = state_action_advantage_lst_episodes[day][i + 1]
                                 next_state_counts = tup_next[0]
                             if day_num >= self.useful_days:
