@@ -27,21 +27,29 @@ dct_key = {
 ###     Working Area 1: (161, "Midtown Center"), (230, Times Sq/Theatre District)
 ###     Restaurants 2: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
 ###     Residential 3: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
-REGION = "small" #"small" # small or big
+REGION = "large" #"small" # small or big
 if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
 else:
+#    LOCATIONS_ID_OF_INTEREST = [
+#        [132], ## JFK Airport
+#        [138], ## LGA Airport
+#        [163, 230, 161, 162], ## Midtown
+#        [100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
+#        [158, 249, 113, 114], ## West Village
+#        [79, 4, 107, 224], ## East Village
+#        [239, 143, 142], ## Upper West
+#        [50, 48], ## Midtown West
+#        [236, 263, 262, 237, 141, 140], ## Upper East
+#        [229, 233, 170, 137] ## Midtown East
+#    ]
     LOCATIONS_ID_OF_INTEREST = [
         [132], ## JFK Airport
         [138], ## LGA Airport
-        [163, 230, 161, 162], ## Midtown
-        [100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
-        [158, 249, 113, 114], ## West Village
-        [79, 4, 107, 224], ## East Village
-        [239, 143, 142], ## Upper West
-        [50, 48], ## Midtown West
-        [236, 263, 262, 237, 141, 140], ## Upper East
-        [229, 233, 170, 137] ## Midtown East
+        [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown + Midtown Lower
+        [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
+        [239, 143, 142, 50, 48], ## Upper + Midtown West
+        [236, 263, 262, 237, 141, 140, 229, 233, 170, 137] ## Upper + Midtown East
     ]
 LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
@@ -51,11 +59,11 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
-TIME_FREQ = 15 #15 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 100 #12#50 #200
+TOTAL_CARS_NEW = 50 #12#50 #200
 CHARGING_RATE = 1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 264
 SCALE_DEMAND_UP = 1
@@ -270,7 +278,7 @@ scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean(
 print(median_car_cnt, scale_factor, trip_time_df["TripTime"].quantile(0.5))
 
 ## Create trip_demand_df
-trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False, scale_by_freq = "up", scale_factor = scale_factor)
+trip_demand_df = get_attr("Count", agg_by_day = True, scale_down_by_car = False, scale_by_freq = None, scale_factor = scale_factor)
 print(trip_demand_df)
 
 ## Create payoff_df
