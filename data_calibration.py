@@ -45,7 +45,7 @@ else:
 #    ]
     LOCATIONS_ID_OF_INTEREST = [
         [132], ## JFK Airport
-        [138], ## LGA Airport
+        #[138], ## LGA Airport
         [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown + Midtown Lower
         [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
         [239, 143, 142, 50, 48], ## Upper + Midtown West
