@@ -1604,7 +1604,7 @@ class MarkovDecisionProcess:
                 mask[:num_regions] = 0
             else:
                 ## Check if battery is enough
-                mask[:num_regions] *= battery >= (int(round(self.battery_per_step * self.trip_distance_matrix[origin,:])))
+                mask[:num_regions] *= battery >= (self.battery_per_step * self.trip_distance_matrix[origin,:]).round()
                 ## Check if trip has requests
                 if eta > 0:
                     mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
