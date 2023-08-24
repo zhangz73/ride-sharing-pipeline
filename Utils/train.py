@@ -303,7 +303,7 @@ class PPO_Solver(Solver):
         with open(f"payoff_log_multi_{label}.csv", "w") as f:
             f.write(f"{','.join(['Day_' + str(x) for x in range(self.num_days)])}\n")
         eps = self.eps
-        with Parallel(n_jobs = self.n_cpu) as parallel:
+        with Parallel(n_jobs = self.n_cpu, max_nbytes = None) as parallel:
             for itr in range(self.num_itr + 0):
                 print(f"Iteration #{itr+1}/{self.num_itr}:")
     #            if debug:
@@ -381,7 +381,7 @@ class PPO_Solver(Solver):
                             tup = state_action_advantage_lst_episodes[day][i]
                             curr_state_counts, action_id, next_state_counts, t, _, next_t, atomic_payoff, day_num = tup
                             offset = self.get_offset(day_num)
-                            if next_state_counts is None: #i < state_num - 1:
+                            if next_state_counts is None and i < state_num - 1:
                                 tup_next = state_action_advantage_lst_episodes[day][i + 1]
                                 next_state_counts = tup_next[0]
                             if day_num >= self.useful_days:
