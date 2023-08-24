@@ -69,8 +69,9 @@ class LP_Solver(train.Solver):
         return self.x, obj_val
 
 class LP_On_AugmentedGraph(LP_Solver):
-    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1):
+    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0):
         super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma)
+        self.patience_time = patience_time
         print("Constructing the solver...")
         self.load_data()
         self.construct_problem()
@@ -270,7 +271,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                     trip_demand_lst.append(trip_demand_vec)
 #                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
 #                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
-                    trip_demand_target[pos] = self.trip_demands[t, origin * self.num_regions + dest]
+                    trip_demand_target[pos] = np.sum(self.trip_demands[(t - self.patience_time):(t + 1), origin * self.num_regions + dest])
         trip_demand_mat = vstack(trip_demand_lst)
         ### Charging facility
         print("\t\tConstructing charging facility matrix...")
