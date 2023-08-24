@@ -469,7 +469,7 @@ class MarkovDecisionProcess:
                         revenue = 0
                     trip_distance = self.map.distance(origin, dest)
                     trip_time = self.map.time_to_location(origin, dest, t)
-                    battery_needed = self.battery_per_step * trip_distance
+                    battery_needed = int(round(self.battery_per_step * trip_distance))
                     rate_0 = self.charging_rates[0]
                     tmp_df = self.reward_df[(self.reward_df["T"] == t) & (self.reward_df["Type"] == "Charge") & (self.reward_df["Rate"] == rate_0)]
                     if tmp_df.shape[0] > 0:
@@ -1114,7 +1114,7 @@ class MarkovDecisionProcess:
         reduced_id = self.reduced_state_to_id["car"][("general", origin, eta, self.get_battery_pos(battery))]
         trip_time = self.map.time_to_location(origin, dest, self.curr_ts)
         trip_distance = self.map.distance(origin, dest)
-        if battery < self.battery_per_step * trip_distance:
+        if battery < int(round(self.battery_per_step * trip_distance)):
             return False
         ## Update active trip requests if pickup is performed
         stag_time = self.connection_patience
@@ -1134,7 +1134,7 @@ class MarkovDecisionProcess:
         ## Update car states
         if origin != dest or action_fulfilled:
             new_eta = eta + max(trip_time, 1)
-            new_battery = battery - self.battery_per_step * trip_distance
+            new_battery = battery - int(round(self.battery_per_step * trip_distance))
         else:
             new_eta = eta
             new_battery = battery
@@ -1274,7 +1274,7 @@ class MarkovDecisionProcess:
             trip_distance = self.map.distance(origin, dest)
             for eta in range(self.pickup_patience + 1):
                 start = self.general_car_id_region_eta_map[(origin, eta)]
-                start_feasible = start + self.battery_per_step * trip_distance
+                start_feasible = start + int(round(self.battery_per_step * trip_distance))
                 end = start + self.num_battery_levels
                 relev_state_counts_reverse = self.state_counts[start_feasible:end].flip(dims = (0,))
                 idx_reverse = torch.argmax((relev_state_counts_reverse > 0) + 0)
@@ -1532,7 +1532,7 @@ class MarkovDecisionProcess:
                 return eta == 0 and state_counts[plug_id] > 0
             new_dest = action.get_dest()
             trip_distance = self.map.distance(dest, new_dest)
-            min_battery_needed = self.battery_per_step * trip_distance
+            min_battery_needed = int(round(self.battery_per_step * trip_distance))
             trip_id_begin = self.state_to_id["trip"][(dest, new_dest, 0)]
             if torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) == 0:
                 return eta == 0 and battery >= min_battery_needed
@@ -1562,7 +1562,7 @@ class MarkovDecisionProcess:
             ## The car has battery level larger than trip distance
             origin, dest = action.get_origin(), action.get_dest()
             trip_distance = self.map.distance(origin, dest)
-            min_battery_needed = self.battery_per_step * trip_distance
+            min_battery_needed = int(round(self.battery_per_step * trip_distance))
             trip_id_begin = self.state_to_id["trip"][(origin, dest, 0)]
             has_trip_requests = torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) > 0
             if has_trip_requests:
@@ -1604,7 +1604,7 @@ class MarkovDecisionProcess:
                 mask[:num_regions] = 0
             else:
                 ## Check if battery is enough
-                mask[:num_regions] *= battery >= (self.battery_per_step * self.trip_distance_matrix[origin,:])
+                mask[:num_regions] *= battery >= (int(round(self.battery_per_step * self.trip_distance_matrix[origin,:])))
                 ## Check if trip has requests
                 if eta > 0:
                     mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
