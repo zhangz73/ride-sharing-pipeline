@@ -174,7 +174,10 @@ class LP_On_AugmentedGraph(LP_Solver):
         charging_facility_extra_len = self.time_horizon * self.num_regions * self.num_charging_rates
         self.trip_demand_extra_begin = self.charging_flow_begin + charging_flow_len
         self.charging_facility_extra_begin = self.trip_demand_extra_begin + trip_demand_extra_len
-        self.x_len = travel_flow_len * 2 + charging_flow_len + trip_demand_extra_len + charging_facility_extra_len
+        ## Add dummy variables for number of requests at time t but taken at time s
+        slack_request_patience_len = self.time_horizon * (self.patience_time + 1) * self.num_regions * self.num_regions
+        self.slack_request_patience_begin = self.charging_facility_extra_begin + charging_facility_extra_len
+        self.x_len = travel_flow_len * 2 + charging_flow_len + trip_demand_extra_len + charging_facility_extra_len + slack_request_patience_len
         self.x = np.zeros(self.x_len)
     
     def get_x_entry(self, entry_type, t, b, origin = None, dest = None, region = None, rate_idx = None):
@@ -243,7 +246,11 @@ class LP_On_AugmentedGraph(LP_Solver):
     
     ## Flows add up to initial car distribution
     ## Flow conservation at each time, battery, and region
-    ## Passenger-carrying flows not exceed trip demands
+    ## Passenger-carrying flows not exceed trip demands (Deprecated!!!)
+    ## Passenger-carrying flows equals slack request patience flow:
+    ##    f_{ij}^t = s_{ij}^{t, t} + s_{ij}^{t, t - 1} + s_{ij}^{t, t - 2}
+    ## Slack request patience flow not exceed trip demands:
+    ##    s_{ij}^{t, t} + s_{ij}^{t + 1, t} + s_{ij}^{t + 2, t} <= \lambda_{ij}^t
     ## Charging flows not exceed charging facility nums
     ## Infeasible flows equal to 0 (i.e. trips with insufficient battery)
     ## All flows add up to total cars at each time
@@ -257,22 +264,34 @@ class LP_On_AugmentedGraph(LP_Solver):
         print("\t\tConstructing trip demand matrix...")
 #        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
         trip_demand_target = np.zeros(self.time_horizon * self.num_regions * self.num_regions)
+        slack_request_patience_target = np.zeros(self.time_horizon * self.num_regions * self.num_regions)
+        slack_request_patience_lst = []
         trip_demand_lst = []
         for t in tqdm(range(self.time_horizon), leave = False):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
+                    slack_request_patience_vec = np.zeros(self.x_len)
                     trip_demand_vec = np.zeros(self.x_len)
                     begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     end = begin + self.num_battery_levels * self.num_regions * self.num_regions
                     pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     trip_demand_vec[begin:end:(self.num_regions ** 2)] = 1
-                    trip_demand_vec[self.trip_demand_extra_begin + pos] = 1
+                    slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.patience_time + 1) + origin * self.num_regions * (self.patience_time + 1) + dest * (self.patience_time + 1)
+                    slack_end = slack_begin + self.patience_time + 1
+                    slack_end_2 = slack_begin + (self.patience_time + 1) * self.num_regions * self.num_regions * (self.patience_time + 1)
+                    trip_demand_vec[slack_begin:slack_end] = -1
+                    
+                    slack_request_patience_vec[self.trip_demand_extra_begin + pos] = 1
+                    slack_request_patience_vec[slack_begin:slack_end_2:(self.num_regions * self.num_regions * (self.patience_time + 1) + 1)] = 1
+                    slack_request_patience_vec = csr_matrix(slack_request_patience_vec)
                     trip_demand_vec = csr_matrix(trip_demand_vec)
                     trip_demand_lst.append(trip_demand_vec)
+                    slack_request_patience_lst.append(slack_request_patience_vec)
 #                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
 #                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
-                    trip_demand_target[pos] = np.sum(self.trip_demands[(t - self.patience_time):(t + 1), origin * self.num_regions + dest])
+                    slack_request_patience_target[pos] = self.trip_demands[t, origin * self.num_regions + dest]
         trip_demand_mat = vstack(trip_demand_lst)
+        slack_request_patience_mat = vstack(slack_request_patience_lst)
         ### Charging facility
         print("\t\tConstructing charging facility matrix...")
 #        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
@@ -306,8 +325,8 @@ class LP_On_AugmentedGraph(LP_Solver):
             
         total_flow_target = np.ones(self.time_horizon) * self.num_total_cars
         ### Concatenate together
-        self.A = vstack((flow_conservation_mat, trip_demand_mat, charging_facility_mat, total_flow_mat))
-        self.b = np.concatenate((flow_conservation_target, trip_demand_target, charging_facility_target, total_flow_target), axis = None)
+        self.A = vstack((flow_conservation_mat, trip_demand_mat, slack_request_patience_mat, charging_facility_mat, total_flow_mat))
+        self.b = np.concatenate((flow_conservation_target, trip_demand_target, slack_request_patience_target, charging_facility_target, total_flow_target), axis = None)
 #        self.b = csr_matrix(self.b.reshape((len(self.b), 1)))
     
     ## Flow conservation at each (time, battery, region)
