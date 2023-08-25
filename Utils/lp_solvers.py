@@ -157,8 +157,8 @@ class LP_On_AugmentedGraph(LP_Solver):
             self.init_car_num[region * self.num_battery_levels + battery] = num
     
     def reset_timestamp(self):
-        self.trip_demands = self.markov_decision_process.trip_arrivals
-        self.total_revenue = np.sum(self.trip_demands * self.trip_rewards)
+        self.trip_demands = self.markov_decision_process.trip_arrivals.numpy()
+        self.total_revenue = self.markov_decision_process.get_total_market_revenue() #np.sum(self.trip_demands * self.trip_rewards)
     
     def construct_problem(self):
         self.construct_x()
@@ -449,7 +449,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
         self.reset_timestamp()
         obj_val_normalized = self.train()
-        return None, None, None, None, obj_val_normalized
+        return None, None, None, None, torch.tensor(obj_val_normalized)
         
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
