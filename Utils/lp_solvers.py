@@ -46,7 +46,7 @@ class LP_Solver(train.Solver):
         for i in tqdm(range(n), leave = False):
             self.x[i] = x[i].x
         self.describe_x()
-        return self.x, obj_val
+        return obj_val / self.total_revenue #self.x, obj_val
     
     def train_cvxpy(self):
         print("Training...")
@@ -155,6 +155,10 @@ class LP_On_AugmentedGraph(LP_Solver):
             battery = region_battery_car_df.iloc[i]["battery"]
             num = region_battery_car_df.iloc[i]["num"]
             self.init_car_num[region * self.num_battery_levels + battery] = num
+    
+    def reset_timestamp(self):
+        self.trip_demands = self.markov_decision_process.trip_arrivals
+        self.total_revenue = np.sum(self.trip_demands * self.trip_rewards)
     
     def construct_problem(self):
         self.construct_x()
@@ -443,8 +447,10 @@ class LP_On_AugmentedGraph(LP_Solver):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
-        self.trip_demands = self.markov_decision_process.trip_arrivals
-        self.train()
+        self.reset_timestamp()
+        obj_val_normalized = self.train()
+        return None, None, None, None, obj_val_normalized
+        
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
         payoff_lst = []
