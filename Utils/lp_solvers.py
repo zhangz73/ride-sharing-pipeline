@@ -71,7 +71,7 @@ class LP_Solver(train.Solver):
 class LP_On_AugmentedGraph(LP_Solver):
     def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0):
         super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma)
-        self.patience_time = patience_time
+        self.patience_time = markov_decision_process.connection_patience + markov_decision_process.pickup_patience
         print("Constructing the solver...")
         self.load_data()
         self.construct_problem()
@@ -159,6 +159,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     def reset_timestamp(self):
         self.trip_demands = self.markov_decision_process.trip_arrivals.numpy()
         self.total_revenue = self.markov_decision_process.get_total_market_revenue() #np.sum(self.trip_demands * self.trip_rewards)
+        self.construct_problem()
     
     def construct_problem(self):
         self.construct_x()
@@ -381,9 +382,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 elif end_time_reroute < self.time_horizon:
                                     end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest)
                                 else:
-                                    end_time_reroute = None
-                                if end_row is not None:
-                                    row_lst += [end_row, end_row_reroute]
+                                    end_row_reroute = None
+                                if end_row_reroute is not None:
+                                    row_lst += [end_row_reroute, end_row_reroute]
                                     col_lst += [passenger_pos, reroute_pos]
                                     val_lst += [-1, -1]
                 ## Populate charging flows
