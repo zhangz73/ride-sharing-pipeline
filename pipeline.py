@@ -106,7 +106,7 @@ def main(args, json_name = ""):
         gamma = args["report"]["gamma"]
     else:
         gamma = 1
-    num_trials = 10#args["neural"]["num_episodes"]
+    num_trials = 3#args["neural"]["num_episodes"]
     norm_factor = torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
 #    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
     for i in tqdm(range(num_trials)):
@@ -151,7 +151,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_lp-augmented" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

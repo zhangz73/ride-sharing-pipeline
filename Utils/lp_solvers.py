@@ -370,23 +370,27 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest)
                             else:
                                 end_row = None
-                            if origin != dest:
-                                if end_row is not None:
+                            if end_row is not None:
+                                if origin != dest:
                                     row_lst += [end_row, end_row]
                                     col_lst += [passenger_pos, reroute_pos]
                                     val_lst += [-1, -1]
-                            else:
-                                end_time_reroute = t + 1
-                                if end_time_reroute >= self.time_horizon and self.num_days > 1:
-                                    end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest)
-                                elif end_time_reroute < self.time_horizon:
-                                    end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest)
                                 else:
-                                    end_row_reroute = None
-                                if end_row_reroute is not None:
-                                    row_lst += [end_row_reroute, end_row_reroute]
-                                    col_lst += [passenger_pos, reroute_pos]
-                                    val_lst += [-1, -1]
+                                    row_lst += [end_row]
+                                    col_lst += [passenger_pos]
+                                    val_lst += [-1]
+                        if origin == dest:
+                            end_time_reroute = t + 1
+                            if end_time_reroute >= self.time_horizon and self.num_days > 1:
+                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest)
+                            elif end_time_reroute < self.time_horizon:
+                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest)
+                            else:
+                                end_row_reroute = None
+                            if end_row_reroute is not None:
+                                row_lst += [end_row_reroute]
+                                col_lst += [reroute_pos]
+                                val_lst += [-1]
                 ## Populate charging flows
                 for region in range(self.num_regions):
                     for rate_idx in range(self.num_charging_rates):
