@@ -94,7 +94,7 @@ def main(args, json_name = ""):
         report_factory = train.ReportFactory()
     elif solver_type == "LP-AugmentedGraph":
         report_factory = train.ReportFactory()
-        solver.train()
+#        solver.train()
     
     df_table_all = None
     payoff = 0

@@ -439,10 +439,12 @@ class LP_On_AugmentedGraph(LP_Solver):
             charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
         return travel_x_ids, charge_x_ids
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False):
+    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = True):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
+        self.trip_demands = self.markov_decision_process.trip_arrivals
+        self.train()
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
         payoff_lst = []
