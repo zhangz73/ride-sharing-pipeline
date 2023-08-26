@@ -31,7 +31,7 @@ class LP_Solver(train.Solver):
         print("\tSetting up...")
         model = gp.Model()
         m, n = self.A.shape
-        x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
+        x = model.addMVar(n, lb = 0, vtype = GRB.INTEGER, name = "x")
         #model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
         model.addConstr(self.A @ x == self.b)
 #        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
@@ -531,12 +531,12 @@ class LP_On_AugmentedGraph(LP_Solver):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
-#        self.reset_timestamp()
-##        x_copy = self.x.copy()
-##        x_copy[:self.rerouting_flow_begin] += x_copy[self.rerouting_flow_begin:self.charging_flow_begin]
-##        obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
-#        obj_val_normalized = self.train()
-#        return None, None, None, None, torch.tensor(obj_val_normalized)
+        self.reset_timestamp()
+#        x_copy = self.x.copy()
+#        x_copy[:self.rerouting_flow_begin] += x_copy[self.rerouting_flow_begin:self.charging_flow_begin]
+#        obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
+        obj_val_normalized = self.train()
+        return None, None, None, None, torch.tensor(obj_val_normalized)
         
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
