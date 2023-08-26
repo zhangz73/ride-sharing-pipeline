@@ -159,7 +159,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     
     def reset_timestamp(self):
         self.trip_demands = self.markov_decision_process.trip_arrivals.numpy()
-        self.total_revenue = np.sum(self.trip_demands * self.trip_rewards) #self.markov_decision_process.get_total_market_revenue() #
+        self.total_revenue = self.markov_decision_process.get_total_market_revenue() #np.sum(self.trip_demands * self.trip_rewards) #
         self.construct_problem()
     
     def construct_problem(self):
@@ -192,7 +192,7 @@ class LP_On_AugmentedGraph(LP_Solver):
             assert region is not None and rate_idx is not None
             ans = t * self.num_battery_levels * self.num_regions * self.num_charging_rates + b * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
             return self.charging_flow_begin + ans
-        ans = ans = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
+        ans = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
         if entry_type == "reroute":
             ans += self.rerouting_flow_begin
         return int(ans)
@@ -470,6 +470,62 @@ class LP_On_AugmentedGraph(LP_Solver):
             travel_x_ids = list(range(travel_idx_begin, travel_idx_end))
             charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
         return travel_x_ids, charge_x_ids
+    
+    def get_fleet_status(self):
+        status_mat = np.zeros((4, self.time_horizon))
+        ## Travel
+        for t in range(self.time_horizon):
+            for origin in range(self.num_regions):
+                for dest in range(self.num_regions):
+                    ## Passenger-Carry
+                    begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
+                    end = begin + self.num_battery_levels * self.num_regions * self.num_regions
+                    trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
+                    if self.num_days > 1:
+                        idx_lst = np.arange(t, t + trip_time) % self.time_horizon
+                    else:
+                        idx_lst = np.arange(t, min(t + trip_time, self.time_horizon))
+                    status_mat[0, idx_lst] += np.sum(self.x[begin:end:(self.num_regions ** 2)])
+                    ## Reroute
+                    begin = self.rerouting_flow_begin + begin
+                    end = self.rerouting_flow_begin + end
+                    if origin != dest:
+                        status_mat[1, idx_lst] += np.sum(self.x[begin:end:(self.num_regions ** 2)])
+                    ## Idle
+                    else:
+                        status_mat[3, t] += np.sum(self.x[begin:end:(self.num_regions ** 2)])
+        ## Charge
+        for t in range(self.time_horizon):
+            for region in range(self.num_regions):
+                for rate_idx in range(self.num_charging_rates):
+                    begin = self.charging_flow_begin + t * self.num_battery_levels * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
+                    end = begin + self.num_battery_levels * self.num_regions * self.num_charging_rates
+                    status_mat[2, t] += np.sum(self.x[begin:end:(self.num_regions * self.num_charging_rates)])
+        ## Normalize by number of cars
+        status_mat /= self.num_total_cars
+        return status_mat
+    
+    def plot_stacked(self, x_arr, y_arr_lst, label_lst, xlabel, ylabel, title, figname):
+        assert len(y_arr_lst) == len(label_lst)
+        curr_lo = 0
+        curr_hi = 0
+        for i in range(len(label_lst)):
+            curr_hi += y_arr_lst[i]
+            label = label_lst[i]
+            plt.fill_between(x_arr, curr_lo, curr_hi, label = label)
+            curr_lo += y_arr_lst[i]
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.title(title)
+        plt.tight_layout()
+        plt.savefig(f"TablePlots/{figname}.png")
+        plt.clf()
+        plt.close()
+    
+    def plot_fleet_status(self, suffix):
+        status_mat = self.get_fleet_status()
+        self.plot_stacked(np.arange(self.time_horizon), [status_mat[0,:], status_mat[1,:], status_mat[2,:], status_mat[3,:]], label_lst = ["% Passenger-Carrying Cars", "% Rerouting Cars", "% Charging Cars", "% Idling Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = "", figname = f"lp_car_status_{suffix}")
     
     def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False):
         if seed is not None:
