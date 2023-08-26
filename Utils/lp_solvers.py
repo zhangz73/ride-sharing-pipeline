@@ -103,6 +103,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         ## Get vectors
         ### trip rewards T x R^2
         self.trip_rewards = self.markov_decision_process.reward_query.get_wide_reward(self.time_horizon, self.num_regions)
+#        self.trip_rewards = np.ones(self.trip_rewards.shape)
         ### charging cost T x \Delta
         #### Note that charging costs are negative by default!
         self.charging_costs = np.zeros((self.time_horizon, self.num_charging_rates))
@@ -158,7 +159,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     
     def reset_timestamp(self):
         self.trip_demands = self.markov_decision_process.trip_arrivals.numpy()
-        self.total_revenue = self.markov_decision_process.get_total_market_revenue() #np.sum(self.trip_demands * self.trip_rewards)
+        self.total_revenue = np.sum(self.trip_demands * self.trip_rewards) #self.markov_decision_process.get_total_market_revenue() #
         self.construct_problem()
     
     def construct_problem(self):
@@ -221,7 +222,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         for origin in range(self.num_regions):
                             for dest in range(self.num_regions):
                                 x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
-                                if self.x[x_entry] >= eps and (entry_type == "passenger-carry" or origin != dest):
+                                #if self.x[x_entry] >= eps and (entry_type == "passenger-carry" or origin != dest):
+                                if self.x[x_entry] >= eps:
                                     val = self.x[x_entry]
                                     f.write(f"{entry_type}, t = {t}, b = {b}, origin = {origin}, dest = {dest}, val = {val}\n")
             for t in range(self.time_horizon):
@@ -282,8 +284,10 @@ class LP_On_AugmentedGraph(LP_Solver):
                     pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     trip_demand_vec[begin:end:(self.num_regions ** 2)] = 1
                     slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.patience_time + 1) + origin * self.num_regions * (self.patience_time + 1) + dest * (self.patience_time + 1)
-                    slack_end = slack_begin + self.patience_time + 1
-                    slack_end_2 = slack_begin + (self.patience_time + 1) * self.num_regions * self.num_regions * (self.patience_time + 1)
+                    end_1_t = min(self.patience_time, t) + 1
+                    end_2_t = min(self.patience_time + 1, self.time_horizon - t)
+                    slack_end = slack_begin + end_1_t
+                    slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
                     trip_demand_vec[slack_begin:slack_end] = -1
                     
                     slack_request_patience_vec[self.trip_demand_extra_begin + pos] = 1
@@ -323,8 +327,18 @@ class LP_On_AugmentedGraph(LP_Solver):
         for t in tqdm(range(self.time_horizon), leave = False):
             passenger_len = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_charging_rates * self.num_battery_levels * self.num_regions
-            total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
-            total_flow_mat[t, (self.rerouting_flow_begin + t * passenger_len):(self.rerouting_flow_begin + (t + 1) * passenger_len)] = 1
+#            total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
+#            total_flow_mat[t, (self.rerouting_flow_begin + t * passenger_len):(self.rerouting_flow_begin + (t + 1) * passenger_len)] = 1
+            for origin in range(self.num_regions):
+                for dest in range(self.num_regions):
+                    trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
+                    for b in range(self.num_battery_levels):
+                        passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
+                        passenger_end = passenger_begin + self.num_battery_levels * self.num_regions * self.num_regions
+                        reroute_begin = self.rerouting_flow_begin + passenger_begin
+                        reroute_end = reroute_begin + self.num_battery_levels * self.num_regions * self.num_regions
+                        total_flow_mat[t:(t + trip_time), passenger_begin] = 1
+                        total_flow_mat[t:(t + trip_time), reroute_begin] = 1
             total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
         total_flow_mat = csr_matrix(total_flow_mat)
             
@@ -359,10 +373,12 @@ class LP_On_AugmentedGraph(LP_Solver):
                         passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest)
                         reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest)
                         start_row = self.get_flow_conserv_entry(t, b, origin)
-                        row_lst += [start_row, start_row]
-                        col_lst += [passenger_pos, reroute_pos]
-                        val_lst += [1, 1]
+                        start_row_filled = False
                         if b >= battery_cost:
+                            row_lst += [start_row]
+                            col_lst += [passenger_pos]
+                            val_lst += [1]
+#                            start_row_filled = True
                             end_time = t + trip_time
                             if end_time >= self.time_horizon and self.num_days > 1:
                                 end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest)
@@ -372,6 +388,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 end_row = None
                             if end_row is not None:
                                 if origin != dest:
+                                    row_lst += [start_row]
+                                    col_lst += [reroute_pos]
+                                    val_lst += [1]
                                     row_lst += [end_row, end_row]
                                     col_lst += [passenger_pos, reroute_pos]
                                     val_lst += [-1, -1]
@@ -380,6 +399,10 @@ class LP_On_AugmentedGraph(LP_Solver):
                                     col_lst += [passenger_pos]
                                     val_lst += [-1]
                         if origin == dest:
+                            if not start_row_filled:
+                                row_lst += [start_row]
+                                col_lst += [reroute_pos]
+                                val_lst += [1]
                             end_time_reroute = t + 1
                             if end_time_reroute >= self.time_horizon and self.num_days > 1:
                                 end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest)
@@ -448,13 +471,16 @@ class LP_On_AugmentedGraph(LP_Solver):
             charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
         return travel_x_ids, charge_x_ids
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = True):
+    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0)
-        self.reset_timestamp()
-        obj_val_normalized = self.train()
-        return None, None, None, None, torch.tensor(obj_val_normalized)
+#        self.reset_timestamp()
+##        x_copy = self.x.copy()
+##        x_copy[:self.rerouting_flow_begin] += x_copy[self.rerouting_flow_begin:self.charging_flow_begin]
+##        obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
+#        obj_val_normalized = self.train()
+#        return None, None, None, None, torch.tensor(obj_val_normalized)
         
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []

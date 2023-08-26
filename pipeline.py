@@ -94,7 +94,7 @@ def main(args, json_name = ""):
         report_factory = train.ReportFactory()
     elif solver_type == "LP-AugmentedGraph":
         report_factory = train.ReportFactory()
-#        solver.train()
+        solver.train()
     
     df_table_all = None
     payoff = 0
@@ -120,18 +120,18 @@ def main(args, json_name = ""):
 #            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
 #            if i == 0:
 #                print(day, payoff_lst[-1])
-            if solver_type != "LP-AugmentedGraph":
-                df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
-                df_table["trial"] = i
-                df_table["t"] += day * time_horizon
-                if df_table_all is None:
-                    df_table_all = df_table
-                else:
-                    df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+#            if solver_type != "LP-AugmentedGraph":
+            df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
+            df_table["trial"] = i
+            df_table["t"] += day * time_horizon
+            if df_table_all is None:
+                df_table_all = df_table
+            else:
+                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
     payoff /= num_trials
     print(f"Total Payoff = {payoff}")
-    if solver_type == "LP-AugmentedGraph":
-        return None
+#    if solver_type == "LP-AugmentedGraph":
+#        return None
     df_table_all_cp = df_table_all.copy()
     df_table_all_cp = df_table_all_cp.groupby("t").quantile(0.95).reset_index().sort_values("t")
     df_table_all = df_table_all.groupby(["t"]).mean().reset_index().sort_values("t")
