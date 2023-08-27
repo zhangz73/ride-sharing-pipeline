@@ -50,6 +50,14 @@ def main(args, json_name = ""):
         solver = train.D_Closest_Car_Solver(markov_decision_process = markov_decision_process, **args["d_closest"])
     elif solver_type == "LP-AugmentedGraph":
         solver = lp_solvers.LP_On_AugmentedGraph(markov_decision_process = markov_decision_process, **args["LP-AugmentedGraph"])
+        if "full_knowledge" in args["LP-AugmentedGraph"]:
+            lp_assume_full_knowledge = args["LP-AugmentedGraph"]["full_knowledge"]
+        else:
+            lp_assume_full_knowledge = False
+        if "fractional_cars" in args["LP-AugmentedGraph"]:
+            lp_eval_fractional_cars = args["LP-AugmentedGraph"]["fractional_cars"]
+        else:
+            lp_eval_fractional_cars = True
     
     ## Training
     if solver_type == "dp":
@@ -94,8 +102,9 @@ def main(args, json_name = ""):
         report_factory = train.ReportFactory()
     elif solver_type == "LP-AugmentedGraph":
         report_factory = train.ReportFactory()
-#        solver.train()
-#        solver.plot_fleet_status(f"{json_name}_{descriptor}")
+        if not lp_assume_full_knowledge:
+            solver.train()
+            solver.plot_fleet_status(f"{json_name}_{descriptor}")
     
     df_table_all = None
     payoff = 0
@@ -107,12 +116,15 @@ def main(args, json_name = ""):
         gamma = args["report"]["gamma"]
     else:
         gamma = 1
-    num_trials = 1#args["neural"]["num_episodes"]
+    num_trials = 10#args["neural"]["num_episodes"]
     norm_factor = torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
 #    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
     for i in tqdm(range(num_trials)):
         for day in range(eval_days):
-            _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None, day_num = day)
+            if solver_type != "LP-AugmentedGraph":
+                _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None, day_num = day)
+            else:
+                _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = None, day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars)
             #            print(f"Policy Loss = {policy_loss}")
     #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
                 #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
@@ -121,7 +133,7 @@ def main(args, json_name = ""):
 #            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
 #            if i == 0:
 #                print(day, payoff_lst[-1])
-            if solver_type != "LP-AugmentedGraph":
+            if solver_type != "LP-AugmentedGraph" or not lp_eval_fractional_cars:
                 df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
                 df_table["trial"] = i
                 df_table["t"] += day * time_horizon
@@ -131,7 +143,7 @@ def main(args, json_name = ""):
                     df_table_all = pd.concat([df_table_all, df_table], axis = 0)
     payoff /= num_trials
     print(f"Total Payoff = {payoff}")
-    if solver_type == "LP-AugmentedGraph":
+    if solver_type == "LP-AugmentedGraph" and lp_eval_fractional_cars:
         return None
     df_table_all_cp = df_table_all.copy()
     df_table_all_cp = df_table_all_cp.groupby("t").quantile(0.95).reset_index().sort_values("t")
@@ -152,7 +164,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_lp-augmented" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
