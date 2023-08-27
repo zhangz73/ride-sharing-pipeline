@@ -70,7 +70,7 @@ class LP_Solver(train.Solver):
         return self.x, obj_val
 
 class LP_On_AugmentedGraph(LP_Solver):
-    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0):
+    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0, **kargs):
         super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma)
         self.patience_time = markov_decision_process.connection_patience + markov_decision_process.pickup_patience
         print("Constructing the solver...")
