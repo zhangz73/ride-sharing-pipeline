@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = False, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -327,6 +327,7 @@ class MarkovDecisionProcess:
         self.num_charging_rates = len(charging_rates)
         self.battery_jump = battery_jump
         self.battery_per_step = battery_per_step
+        self.use_charging_curve = use_charging_curve
         self.region_battery_car_num = None
         self.region_rate_plug_num = None
         self.battery_offset = battery_offset
@@ -341,6 +342,8 @@ class MarkovDecisionProcess:
         if len(battery_cutoff) == 0:
             self.battery_cutoff = [1]
         self.load_initial_data()
+        self.next_battery_after_charge = {}
+        self.compute_charging_curve()
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         num_regions = len(self.regions)
@@ -432,6 +435,40 @@ class MarkovDecisionProcess:
         while idx < len(self.battery_cutoff) and battery >= self.battery_cutoff[idx]:
             idx += 1
         return idx
+    
+    def compute_charging_curve(self):
+        benchmark_rate_per_sec = 100 / 60 / 60
+        benchmark_packsize = 65
+        percent_charge_time_in_sec = [(0, 10, 35), (10, 40, 25), (40, 60, 30), (60, 80, 45), (80, 90, 80), (90, 95, 130), (96, 100, 400)]
+        benchmark_charge_time_in_sec = benchmark_packsize / benchmark_rate_per_sec
+        percent_charge_rate = [(tup[0], tup[1], benchmark_charge_time_in_sec / tup[2]) for tup in percent_charge_time_in_sec]
+        for rate in self.charging_rates:
+            for battery in range(self.num_battery_levels):
+                lst_idx = 0
+                curr_perc = battery / (self.num_battery_levels - 1) * 100
+                flat_charge_rate = rate / self.num_battery_levels * 100
+                ts_remain = 1
+                while lst_idx < len(percent_charge_rate) and percent_charge_rate[lst_idx][1] < curr_perc:
+                    lst_idx += 1
+                while lst_idx < len(percent_charge_rate) and ts_remain > 0:
+                    curr_endpoint = percent_charge_rate[lst_idx][1]
+                    curr_rate_perc = percent_charge_rate[lst_idx][2]
+                    time_to_endpoint = (curr_endpoint - curr_perc) / (flat_charge_rate * curr_rate_perc / 100)
+                    if time_to_endpoint <= ts_remain:
+                        curr_perc = curr_endpoint
+                        ts_remain -= time_to_endpoint
+                        lst_idx += 1
+                    else:
+                        curr_perc += flat_charge_rate * curr_rate_perc * ts_remain / 100
+                        ts_remain = 0
+                curr_perc = min(curr_perc, 100)
+                next_battery = int(round(curr_perc / 100 * (self.num_battery_levels - 1)))
+                self.next_battery_after_charge[(rate, battery)] = next_battery
+    
+    def get_next_battery(self, rate, curr_battery):
+        if self.use_charging_curve:
+            return self.next_battery_after_charge[(rate, curr_battery)]
+        return min(curr_battery + rate, self.num_battery_levels - 1)
     
     ## Get the length of states
     def get_state_len(self, state_reduction = False, model = "policy", use_region = True):
@@ -1179,7 +1216,8 @@ class MarkovDecisionProcess:
         if self.state_counts[plug_id] == 0:
             return False
         battery = car.get_battery()
-        next_battery = min(battery + rate, self.num_battery_levels - 1)
+        next_battery = self.get_next_battery(rate, battery)
+        next_battery = min(next_battery, self.num_battery_levels - 1)
         reduced_id = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
         target_car_state = ("charged", region, battery, rate)
         curr_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
@@ -1384,7 +1422,8 @@ class MarkovDecisionProcess:
                     next_battery = battery
                     ## charged cars gain power
                     car_curr = self.state_dict[car_id_curr]
-                    next_battery += rate
+#                    next_battery += rate
+                    next_battery = self.get_next_battery(rate, battery)
                     next_battery = min(next_battery, self.num_battery_levels - 1)
                     curr_action_id = self.action_desc_to_id[("charge", region, rate)]
                     car_id_general = self.state_to_id["car"][("general", region, 0, next_battery)]
