@@ -162,7 +162,8 @@ class TripDemands:
         return mat
     
     ## Simulate 1 trial of the passenger arrivals
-    def generate_arrivals(self):
+    def generate_arrivals(self, seed = None):
+        np.random.seed(seed)
         if self.arrival_type == "constant":
             return self.generate_constant_arrivals()
         elif self.arrival_type == "poisson":

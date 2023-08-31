@@ -560,7 +560,7 @@ class PPO_Solver(Solver):
         return_data = return_data and train
         if seed is not None:
             torch.manual_seed(seed)
-        markov_decision_process.reset_states(new_episode = day_num == 0)
+        markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
         payoff_lst = []
         atomic_payoff_lst = []
         discount_lst = []
@@ -694,7 +694,7 @@ class D_Closest_Car_Solver(Solver):
     def evaluate(self, return_action = True, seed = None, day_num = 0):
         if seed is not None:
             torch.manual_seed(seed)
-        self.markov_decision_process.reset_states(new_episode = day_num == 0)
+        self.markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
         payoff_lst = []

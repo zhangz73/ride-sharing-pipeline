@@ -547,7 +547,7 @@ class MarkovDecisionProcess:
         self.region_battery_car_reduced_map = torch.from_numpy(self.region_battery_car_reduced_map)
     
     ## Reset all states to the initial one
-    def reset_states(self, new_episode = True):
+    def reset_states(self, new_episode = True, seed = None):
         if new_episode:
             self.state_counts = self.state_counts_init.clone()
             self.reduced_state_counts = self.reduced_state_counts_init.clone()
@@ -556,7 +556,7 @@ class MarkovDecisionProcess:
             self.state_counts += self.region_battery_car_map
             self.reduced_state_counts += self.region_battery_car_reduced_map
         self.available_existing_car_types = self.get_all_available_existing_car_types()
-        self.reset_timestamp()
+        self.reset_timestamp(seed = seed)
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
         self.trip_demand_map_prepare()
 #        print("Trip Arrival Map:")
@@ -859,9 +859,9 @@ class MarkovDecisionProcess:
         self.payoff_curr_ts = torch.tensor(0.)
     
     ## Reset timestamp to 0 and regenerate trip arrivals
-    def reset_timestamp(self):
+    def reset_timestamp(self, seed = None):
         self.curr_ts = 0
-        self.trip_arrivals = torch.tensor(self.trip_demands.generate_arrivals())
+        self.trip_arrivals = torch.tensor(self.trip_demands.generate_arrivals(seed = seed))
         self.ts_cache = 0
         self.origin_cache = 0
 #        self.trip_arrivals_cache = self.trip_arrivals[(self.trip_arrivals["Origin"] == self.origin_cache) & (self.trip_arrivals["T"] == self.ts_cache)]

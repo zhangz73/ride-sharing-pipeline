@@ -213,8 +213,8 @@ class LP_On_AugmentedGraph(LP_Solver):
             charge_len = self.num_battery_levels * self.num_regions
             x_travel = np.array([[x_copy[:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.time_horizon * 2)]).sum(axis = 2).flatten()
             x_charge = np.array([[x_copy[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
-        self.x_travel = x_travel.round().astype(int)
-        self.x_charge = x_charge.round().astype(int)
+        self.x_travel = x_travel #x_travel.round().astype(int)
+        self.x_charge = x_charge #x_charge.round().astype(int)
     
     def describe_x(self, fname = "lp_debug.txt"):
         eps = 0.1
@@ -568,13 +568,15 @@ class LP_On_AugmentedGraph(LP_Solver):
                         fs_gap -= num
         return x_copy
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False, full_knowledge = False, fractional_cars = False):
+    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False, full_knowledge = False, fractional_cars = False, random_eval_round = 0):
         if seed is not None:
             torch.manual_seed(seed)
-        self.markov_decision_process.reset_states(new_episode = day_num == 0)
-        self.reset_timestamp()
+        self.markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
         
-        if full_knowledge:
+        if random_eval_round == 0:
+            self.reset_timestamp()
+        
+        if full_knowledge and random_eval_round == 0:
             obj_val_normalized = self.train()
 
         x_copy = self.cap_flow_with_demands()
@@ -600,25 +602,34 @@ class LP_On_AugmentedGraph(LP_Solver):
                     for i in range(len(charge_x_ids)):
                         x_id = charge_x_ids[i]
                         if self.x_charge[x_id] > 0:
-                            action_assigned = True
-                            self.x_charge[x_id] -= 1
-                            action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
-                            break
+                            action_prob = min(self.x_charge[x_id], 1)
+                            rv = np.random.binomial(n = 1, p = action_prob)
+                            if rv == 1:
+                                self.x_charge[x_id] -= 1
+                                action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
+                                action_success = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                                if action_success:
+                                    action_assigned = True
+                                    break
                 if not action_assigned:
+                    travel_x_ids, charge_x_ids = self.get_relevant_x(t + eta, dest, battery, strict = strict)
                     for i in range(len(travel_x_ids)):
                         x_id = travel_x_ids[i]
                         if self.x_travel[x_id] > 0:
-                            self.x_travel[x_id] -= 1
-                            action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
-                            action = self.all_actions[action_id]
-                            action_success = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
-                            if action_success:
-                                action_assigned = True
-                                break
+                            action_prob = min(self.x_travel[x_id], 1)
+                            rv = np.random.binomial(n = 1, p = action_prob)
+                            if rv == 1:
+                                self.x_travel[x_id] -= 1
+                                action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
+                                action = self.all_actions[action_id]
+                                action_success = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                                if action_success:
+                                    action_assigned = True
+                                    break
                 if not action_assigned:
                     action_id = self.markov_decision_process.query_action(("nothing"))
-                action = self.all_actions[action_id]
-                self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                    action = self.all_actions[action_id]
+                    self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
                 curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
                 action_lst_ret.append((curr_state_counts_full, action, t, car_id))
             curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
