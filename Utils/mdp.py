@@ -343,7 +343,8 @@ class MarkovDecisionProcess:
             self.battery_cutoff = [1]
         self.load_initial_data()
         self.next_battery_after_charge = {}
-        self.compute_charging_curve()
+        if use_charging_curve:
+            self.compute_charging_curve()
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         num_regions = len(self.regions)
