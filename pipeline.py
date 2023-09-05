@@ -138,7 +138,7 @@ def main(args, json_name = ""):
         #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
                     #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
         #            print(payoff_lst)
-                payoff += float(discounted_payoff.data) * 1 ** (day * time_horizon) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
+                payoff += float(payoff_lst[-1].data) * 1 ** (day * time_horizon) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
     #            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
     #            if i == 0:
     #                print(day, payoff_lst[-1])
