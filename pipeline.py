@@ -125,7 +125,7 @@ def main(args, json_name = ""):
     else:
         gamma = 1
     num_trials = 10#args["neural"]["num_episodes"]
-    norm_factor = torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
+    norm_factor = eval_days #torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
 #    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
     for i in tqdm(range(num_trials)):
         for random_eval_round in tqdm(range(randomized_eval_time), leave = False):
@@ -138,7 +138,7 @@ def main(args, json_name = ""):
         #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
                     #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
         #            print(payoff_lst)
-                payoff += float(discounted_payoff.data) * gamma ** (day * time_horizon) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
+                payoff += float(discounted_payoff.data) * 1 ** (day * time_horizon) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
     #            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
     #            if i == 0:
     #                print(day, payoff_lst[-1])
@@ -173,7 +173,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_lp-augmented" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
