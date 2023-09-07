@@ -64,8 +64,16 @@ def main(args, json_name = ""):
             randomized_eval_time = 1
     if solver_type != "LP-AugmentedGraph":
         randomized_eval_time = 1
+    if "eval_days" in args["report"]:
+        eval_days = args["report"]["eval_days"]
+    else:
+        eval_days = 1
+    if "gamma" in args["report"]:
+        gamma = args["report"]["gamma"]
+    else:
+        gamma = 1
     np.random.seed(123)
-    seed_lst = np.random.choice(10000, randomized_eval_time)
+    seed_lst = np.random.choice(10000, eval_days * randomized_eval_time)
     
     ## Training
     if solver_type == "dp":
@@ -116,14 +124,6 @@ def main(args, json_name = ""):
     
     df_table_all = None
     payoff = 0
-    if "eval_days" in args["report"]:
-        eval_days = args["report"]["eval_days"]
-    else:
-        eval_days = 1
-    if "gamma" in args["report"]:
-        gamma = args["report"]["gamma"]
-    else:
-        gamma = 1
     num_trials = 10#args["neural"]["num_episodes"]
     norm_factor = eval_days #torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
 #    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
@@ -131,9 +131,9 @@ def main(args, json_name = ""):
         for random_eval_round in tqdm(range(randomized_eval_time), leave = False):
             for day in range(eval_days):
                 if solver_type != "LP-AugmentedGraph":
-                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[random_eval_round], day_num = day)
+                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day)
                 else:
-                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[random_eval_round], day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars, random_eval_round = random_eval_round)
+                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars, random_eval_round = random_eval_round)
                 #            print(f"Policy Loss = {policy_loss}")
         #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
                     #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
