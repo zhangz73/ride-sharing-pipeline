@@ -27,7 +27,7 @@ dct_key = {
 ###     Working Area 1: (161, "Midtown Center"), (230, Times Sq/Theatre District)
 ###     Restaurants 2: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
 ###     Residential 3: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
-REGION = "large" #"small" # small or big
+REGION = "small" #"small" # small or big
 if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
 else:
@@ -59,20 +59,20 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
-TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 15 #5 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 50 #12#50 #200
-CHARGING_RATE = 1.515 #0.833 #[0.128, 0.833]
+TOTAL_CARS_NEW = 12 #12#50 #200
+CHARGING_RATE = 0.505 #1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 132 #264
 SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
-NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
+NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) #(NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_INTEREST)
 CHARGING_RATE_DIS = 5 * TIME_FREQ #int(round(2.5 * TIME_FREQ)) #10 * TIME_FREQ #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
 NUM_REGIONS = len(LOCATIONS_ID_OF_INTEREST)
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday_slowchargers"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
