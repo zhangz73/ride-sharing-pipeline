@@ -386,11 +386,12 @@ class PPO_Solver(Solver):
                                 next_state_counts = tup_next[0]
                             if day_num >= self.useful_days:
                                 break
-                            lens = len(curr_state_counts)
-                            policy_dct[(t, next_t, offset)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
-                            policy_dct[(t, next_t, offset)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
-                            policy_dct[(t, next_t, offset)]["action_id"].append(action_id)
-                            policy_dct[(t, next_t, offset)]["atomic_payoff"].append(atomic_payoff)
+                            if next_state_counts is not None:
+                                lens = len(curr_state_counts)
+                                policy_dct[(t, next_t, offset)]["curr_state_counts"].append(curr_state_counts.reshape((1, lens)))
+                                policy_dct[(t, next_t, offset)]["next_state_counts"].append(next_state_counts.reshape((1, lens)))
+                                policy_dct[(t, next_t, offset)]["action_id"].append(action_id)
+                                policy_dct[(t, next_t, offset)]["atomic_payoff"].append(atomic_payoff)
     #                        advantage = self.get_advantage(curr_state_counts, next_state_counts, action_id, t, next_t)
     #                        ratio, ratio_clipped = self.get_ratio(curr_state_counts, action_id, t, clipped = True, eps = self.eps)
     #                        loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
