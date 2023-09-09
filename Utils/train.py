@@ -449,7 +449,7 @@ class PPO_Solver(Solver):
                     for i in tqdm(range(num_trials)):
                         for day in range(self.eval_days):
                             _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
-                            if payoff_lst > 0:
+                            if len(payoff_lst) > 0:
                                 payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor #float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
 #                            payoff += float(payoff_lst[-1].data) * self.gamma ** day / norm_factor
                             df_table = report_factory.get_table(self.markov_decision_process, action_lst)
