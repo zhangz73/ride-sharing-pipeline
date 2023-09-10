@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = False, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = False, force_charging = True, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -328,6 +328,7 @@ class MarkovDecisionProcess:
         self.battery_jump = battery_jump
         self.battery_per_step = battery_per_step
         self.use_charging_curve = use_charging_curve
+        self.force_charging = force_charging
         self.region_battery_car_num = None
         self.region_rate_plug_num = None
         self.battery_offset = battery_offset
@@ -1651,10 +1652,15 @@ class MarkovDecisionProcess:
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0
-            ## Idle action is infeasible if charge is feasible
-            if mask[num_regions] == 1:
-                if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
-                    mask[origin] = 0
+            ## Check idle action given the force_charging flag
+            if self.force_charging:
+                ## Idle action is infeasible if charge is feasible
+                if mask[num_regions] == 1:
+                    if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
+                        mask[origin] = 0
+            else:
+                ## Idle action is always feasible
+                mask[origin] = 1
             ## Do-nothing is feasible when the idling action is infeasible
             if eta == 0:
                 mask[-1] = 0
