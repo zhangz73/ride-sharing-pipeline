@@ -72,8 +72,9 @@ def main(args, json_name = ""):
         gamma = args["report"]["gamma"]
     else:
         gamma = 1
+    num_trials = 10
     np.random.seed(123)
-    seed_lst = np.random.choice(10000, eval_days * randomized_eval_time)
+    seed_lst = np.random.choice(10000, num_trials * randomized_eval_time)
     
     ## Training
     if solver_type == "dp":
@@ -124,7 +125,7 @@ def main(args, json_name = ""):
     
     df_table_all = None
     payoff = 0
-    num_trials = 10#args["neural"]["num_episodes"]
+#    num_trials = 10#args["neural"]["num_episodes"]
     norm_factor = eval_days #torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
 #    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
     for i in tqdm(range(num_trials)):

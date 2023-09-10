@@ -582,7 +582,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         x_copy = self.cap_flow_with_demands()
         if fractional_cars:
             obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
-            return None, None, None, None, torch.tensor(obj_val_normalized)
+            return None, None, torch.tensor([0, obj_val_normalized]), None, torch.tensor(obj_val_normalized)
         
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []

@@ -1,0 +1,48 @@
+{
+    "map": {
+        "data_dir": "Map/map_12car4region4chargers15mins_fullycharged_nyc_combo_fullday_slowchargers.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_12car4region4chargers15mins_fullycharged_nyc_combo_fullday_slowchargers.tsv",
+        "data": null,
+        "scaling_factor": 4
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_12car4region4chargers15mins_fullycharged_nyc_combo_fullday_slowchargers.tsv"
+    },
+    "mdp": {
+        "time_horizon": 96,
+        "connection_patience": 1,
+        "pickup_patience": 1,
+        "num_battery_levels": 132,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            25
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 1,
+        "normalize_by_tripnums": true,
+        "battery_cutoff": [45, 90],
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_12car4region4chargers15mins_fullycharged_nyc_combo_fullday_slowchargers.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_12car4region4chargers15mins_fullycharged_nyc_combo_fullday_slowchargers.tsv"
+    },
+    "solver": {
+        "type": "LP-AugmentedGraph"
+    },
+    "LP-AugmentedGraph": {
+        "num_days": 1,
+        "gamma": 1,
+        "fractional_cars": true,
+        "full_knowledge": false,
+        "randomized_eval_time": 1
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": [],
+        "eval_days": 1,
+        "gamma": 1
+    }
+}
