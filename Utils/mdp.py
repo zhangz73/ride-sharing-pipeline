@@ -1153,23 +1153,24 @@ class MarkovDecisionProcess:
         reduced_id = self.reduced_state_to_id["car"][("general", origin, eta, self.get_battery_pos(battery))]
         trip_time = self.map.time_to_location(origin, dest, self.curr_ts)
         trip_distance = self.map.distance(origin, dest)
-        if battery < int(round(self.battery_per_step * trip_distance)):
+        if origin != dest and battery < int(round(self.battery_per_step * trip_distance)):
             return False
         ## Update active trip requests if pickup is performed
         stag_time = self.connection_patience
         action_fulfilled = False
         atomic_payoff = 0
-        while stag_time >= 0 and not action_fulfilled:
-            trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
-            if self.state_counts[trip_id] > 0:
-                self.state_counts[trip_id] -= 1
-                action_fulfilled = True
-                trip_id_origin = self.reduced_state_to_id["trip"][("origin", origin, stag_time)]
-                trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, stag_time)]
-                self.reduced_state_counts[trip_id_origin] -= 1
-                self.reduced_state_counts[trip_id_dest] -= 1
-                self.trip_request_matrix[origin, dest] -= 1
-            stag_time -= 1
+        if battery >= int(round(self.battery_per_step * trip_distance)):
+            while stag_time >= 0 and not action_fulfilled:
+                trip_id = self.state_to_id["trip"][(origin, dest, stag_time)]
+                if self.state_counts[trip_id] > 0:
+                    self.state_counts[trip_id] -= 1
+                    action_fulfilled = True
+                    trip_id_origin = self.reduced_state_to_id["trip"][("origin", origin, stag_time)]
+                    trip_id_dest = self.reduced_state_to_id["trip"][("dest", dest, stag_time)]
+                    self.reduced_state_counts[trip_id_origin] -= 1
+                    self.reduced_state_counts[trip_id_dest] -= 1
+                    self.trip_request_matrix[origin, dest] -= 1
+                stag_time -= 1
         ## Update car states
         if origin != dest or action_fulfilled:
             new_eta = eta + max(trip_time, 1)
@@ -1576,7 +1577,11 @@ class MarkovDecisionProcess:
             min_battery_needed = int(round(self.battery_per_step * trip_distance))
             trip_id_begin = self.state_to_id["trip"][(dest, new_dest, 0)]
             if torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) == 0:
-                return eta == 0 and battery >= min_battery_needed
+                if dest != new_dest:
+                    return eta == 0 and battery >= min_battery_needed
+                else:
+                    ## Idle is always feasible
+                    return eta == 0
             return eta <= self.pickup_patience and battery >= min_battery_needed
         ## If not in the state reduction scheme
         action = self.all_actions[action_id]
@@ -1660,9 +1665,10 @@ class MarkovDecisionProcess:
                         mask[origin] = 0
             else:
                 ## Idle action is always feasible
-                mask[origin] = 1
+                if eta == 0:
+                    mask[origin] = 1
             ## Do-nothing is feasible when the idling action is infeasible
-            if eta == 0:
+            if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
                 mask[-1] = 0
         else:
             has_feasible_action = False

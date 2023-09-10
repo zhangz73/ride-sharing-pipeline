@@ -19,6 +19,7 @@
         "num_battery_levels": 264,
         "battery_jump": 0.3,
         "use_charging_curve": true,
+        "force_charging": false,
         "charging_rates": [
             150
         ],
