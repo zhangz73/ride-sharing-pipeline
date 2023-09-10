@@ -1665,10 +1665,10 @@ class MarkovDecisionProcess:
                         mask[origin] = 0
             else:
                 ## Idle action is always feasible
-                if eta == 0:
+                if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
                     mask[origin] = 1
             ## Do-nothing is feasible when the idling action is infeasible
-            if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
+            if eta == 0:
                 mask[-1] = 0
         else:
             has_feasible_action = False
