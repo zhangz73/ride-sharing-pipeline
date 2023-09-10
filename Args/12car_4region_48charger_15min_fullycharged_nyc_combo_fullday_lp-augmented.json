@@ -34,9 +34,9 @@
     "LP-AugmentedGraph": {
         "num_days": 1,
         "gamma": 1,
-        "fractional_cars": false,
-        "full_knowledge": true,
-        "randomized_eval_time": 10
+        "fractional_cars": true,
+        "full_knowledge": false,
+        "randomized_eval_time": 1
     },
     "metric": ["total_payoff"],
     "report": {

@@ -274,7 +274,8 @@ region_rate_plug_df = get_region_rate_plug_df()
 
 ## Get median num of cars
 median_car_cnt = get_numcars(trip_time_df)
-scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean()) * SCALE_DEMAND_UP
+#scale_factor = TOTAL_CARS_NEW / (median_car_cnt * trip_time_df["TripTime"].mean()) * SCALE_DEMAND_UP
+scale_factor = TOTAL_CARS_NEW / median_car_cnt
 print(median_car_cnt, scale_factor, trip_time_df["TripTime"].quantile(0.5))
 
 ## Create trip_demand_df
