@@ -75,6 +75,7 @@ class PPO_Solver(Solver):
         self.num_days = num_days
         self.useful_days = useful_days
         self.gamma = gamma
+        self.use_avg_value = (self.num_days > 1) and (self.gamma == 1)
         self.eval_days = eval_days
         self.num_cars = self.markov_decision_process.num_total_cars
         self.ckpt_freq = ckpt_freq
@@ -146,6 +147,8 @@ class PPO_Solver(Solver):
                 next_value = next_value * sd2 + mu2
             else:
                 next_value = 0
+        if self.use_avg_value:
+            return (next_value - curr_value) / sd #((next_value - curr_value) * (self.time_horizon * self.num_days) + payoff) / self.time_horizon / self.num_days / sd
         return (payoff + next_value * self.gamma - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None, day_num = 0):
@@ -220,18 +223,29 @@ class PPO_Solver(Solver):
             payoff = 0
             if state_num > 0:
                 final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
-            curr_t = self.time_horizon - 1
+            curr_t = self.time_horizon
             curr_day = self.num_days
+            cum_ts = 0
+            total_ts = self.num_days * self.time_horizon
             for i in range(state_num - 1, -1, -1):
                 tup = state_action_advantage_lst_episodes[day][i]
                 curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
                 offset = self.get_offset(day_num) * self.time_horizon
-                if t != curr_t: #day_num != curr_day: #
-                    payoff = atomic_payoff + self.gamma * payoff
-                    curr_t = t
-#                    curr_day = day_num
+                if self.use_avg_value:
+#                    if t != curr_t:
+#                        next_cum_ts = cum_ts + 1
+#                    else:
+#                        next_cum_ts = cum_ts
+                    next_cum_ts = total_ts - (day_num * self.time_horizon + t)
+                    payoff = (atomic_payoff + payoff * cum_ts) / next_cum_ts
+                    cum_ts = next_cum_ts
                 else:
-                    payoff = atomic_payoff + payoff
+                    if t != curr_t: #day_num != curr_day: #
+                        payoff = atomic_payoff + self.gamma * payoff
+                        curr_t = t
+    #                    curr_day = day_num
+                    else:
+                        payoff = atomic_payoff + payoff
                 if day_num < self.useful_days:
                     lens = len(curr_state_counts)
                     value_dct[t + offset]["payoff"].append(payoff)
@@ -240,7 +254,10 @@ class PPO_Solver(Solver):
         for t in range(self.time_horizon * self.network_horizon_repeat):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
-                mu, sd = 0, torch.std(payoff_lst) + 1 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
+                if not self.use_avg_value:
+                    mu, sd = 0, torch.std(payoff_lst) + 1 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
+                else:
+                    mu, sd = 0, 1
                 self.value_scale[t] = (mu, sd)
             mu, sd = self.value_scale[t]
             payoff_lst = (payoff_lst - mu) / sd
@@ -572,6 +589,8 @@ class PPO_Solver(Solver):
         state_action_advantage_lst = []
         total_cars = 0
         total_trips = 0
+        curr_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
+        payoff_lst.append(curr_payoff)
         for t in tqdm(range(self.time_horizon), leave = False):
             ## Add up ||v_model - v_hat||^2
             ## Add up ratio * advantage
