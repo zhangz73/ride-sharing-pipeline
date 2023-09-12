@@ -148,7 +148,9 @@ class PPO_Solver(Solver):
             else:
                 next_value = 0
         if self.use_avg_value:
-            return (next_value - curr_value) / sd #((next_value - curr_value) * (self.time_horizon * self.num_days) + payoff) / self.time_horizon / self.num_days / sd
+            cum_ts = self.time_horizon * self.num_days - (day_num * self.time_horizon + ts)
+            next_cum_ts = self.time_horizon * self.num_days - (day_num * self.time_horizon + next_ts)
+            return (payoff + next_value * next_cum_ts - curr_value * cum_ts) / cum_ts / sd #((next_value - curr_value) * (self.time_horizon * self.num_days) + payoff) / self.time_horizon / self.num_days / sd
         return (payoff + next_value * self.gamma - curr_value) / sd
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None, day_num = 0):
