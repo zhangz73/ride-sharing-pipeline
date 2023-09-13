@@ -214,7 +214,7 @@ class PPO_Solver(Solver):
         total_value_loss /= val_num #self.num_episodes
         return total_value_loss
     
-    def get_value_loss(self, state_action_advantage_lst_episodes, update_value_scale = False):
+    def get_value_loss(self, state_action_advantage_lst_episodes, update_value_scale = False, batch_idx = None):
         total_value_loss = 0
         val_num = 0
         value_dct = {}
@@ -222,37 +222,54 @@ class PPO_Solver(Solver):
             value_dct[t] = {"state_counts": [], "payoff": []}
         for day in range(self.value_batch):
             state_num = len(state_action_advantage_lst_episodes[day])
-            payoff = 0
-            if state_num > 0:
-                final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
-            curr_t = self.time_horizon
-            curr_day = self.num_days
-            cum_ts = 0
-            total_ts = self.num_days * self.time_horizon
-            for i in range(state_num - 1, -1, -1):
-                tup = state_action_advantage_lst_episodes[day][i]
-                curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
-                offset = self.get_offset(day_num) * self.time_horizon
-                if self.use_avg_value:
-#                    if t != curr_t:
-#                        next_cum_ts = cum_ts + 1
-#                    else:
-#                        next_cum_ts = cum_ts
-                    next_cum_ts = total_ts - (day_num * self.time_horizon + t)
-                    payoff = (atomic_payoff + payoff * cum_ts) / next_cum_ts
-                    cum_ts = next_cum_ts
-                else:
-                    if t != curr_t: #day_num != curr_day: #
-                        payoff = atomic_payoff + self.gamma * payoff
-                        curr_t = t
-    #                    curr_day = day_num
+            day_idx = batch_idx[day]
+            if day_idx not in self.value_cache:
+                self.value_cache[day_idx] = []
+                payoff = 0
+                if state_num > 0:
+                    final_payoff = state_action_advantage_lst_episodes[day][state_num - 1][4].clone()
+                curr_t = self.time_horizon
+                curr_day = self.num_days
+                cum_ts = 0
+                total_ts = self.num_days * self.time_horizon
+                for i in range(state_num - 1, -1, -1):
+                    tup = state_action_advantage_lst_episodes[day][i]
+                    curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
+                    offset = self.get_offset(day_num) * self.time_horizon
+                    if self.use_avg_value:
+    #                    if t != curr_t:
+    #                        next_cum_ts = cum_ts + 1
+    #                    else:
+    #                        next_cum_ts = cum_ts
+                        next_cum_ts = total_ts - (day_num * self.time_horizon + t)
+                        payoff = (atomic_payoff + payoff * cum_ts) / next_cum_ts
+                        cum_ts = next_cum_ts
                     else:
-                        payoff = atomic_payoff + payoff
-                if day_num < self.useful_days:
-                    lens = len(curr_state_counts)
-                    value_dct[t + offset]["payoff"].append(payoff)
-                    value_dct[t + offset]["state_counts"].append(curr_state_counts.reshape((1, lens)))
-                    val_num += 1
+                        if t != curr_t: #day_num != curr_day: #
+                            payoff = atomic_payoff + self.gamma * payoff
+                            curr_t = t
+        #                    curr_day = day_num
+                        else:
+                            payoff = atomic_payoff + payoff
+                    if day_num < self.useful_days:
+                        lens = len(curr_state_counts)
+                        self.value_cache[day_idx] = [payoff] + self.value_cache[day_idx]
+                        value_dct[t + offset]["payoff"].append(payoff)
+                        value_dct[t + offset]["state_counts"].append(curr_state_counts.reshape((1, lens)))
+                        val_num += 1
+            else:
+                for i in range(state_num):
+                    tup = state_action_advantage_lst_episodes[day][i]
+                    curr_state_counts, action_id, _, t, curr_payoff, _, atomic_payoff, day_num = tup
+                    offset = self.get_offset(day_num) * self.time_horizon
+                    if day_num < self.useful_days:
+                        lens = len(curr_state_counts)
+                        payoff = self.value_cache[day_idx][i]
+                        value_dct[t + offset]["payoff"].append(payoff)
+                        value_dct[t + offset]["state_counts"].append(curr_state_counts.reshape((1, lens)))
+                        val_num += 1
+                    else:
+                        break
         for t in range(self.time_horizon * self.network_horizon_repeat):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
@@ -367,7 +384,8 @@ class PPO_Solver(Solver):
                     batch_idx = np.random.choice(self.num_episodes, size = self.value_batch, replace = False)
                     self.value_optimizer.zero_grad(set_to_none=True)
     #                 total_value_loss = self.get_max_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx])
-                    total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx], update_value_scale = itr == 0)
+                    self.value_cache = {}
+                    total_value_loss = self.get_value_loss([state_action_advantage_lst_episodes[idx] for idx in batch_idx], update_value_scale = itr == 0, batch_idx = batch_idx)
                     value_curr_arr.append(float(total_value_loss.data))
                     total_value_loss.backward()
                     self.value_optimizer.step()

@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = False, force_charging = True, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = False, force_charging = True, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -329,6 +329,7 @@ class MarkovDecisionProcess:
         self.battery_per_step = battery_per_step
         self.use_charging_curve = use_charging_curve
         self.force_charging = force_charging
+        self.total_revenue_benchmark = total_revenue_benchmark
         self.region_battery_car_num = None
         self.region_rate_plug_num = None
         self.battery_offset = battery_offset
@@ -847,8 +848,12 @@ class MarkovDecisionProcess:
     ## Return the payoff at the current timestamp
     def get_payoff_curr_ts(self, deliver = False):
         ret = self.payoff_curr_ts.clone()
+        if self.total_revenue_benchmark is None:
+            denom = self.total_market_revenue
+        else:
+            denom = self.total_revenue_benchmark
         if self.normalize_by_tripnums and deliver:
-            ret = ret / self.total_market_revenue
+            ret = ret / denom
         else:
             ret = ret #/ self.max_atomic_payoff
         return ret
