@@ -32,7 +32,7 @@
         "type": "LP-AugmentedGraph"
     },
     "LP-AugmentedGraph": {
-        "num_days": 1,
+        "num_days": 2,
         "gamma": 1,
         "fractional_cars": true,
         "full_knowledge": false,

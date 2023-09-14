@@ -267,9 +267,9 @@ class LP_On_AugmentedGraph(LP_Solver):
     ## All flows being non-negative
     def construct_constraints(self):
         print("\tConstructing constraints...")
-        ### Flow conservation
+        ### Flow conservation and Battery Feasibility
         print("\t\tConstructing flow conservation matrix...")
-        flow_conservation_mat, flow_conservation_target = self.construct_flow_conservation_matrix()
+        flow_conservation_mat, flow_conservation_target, battery_feasible_mat, battery_feasible_target = self.construct_flow_conservation_battery_feasibility_matrix()
         ### Trip demand
         print("\t\tConstructing trip demand matrix...")
 #        trip_demand_mat = np.zeros((self.time_horizon * self.num_regions * self.num_regions, self.x_len))
@@ -287,14 +287,28 @@ class LP_On_AugmentedGraph(LP_Solver):
                     pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     trip_demand_vec[begin:end:(self.num_regions ** 2)] = 1
                     slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.patience_time + 1) + origin * self.num_regions * (self.patience_time + 1) + dest * (self.patience_time + 1)
-                    end_1_t = min(self.patience_time, t) + 1
-                    end_2_t = min(self.patience_time + 1, self.time_horizon - t)
-                    slack_end = slack_begin + end_1_t
-                    slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
-                    trip_demand_vec[slack_begin:slack_end] = -1
+                    slack_terminal = self.slack_request_patience_begin + (self.time_horizon) * self.num_regions * self.num_regions * (self.patience_time + 1)
+                    if self.num_days == 1:
+                        end_1_t = min(self.patience_time, t) + 1
+                        end_2_t = min(self.patience_time + 1, self.time_horizon - t)
+                        slack_end = slack_begin + end_1_t
+                        slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
+                        slack_lst_1 = np.arange(slack_begin, slack_end)
+                        slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.patience_time + 1) + 1))
+                    else:
+                        end_1_t = self.patience_time + 1 #min(self.patience_time, t) + 1
+                        end_2_t = self.patience_time + 1
+                        slack_end = slack_begin + end_1_t
+                        slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
+                        slack_lst_1 = np.arange(slack_begin, slack_end)
+                        slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.patience_time + 1) + 1))
+                        for i in range(len(slack_lst_2)):
+                            if slack_lst_2[i] > slack_terminal:
+                                slack_lst_2[i] -= self.time_horizon * self.num_regions * self.num_regions * (self.patience_time + 1)
+                    trip_demand_vec[slack_lst_1] = -1
                     
                     slack_request_patience_vec[self.trip_demand_extra_begin + pos] = 1
-                    slack_request_patience_vec[slack_begin:slack_end_2:(self.num_regions * self.num_regions * (self.patience_time + 1) + 1)] = 1
+                    slack_request_patience_vec[slack_lst_2] = 1
                     slack_request_patience_vec = csr_matrix(slack_request_patience_vec)
                     trip_demand_vec = csr_matrix(trip_demand_vec)
                     trip_demand_lst.append(trip_demand_vec)
@@ -335,36 +349,41 @@ class LP_On_AugmentedGraph(LP_Solver):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
+                    if self.num_days == 1:
+                        t_lst = np.arange(t, min(t + trip_time, self.time_horizon))
+                    else:
+                        t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + trip_time)]
                     for b in range(self.num_battery_levels):
                         passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
-                        passenger_end = passenger_begin + self.num_battery_levels * self.num_regions * self.num_regions
                         reroute_begin = self.rerouting_flow_begin + passenger_begin
-                        reroute_end = reroute_begin + self.num_battery_levels * self.num_regions * self.num_regions
-                        total_flow_mat[t:(t + trip_time), passenger_begin] = 1
-                        total_flow_mat[t:(t + trip_time), reroute_begin] = 1
+                        total_flow_mat[t_lst, passenger_begin] = 1
+                        total_flow_mat[t_lst, reroute_begin] = 1
             total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
         total_flow_mat = csr_matrix(total_flow_mat)
             
         total_flow_target = np.ones(self.time_horizon) * self.num_total_cars
         ### Concatenate together
-        self.A = vstack((flow_conservation_mat, trip_demand_mat, slack_request_patience_mat, charging_facility_mat, total_flow_mat))
-        self.b = np.concatenate((flow_conservation_target, trip_demand_target, slack_request_patience_target, charging_facility_target, total_flow_target), axis = None)
+        self.A = vstack((flow_conservation_mat, trip_demand_mat, slack_request_patience_mat, charging_facility_mat, total_flow_mat, battery_feasible_mat))
+        self.b = np.concatenate((flow_conservation_target, trip_demand_target, slack_request_patience_target, charging_facility_target, total_flow_target, battery_feasible_target), axis = None)
 #        self.b = csr_matrix(self.b.reshape((len(self.b), 1)))
     
     ## Flow conservation at each (time, battery, region)
     ##   - Passenger-carrying to & from each region
     ##   - Rerouting to & from each region
     ##   - Charging at each rate
-    def construct_flow_conservation_matrix(self):
+    ##
+    def construct_flow_conservation_battery_feasibility_matrix(self):
         flow_conservation_target = np.zeros(self.time_horizon * self.num_battery_levels * self.num_regions)
         row_lst = []
         col_lst = []
         val_lst = []
+        battery_feasible_col_lst = []
         ## Populate initial car flow
-        for region in tqdm(range(self.num_regions), leave = False):
-            for battery in range(self.num_battery_levels):
-                num = self.init_car_num[region * self.num_battery_levels + battery]
-                flow_conservation_target[battery * self.num_regions + region] = num
+        if self.num_days == 1:
+            for region in tqdm(range(self.num_regions), leave = False):
+                for battery in range(self.num_battery_levels):
+                    num = self.init_car_num[region * self.num_battery_levels + battery]
+                    flow_conservation_target[battery * self.num_regions + region] = num
         ## Populate flow conservation matrix
         for t in tqdm(range(self.time_horizon), leave = False):
             for b in tqdm(range(self.num_battery_levels), leave = False):
@@ -378,10 +397,10 @@ class LP_On_AugmentedGraph(LP_Solver):
                         start_row = self.get_flow_conserv_entry(t, b, origin)
                         start_row_filled = False
                         if b >= battery_cost:
-                            row_lst += [start_row]
-                            col_lst += [passenger_pos]
-                            val_lst += [1]
-#                            start_row_filled = True
+                            row_lst += [start_row, start_row]
+                            col_lst += [passenger_pos, reroute_pos]
+                            val_lst += [1, 1]
+                            start_row_filled = True
                             end_time = t + trip_time
                             if end_time >= self.time_horizon and self.num_days > 1:
                                 end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest)
@@ -391,9 +410,6 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 end_row = None
                             if end_row is not None:
                                 if origin != dest:
-                                    row_lst += [start_row]
-                                    col_lst += [reroute_pos]
-                                    val_lst += [1]
                                     row_lst += [end_row, end_row]
                                     col_lst += [passenger_pos, reroute_pos]
                                     val_lst += [-1, -1]
@@ -401,6 +417,10 @@ class LP_On_AugmentedGraph(LP_Solver):
                                     row_lst += [end_row]
                                     col_lst += [passenger_pos]
                                     val_lst += [-1]
+                        else:
+                            battery_feasible_col_lst.append(passenger_pos)
+                            if origin != dest:
+                                battery_feasible_col_lst.append(reroute_pos)
                         if origin == dest:
                             if not start_row_filled:
                                 row_lst += [start_row]
@@ -441,7 +461,13 @@ class LP_On_AugmentedGraph(LP_Solver):
                             val_lst += [-1]
         ## Construct flow_conservation_mat row by row
         flow_conservation_mat = csr_matrix((val_lst, (row_lst, col_lst)), shape = (self.time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
-        return flow_conservation_mat, flow_conservation_target
+        ## Construct battery feasibility matrix
+        battery_feasible_constraints_cnt = len(battery_feasible_col_lst)
+        battery_feasible_val_lst = np.ones(battery_feasible_constraints_cnt)
+        battery_feasible_row_lst = np.arange(battery_feasible_constraints_cnt)
+        battery_feasible_mat = csr_matrix((battery_feasible_val_lst, (battery_feasible_row_lst, battery_feasible_col_lst)), shape = (battery_feasible_constraints_cnt, self.x_len))
+        battery_feasible_target = np.zeros(battery_feasible_constraints_cnt)
+        return flow_conservation_mat, flow_conservation_target, battery_feasible_mat, battery_feasible_target
     
     ## Deprecated!!
     def get_relevant_x_prev(self, t, region, battery):
