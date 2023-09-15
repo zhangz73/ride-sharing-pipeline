@@ -298,12 +298,12 @@ class PPO_Solver(Solver):
                     data_traj[episode_start + episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
                     record_num += 1
             for t in range(self.time_horizon):
-                data_traj[episode_start + episode][t]["state_counts"] = list(data_traj[episode][t]["state_counts"])
-                data_traj[episode_start + episode][t]["next_state_counts"] = list(data_traj[episode][t]["next_state_counts"])
-                data_traj[episode_start + episode][t]["payoff"] = list(data_traj[episode][t]["payoff"])
-                data_traj[episode_start + episode][t]["atomic_payoff"] = list(data_traj[episode][t]["atomic_payoff"])
-                data_traj[episode_start + episode][t]["action_id"] = list(data_traj[episode][t]["action_id"])
-                data_traj[episode_start + episode][t]["ts"] = list(data_traj[episode][t]["ts"])
+                data_traj[episode_start + episode][t]["state_counts"] = list(data_traj[episode_start + episode][t]["state_counts"])
+                data_traj[episode_start + episode][t]["next_state_counts"] = list(data_traj[episode_start + episode][t]["next_state_counts"])
+                data_traj[episode_start + episode][t]["payoff"] = list(data_traj[episode_start + episode][t]["payoff"])
+                data_traj[episode_start + episode][t]["atomic_payoff"] = list(data_traj[episode_start + episode][t]["atomic_payoff"])
+                data_traj[episode_start + episode][t]["action_id"] = list(data_traj[episode_start + episode][t]["action_id"])
+                data_traj[episode_start + episode][t]["ts"] = list(data_traj[episode_start + episode][t]["ts"])
             ############
 #            state_action_advantage_lst_episodes.append(tmp)
         norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
