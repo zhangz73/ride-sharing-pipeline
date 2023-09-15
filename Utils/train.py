@@ -107,10 +107,10 @@ class PPO_Solver(Solver):
         self.value_optimizer, self.value_scheduler = self.value_model_factory.prepare_optimizer()
         self.policy_optimizer, self.policy_scheduler = self.policy_model_factory.prepare_optimizer()
         self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
-        self.markov_decision_process_lst = []
-        for i in range(self.n_cpu): #self.n_cpu
-            cp = copy.deepcopy(markov_decision_process)
-            self.markov_decision_process_lst.append(cp)
+#        self.markov_decision_process_lst = []
+#        for i in range(self.n_cpu): #self.n_cpu
+#            cp = copy.deepcopy(markov_decision_process)
+#            self.markov_decision_process_lst.append(cp)
         self.value_scale = self.value_model_factory.get_value_scale()
     
     def get_value_model(self):
@@ -241,7 +241,7 @@ class PPO_Solver(Solver):
             self.value_model_factory.set_value_scale(self.value_scale)
         return total_value_loss
     
-    def get_data_single(self, num_episodes, episode_start = 0):
+    def get_data_single(self, num_episodes, episode_start = 0, worker_num = 0):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
         single_day_payoffs = np.zeros(self.num_days)
@@ -250,7 +250,7 @@ class PPO_Solver(Solver):
             tmp = []
             payoff_prev = 0
             for day in range(self.num_days):
-                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
+                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process, day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
 #                total_payoff += payoff_val * self.gamma ** day
@@ -356,7 +356,7 @@ class PPO_Solver(Solver):
                     batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
                     results = parallel(delayed(
                         self.get_data_single
-                    )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i * batch_size) for i in range(self.n_cpu))
+                    )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i * batch_size, i) for i in range(self.n_cpu))
                     print("Gathering results...")
                     payoff_val = 0
                     single_day_payoffs = np.zeros(self.num_days)
