@@ -265,7 +265,7 @@ class PPO_Solver(Solver):
             curr_day = self.num_days
             cum_ts = 0
             total_ts = self.num_days * self.time_horizon
-            data_traj[episode] = {}
+            data_traj[episode_start + episode] = {}
             for t in range(self.time_horizon * self.network_horizon_repeat):
                 data_traj[episode_start + episode][t] = {"state_counts": deque([]), "next_state_counts": deque([]), "payoff": deque([]), "atomic_payoff": deque([]), "action_id": deque([]), "ts": deque([])}
             record_num = 0
