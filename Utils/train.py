@@ -241,7 +241,7 @@ class PPO_Solver(Solver):
             self.value_model_factory.set_value_scale(self.value_scale)
         return total_value_loss
     
-    def get_data_single(self, num_episodes, worker_num = 0):
+    def get_data_single(self, num_episodes, episode_start = 0):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
         single_day_payoffs = np.zeros(self.num_days)
@@ -267,7 +267,7 @@ class PPO_Solver(Solver):
             total_ts = self.num_days * self.time_horizon
             data_traj[episode] = {}
             for t in range(self.time_horizon * self.network_horizon_repeat):
-                data_traj[episode][t] = {"state_counts": deque([]), "next_state_counts": deque([]), "payoff": deque([]), "atomic_payoff": deque([]), "action_id": deque([]), "ts": deque([])}
+                data_traj[episode_start + episode][t] = {"state_counts": deque([]), "next_state_counts": deque([]), "payoff": deque([]), "atomic_payoff": deque([]), "action_id": deque([]), "ts": deque([])}
             record_num = 0
             for i in range(state_num - 1, -1, -1):
                 tup = tmp[i]
@@ -290,20 +290,20 @@ class PPO_Solver(Solver):
 #                    if record_num == 0:
 #                        assert next_state_counts is not None
 #                        data_traj[episode][t + offset]["state_counts"].appendleft(next_state_counts.reshape((1, lens)))
-                    data_traj[episode][t + offset]["next_state_counts"].appendleft(next_state_counts.reshape((1, lens)))
-                    data_traj[episode][t + offset]["payoff"].appendleft(payoff)
-                    data_traj[episode][t + offset]["state_counts"].appendleft(curr_state_counts.reshape((1, lens)))
-                    data_traj[episode][t + offset]["action_id"].appendleft(action_id)
-                    data_traj[episode][t + offset]["ts"].appendleft((t, next_t, day_num))
-                    data_traj[episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
+                    data_traj[episode_start + episode][t + offset]["next_state_counts"].appendleft(next_state_counts.reshape((1, lens)))
+                    data_traj[episode_start + episode][t + offset]["payoff"].appendleft(payoff)
+                    data_traj[episode_start + episode][t + offset]["state_counts"].appendleft(curr_state_counts.reshape((1, lens)))
+                    data_traj[episode_start + episode][t + offset]["action_id"].appendleft(action_id)
+                    data_traj[episode_start + episode][t + offset]["ts"].appendleft((t, next_t, day_num))
+                    data_traj[episode_start + episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
                     record_num += 1
             for t in range(self.time_horizon):
-                data_traj[episode][t]["state_counts"] = list(data_traj[episode][t]["state_counts"])
-                data_traj[episode][t]["next_state_counts"] = list(data_traj[episode][t]["next_state_counts"])
-                data_traj[episode][t]["payoff"] = list(data_traj[episode][t]["payoff"])
-                data_traj[episode][t]["atomic_payoff"] = list(data_traj[episode][t]["atomic_payoff"])
-                data_traj[episode][t]["action_id"] = list(data_traj[episode][t]["action_id"])
-                data_traj[episode][t]["ts"] = list(data_traj[episode][t]["ts"])
+                data_traj[episode_start + episode][t]["state_counts"] = list(data_traj[episode][t]["state_counts"])
+                data_traj[episode_start + episode][t]["next_state_counts"] = list(data_traj[episode][t]["next_state_counts"])
+                data_traj[episode_start + episode][t]["payoff"] = list(data_traj[episode][t]["payoff"])
+                data_traj[episode_start + episode][t]["atomic_payoff"] = list(data_traj[episode][t]["atomic_payoff"])
+                data_traj[episode_start + episode][t]["action_id"] = list(data_traj[episode][t]["action_id"])
+                data_traj[episode_start + episode][t]["ts"] = list(data_traj[episode][t]["ts"])
             ############
 #            state_action_advantage_lst_episodes.append(tmp)
         norm_factor = torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.num_days)))
@@ -356,7 +356,7 @@ class PPO_Solver(Solver):
                     batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
                     results = parallel(delayed(
                         self.get_data_single
-                    )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i) for i in range(self.n_cpu))
+                    )(min((i + 1) * batch_size, self.num_episodes) - i * batch_size, i * batch_size) for i in range(self.n_cpu))
                     print("Gathering results...")
                     payoff_val = 0
                     single_day_payoffs = np.zeros(self.num_days)
