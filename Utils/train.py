@@ -298,8 +298,8 @@ class PPO_Solver(Solver):
                     data_traj[episode_start + episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
                     record_num += 1
             for t in range(self.time_horizon):
-                data_traj[episode_start + episode][t]["state_counts"] = list(data_traj[episode_start + episode][t]["state_counts"])
-                data_traj[episode_start + episode][t]["next_state_counts"] = list(data_traj[episode_start + episode][t]["next_state_counts"])
+                data_traj[episode_start + episode][t]["state_counts"] = torch.cat(list(data_traj[episode_start + episode][t]["state_counts"]), dim = 0)
+                data_traj[episode_start + episode][t]["next_state_counts"] = torch.cat(list(data_traj[episode_start + episode][t]["next_state_counts"]), dim = 0)
                 data_traj[episode_start + episode][t]["payoff"] = list(data_traj[episode_start + episode][t]["payoff"])
                 data_traj[episode_start + episode][t]["atomic_payoff"] = list(data_traj[episode_start + episode][t]["atomic_payoff"])
                 data_traj[episode_start + episode][t]["action_id"] = list(data_traj[episode_start + episode][t]["action_id"])
@@ -390,7 +390,7 @@ class PPO_Solver(Solver):
                         value_dct[t] = {"state_counts": [], "payoff": []}
                     for day in batch_idx:
                         for t in range(self.time_horizon):
-                            value_dct[t]["state_counts"] += data_traj_all[day][t]["state_counts"]
+                            value_dct[t]["state_counts"] += [data_traj_all[day][t]["state_counts"]]
 #                            if t < self.time_horizon - 1:
 #                                value_dct[t]["state_counts"] += data_traj_all[day][t]["state_counts"]
 #                            else:
@@ -424,29 +424,24 @@ class PPO_Solver(Solver):
                     self.policy_optimizer.zero_grad(set_to_none=True)
                     for day in batch_idx:
                         for t in range(self.time_horizon):
-#                            if t < self.time_horizon - 1:
-#                                curr_state_counts_lst = data_traj_all[day][t]["state_counts"]
-#                                next_state_counts_lst = data_traj_all[day][t]["state_counts"][1:] + [data_traj_all[day][t + 1]["state_counts"][0]]
-#                            else:
-#                                curr_state_counts_lst = data_traj_all[day][t]["state_counts"][:-1]
-#                                next_state_counts_lst = data_traj_all[day][t]["state_counts"][1:]
                             curr_state_counts_lst = data_traj_all[day][t]["state_counts"]
+                            lens = curr_state_counts_lst.shape[1]
                             next_state_counts_lst = data_traj_all[day][t]["next_state_counts"]
-                            policy_dct[(t, t, 0)]["curr_state_counts"] += curr_state_counts_lst[:-1]
-                            policy_dct[(t, t, 0)]["next_state_counts"] += next_state_counts_lst[:-1]
+                            policy_dct[(t, t, 0)]["curr_state_counts"] += [curr_state_counts_lst[:-1,:]]
+                            policy_dct[(t, t, 0)]["next_state_counts"] += [next_state_counts_lst[:-1,:]]
                             policy_dct[(t, t, 0)]["action_id"] += data_traj_all[day][t]["action_id"][:-1]
                             policy_dct[(t, t, 0)]["atomic_payoff"] += data_traj_all[day][t]["atomic_payoff"][:-1]
-                            policy_dct[(t, t + 1, 0)]["curr_state_counts"] += [curr_state_counts_lst[-1]]
-                            policy_dct[(t, t + 1, 0)]["next_state_counts"] += [next_state_counts_lst[-1]]
+                            policy_dct[(t, t + 1, 0)]["curr_state_counts"] += [curr_state_counts_lst[-1,:].reshape((1, lens))]
+                            policy_dct[(t, t + 1, 0)]["next_state_counts"] += [next_state_counts_lst[-1,:].reshape((1, lens))]
                             policy_dct[(t, t + 1, 0)]["action_id"] += [data_traj_all[day][t]["action_id"][-1]]
                             policy_dct[(t, t + 1, 0)]["atomic_payoff"] += [data_traj_all[day][t]["atomic_payoff"][-1]]
                     for day_num in range(1):
                         for t in range(self.time_horizon):
                             for offset in [0, 1]:
                                 next_t = t + offset
-                                if len(policy_dct[(t, next_t, day_num)]["curr_state_counts"]) > 0:
-                                    curr_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["curr_state_counts"], dim = 0)
-                                    next_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["next_state_counts"], dim = 0)
+                                curr_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["curr_state_counts"], dim = 0)
+                                next_state_counts_lst = torch.cat(policy_dct[(t, next_t, day_num)]["next_state_counts"], dim = 0)
+                                if curr_state_counts_lst.shape[0] > 0:
                                     action_id_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["action_id"]).to(device = self.device)
                                     atomic_payoff_lst = torch.tensor(policy_dct[(t, next_t, day_num)]["atomic_payoff"]).to(device = self.device)
                                     advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
