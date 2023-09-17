@@ -20,6 +20,7 @@
         "battery_jump": 0.3,
         "use_charging_curve": true,
         "force_charging": false,
+        "total_revenue_benchmark": 16522,
         "charging_rates": [
             150
         ],
