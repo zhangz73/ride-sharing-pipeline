@@ -425,9 +425,9 @@ class PPO_Solver(Solver):
                     for day in batch_idx:
                         for t in range(self.time_horizon):
                             curr_state_counts_lst = data_traj_all[day][t]["state_counts"]
-                            lens = curr_state_counts_lst.shape[1]
                             next_state_counts_lst = data_traj_all[day][t]["next_state_counts"]
-                            if curr_state_counts_lst is not None:
+                            if curr_state_counts_lst is not None and curr_state_counts_lst.shape[0] > 0:
+                                lens = curr_state_counts_lst.shape[1]
                                 policy_dct[(t, t, 0)]["curr_state_counts"] += [curr_state_counts_lst[:-1,:]]
                                 policy_dct[(t, t, 0)]["next_state_counts"] += [next_state_counts_lst[:-1,:]]
                                 policy_dct[(t, t, 0)]["action_id"] += data_traj_all[day][t]["action_id"][:-1]
