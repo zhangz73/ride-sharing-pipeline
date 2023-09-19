@@ -61,7 +61,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, use_region = False, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", num_itr = 100, num_episodes = 100, car_batch = None, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, use_region = False, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -79,6 +79,9 @@ class PPO_Solver(Solver):
         self.use_avg_value = (self.num_days > 1) and (self.gamma == 1)
         self.eval_days = eval_days
         self.num_cars = self.markov_decision_process.num_total_cars
+        self.car_batch = car_batch
+        if self.car_batch is None:
+            self.car_batch = self.num_total_cars - 1
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.policy_epoch = policy_epoch
@@ -283,7 +286,7 @@ class PPO_Solver(Solver):
                         curr_t = t
                     else:
                         payoff = atomic_payoff + payoff
-                if day_num < self.useful_days:
+                if day_num < self.useful_days and curr_state_counts is not None:
                     lens = len(curr_state_counts)
                     if next_state_counts is None and i < state_num - 1:
                         next_state_counts = tmp[i + 1][0]
@@ -624,6 +627,9 @@ class PPO_Solver(Solver):
 #                print("t = ", t)
 #                print(self.markov_decision_process.describe_state_counts())
             transit_applied = False
+            curr_car_batch = min(self.car_batch, num_available_cars - 1)
+            if curr_car_batch > 0:
+                selected_idx_for_state_data = set(np.random.choice(num_available_cars - 1, size = curr_car_batch, replace = False))
             for car_idx in tqdm(range(num_available_cars), leave = False):
                 ## Perform state transitions
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
@@ -668,13 +674,15 @@ class PPO_Solver(Solver):
                             action_lst.append((curr_state_counts_full, None, t, None))
                         markov_decision_process.transit_across_timestamp()
                         next_t += 1
-                    if t == self.time_horizon - 1 and car_idx == num_available_cars - 1:
+                    if True: #t == self.time_horizon - 1 and car_idx == num_available_cars - 1:
                         next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
                     else:
                         next_state_counts = None
                     payoff = markov_decision_process.get_payoff_curr_ts().clone()
                     if return_data: # and t < self.time_horizon - 1:
                         if day_num >= self.useful_days:
+                            curr_state_counts, next_state_counts = None, None
+                        if car_idx < num_available_cars - 1 and car_idx not in selected_idx_for_state_data:
                             curr_state_counts, next_state_counts = None, None
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
                     atomic_payoff_lst.append(payoff - curr_payoff)

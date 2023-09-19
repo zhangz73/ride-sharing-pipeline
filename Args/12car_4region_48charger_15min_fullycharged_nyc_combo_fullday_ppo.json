@@ -7,7 +7,7 @@
         "arrival_type": "poisson",
         "parameter_fname": "TripDemand/trip_demand_12car4region48chargers15mins_fullycharged_nyc_combo_fullday.tsv",
         "data": null,
-        "scaling_factor": 4
+        "scaling_factor": 1
     },
     "reward": {
         "reward_fname": "Payoff/payoff_12car4region48chargers15mins_fullycharged_nyc_combo_fullday.tsv"
@@ -50,7 +50,7 @@
         "policy_hidden_dim_lst": [500, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
-        "policy_lr": 5e-5,
+        "policy_lr": 5e-4,
         "policy_epoch": 3,
         "policy_batch": 100,
         "policy_decay": 0.1,
@@ -61,10 +61,11 @@
         "dir": ".",
         "num_itr": 80,
         "num_episodes": 500,
-        "num_days": 3,
+        "car_batch": 5,
+        "num_days": 7,
         "network_horizon_repeat": 1,
         "useful_days": 2,
-        "gamma": 0.97,
+        "gamma": 1,
         "eval_days": 10,
         "ckpt_freq": 10,
         "benchmarking_policy": "uniform",
