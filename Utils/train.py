@@ -290,6 +290,7 @@ class PPO_Solver(Solver):
                     lens = len(curr_state_counts)
                     if next_state_counts is None and i < state_num - 1:
                         next_state_counts = tmp[i + 1][0]
+                        assert next_state_counts is not None
 #                    if record_num == 0:
 #                        assert next_state_counts is not None
 #                        data_traj[episode][t + offset]["state_counts"].appendleft(next_state_counts.reshape((1, lens)))
@@ -687,8 +688,10 @@ class PPO_Solver(Solver):
                         if curr_state_counts is None:
                             next_state_counts is None
                         else:
-                            if car_idx + 1 in selected_idx_for_state_data or car_idx == num_available_cars - 2:
-                                next_state_counts = None
+                            if (car_idx - 1) in selected_idx_for_state_data:
+                                tup = state_action_advantage_lst[-1]
+                                tup_new = (tup[0], tup[1], None, tup[3], tup[4], tup[5], tup[6], tup[7])
+                                state_action_advantage_lst[-1] = tup_new
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
                     atomic_payoff_lst.append(payoff - curr_payoff)
                     discount_lst.append(self.gamma ** t)

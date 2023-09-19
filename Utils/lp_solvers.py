@@ -249,10 +249,14 @@ class LP_On_AugmentedGraph(LP_Solver):
                 self.c[begin:(begin + self.num_regions ** 2)] = self.trip_rewards[t,:] * self.gamma ** t
         for t in range(self.time_horizon):
             for rate_idx in range(self.num_charging_rates):
-                cost = self.charging_costs[t, rate_idx]
-                begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + rate_idx * self.num_battery_levels * self.num_regions
-                end = begin + self.num_battery_levels * self.num_regions
-                self.c[begin:end] = cost * self.gamma ** t
+                for b in range(self.num_battery_levels):
+                    unit_cost = self.charging_costs[t, rate_idx]
+                    rate = self.charging_rates[rate_idx]
+                    next_battery = self.markov_decision_process.get_next_battery(rate, b)
+                    cost = (next_battery - b) / rate * unit_cost
+                    begin = self.charging_flow_begin + t * self.num_charging_rates * self.num_battery_levels * self.num_regions + rate_idx * self.num_battery_levels * self.num_regions + b * self.num_regions
+                    end = begin + self.num_regions
+                    self.c[begin:end] = cost * self.gamma ** t
     
     ## Flows add up to initial car distribution
     ## Flow conservation at each time, battery, and region
@@ -443,7 +447,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         start_charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         rate = self.charging_rates[rate_idx]
                         end_time = t + 1
-                        end_battery = min(b + rate, self.num_battery_levels - 1)
+                        ## TODO: Adapt it to incorporate charging curves
+                        end_battery = self.markov_decision_process.get_next_battery(rate, b) #min(b + rate, self.num_battery_levels - 1)
                         charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         start_row = self.get_flow_conserv_entry(t, b, region)
                         row_lst += [start_row]
