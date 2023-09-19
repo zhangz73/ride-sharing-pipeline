@@ -683,7 +683,12 @@ class PPO_Solver(Solver):
                         if day_num >= self.useful_days:
                             curr_state_counts, next_state_counts = None, None
                         if car_idx < num_available_cars - 1 and car_idx not in selected_idx_for_state_data:
-                            curr_state_counts, next_state_counts = None, None
+                            curr_state_counts = None
+                        if curr_state_counts is None:
+                            next_state_counts is None
+                        else:
+                            if car_idx + 1 in selected_idx_for_state_data or car_idx == num_available_cars - 2:
+                                next_state_counts = None
                         state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
                     atomic_payoff_lst.append(payoff - curr_payoff)
                     discount_lst.append(self.gamma ** t)
