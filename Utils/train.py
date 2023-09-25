@@ -818,8 +818,8 @@ class SolverFactory:
 
 ## This module generate plots and tables
 class ReportFactory:
-    def __init__(self):
-        pass
+    def __init__(self, vis_battery_level = 10):
+        self.vis_battery_level = vis_battery_level
     
     def get_plot(self):
         pass
@@ -875,8 +875,9 @@ class ReportFactory:
             curr_lo += y_arr_lst[i]
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
-        plt.legend()
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.title(title)
+        plt.tight_layout()
         plt.savefig(f"TablePlots/{figname}.png")
         plt.clf()
         plt.close()
@@ -891,7 +892,8 @@ class ReportFactory:
         ## Visualize trip status
         self.plot_stacked(df_table["t"], [df_table["num_fulfilled_requests"], df_table["num_queued_requests"], df_table["num_abandoned_requests"]], label_lst = ["# Fulfilled Requests", "# Queued Requests", "# Abandoned Requests"], xlabel = "Time Steps", ylabel = "# Requests", title = title, figname = f"trip_status_{suffix}")
         ## Visualize car battery status
-        self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"battery_status_{suffix}")
+        self.plot_stacked(df_table["t"], [df_table[f"frac_battery_cars_{i}"] for i in range(self.vis_battery_level)], label_lst = [f"{i/self.vis_battery_level*100}%-{((i+1)/self.vis_battery_level)*100}% Battery Cars" for i in range(self.vis_battery_level)], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"battery_status_{suffix}")
+#        self.plot_stacked(df_table["t"], [df_table["frac_high_battery_cars"], df_table["frac_med_battery_cars"], df_table["frac_low_battery_cars"]], label_lst = ["% High Battery Cars", "% Med Battery Cars", "% Low Battery Cars"], xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"battery_status_{suffix}")
         ## Visualize region supply & demand balancedness
         if detailed:
             regions = [int(x.split("_")[-1]) for x in df_table.columns if x.startswith("num_cars")]
@@ -936,9 +938,10 @@ class ReportFactory:
         num_fulfilled_requests_lst = []
         num_queued_requests_lst = []
         num_abandoned_requests_lst = []
-        frac_low_battery_cars_lst = []
-        frac_med_battery_cars_lst = []
-        frac_high_battery_cars_lst = []
+#        frac_low_battery_cars_lst = []
+#        frac_med_battery_cars_lst = []
+#        frac_high_battery_cars_lst = []
+        frac_battery_cars_lst = [[] for _ in range(self.vis_battery_level)]
         num_trip_requests_dct = {}
         num_cars_dct = {}
         charging_car_dct = {}
@@ -988,9 +991,10 @@ class ReportFactory:
                 num_requests_fulfilled = num_active_requests_begin - num_active_requests_end
                 num_requests_queued = markov_decision_process.get_num_queued_trip_requests(curr_state_counts)
                 num_requests_abandoned = markov_decision_process.get_num_abandoned_trip_requests(curr_state_counts)
-                num_low_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "L")
-                num_med_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "M")
-                num_high_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "H")
+                num_battery_cars = markov_decision_process.get_num_cars_w_battery_fine(curr_state_counts, levels = self.vis_battery_level)
+#                num_low_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "L")
+#                num_med_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "M")
+#                num_high_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "H")
                 for region in range(num_regions):
                     if detailed:
                         num_charging_cars_region = markov_decision_process.get_num_charging_cars_region(region, state_counts = curr_state_counts)
@@ -1013,10 +1017,14 @@ class ReportFactory:
                 num_fulfilled_requests_lst.append(num_requests_fulfilled)
                 num_queued_requests_lst.append(num_requests_queued)
                 num_abandoned_requests_lst.append(num_requests_abandoned)
-                frac_low_battery_cars_lst.append(num_low_battery_cars / num_total_cars)
-                frac_med_battery_cars_lst.append(num_med_battery_cars / num_total_cars)
-                frac_high_battery_cars_lst.append(num_high_battery_cars / num_total_cars)
-        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_passenger-carrying_cars": frac_passenger_carrying_cars_lst, "frac_rerouting_cars": frac_rerouting_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
+                for i in range(self.vis_battery_level):
+                    frac_battery_cars_lst[i].append(num_battery_cars[i] / num_total_cars)
+#                frac_low_battery_cars_lst.append(num_low_battery_cars / num_total_cars)
+#                frac_med_battery_cars_lst.append(num_med_battery_cars / num_total_cars)
+#                frac_high_battery_cars_lst.append(num_high_battery_cars / num_total_cars)
+        dct = {"t": t_lst, "num_new_requests": num_new_requests_lst, "frac_requests_fulfilled": frac_requests_fulfilled_lst, "frac_passenger-carrying_cars": frac_passenger_carrying_cars_lst, "frac_rerouting_cars": frac_rerouting_cars_lst, "frac_charging_cars": frac_charging_cars_lst, "frac_idling_cars": frac_idling_cars_lst, "num_fulfilled_requests": num_fulfilled_requests_lst, "num_queued_requests": num_queued_requests_lst, "num_abandoned_requests": num_abandoned_requests_lst}#, "frac_low_battery_cars": frac_low_battery_cars_lst, "frac_med_battery_cars": frac_med_battery_cars_lst, "frac_high_battery_cars": frac_high_battery_cars_lst}
+        for i in range(self.vis_battery_level):
+            dct[f"frac_battery_cars_{i}"] = frac_battery_cars_lst[i]
         for region in range(num_regions):
             dct[f"num_trip_requests_{region}"] = num_trip_requests_dct[region]
             dct[f"num_cars_region_{region}"] = num_cars_dct[region]

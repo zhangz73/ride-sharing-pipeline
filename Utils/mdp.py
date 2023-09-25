@@ -741,6 +741,29 @@ class MarkovDecisionProcess:
                     cnt += state_counts[curr_id]
         return float(cnt)
     
+    ## Get number of cars with H/M/L battery levels
+    def get_num_cars_w_battery_fine(self, state_counts = None, levels = 10):
+        ## TODO: FIX IT!!!
+        if state_counts is None:
+            state_counts = self.state_counts
+        cnt_lst = np.zeros(levels)
+        for dest in self.regions:
+            for eta in range(0, self.pickup_patience + self.max_travel_time + 1):
+                for battery in range(self.num_battery_levels):
+                    for type in ["general", "assigned"]:
+                        curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
+                        cnt = state_counts[curr_id]
+                        curr_level = int(battery / self.num_battery_levels * levels)
+                        cnt_lst[curr_level] += int(cnt)
+        for region in self.regions:
+            for battery in range(self.num_battery_levels):
+                for rate in self.charging_rates:
+                    curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+                    cnt = state_counts[curr_id]
+                    curr_level = int(battery / self.num_battery_levels * levels)
+                    cnt_lst[curr_level] += int(cnt)
+        return cnt_lst
+    
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
     def get_state_counts(self, state_reduction = False, car_id = None, deliver = False, region = None, use_region = False):
