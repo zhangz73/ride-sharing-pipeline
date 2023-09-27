@@ -81,7 +81,7 @@ class PPO_Solver(Solver):
         self.num_cars = self.markov_decision_process.num_total_cars
         self.car_batch = car_batch
         if self.car_batch is None:
-            self.car_batch = self.num_total_cars - 1
+            self.car_batch = markov_decision_process.num_total_cars - 1
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.policy_epoch = policy_epoch
@@ -486,24 +486,25 @@ class PPO_Solver(Solver):
                     self.value_model_factory.save_to_file(descriptor, include_ts = True)
                     self.policy_model_factory.save_to_file(descriptor, include_ts = True)
                     num_trials = 10
-                    payoff = 0
-                    df_table_all = None
-                    norm_factor = self.eval_days #torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
-#                    norm_factor = torch.sum(self.gamma ** torch.arange(self.eval_days))
-                    for i in tqdm(range(num_trials)):
-                        for day in range(self.eval_days):
-                            _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
-                            if len(payoff_lst) > 0:
-                                payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor #float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
-#                            payoff += float(payoff_lst[-1].data) * self.gamma ** day / norm_factor
-                            df_table = report_factory.get_table(self.markov_decision_process, action_lst)
-                            df_table["trial"] = i
-                            df_table["t"] += self.time_horizon * day
-                            if df_table_all is None:
-                                df_table_all = df_table
-                            else:
-                                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
-                    payoff /= num_trials
+                    df_table_all, payoff = self.evaluate_batch(num_trials, self.eval_days, seed_lst = None, n_cpu = self.n_cpu, parallel = parallel)
+#                    payoff = 0
+#                    df_table_all = None
+#                    norm_factor = self.eval_days #torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
+##                    norm_factor = torch.sum(self.gamma ** torch.arange(self.eval_days))
+#                    for i in tqdm(range(num_trials)):
+#                        for day in range(self.eval_days):
+#                            _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = None, day_num = day)
+#                            if len(payoff_lst) > 0:
+#                                payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor #float(discounted_payoff.data) * self.gamma ** (day * self.time_horizon) / norm_factor #float(payoff_lst[-1].data)
+##                            payoff += float(payoff_lst[-1].data) * self.gamma ** day / norm_factor
+#                            df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+#                            df_table["trial"] = i
+#                            df_table["t"] += self.time_horizon * day
+#                            if df_table_all is None:
+#                                df_table_all = df_table
+#                            else:
+#                                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+#                    payoff /= num_trials
                     df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
                     report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
             
@@ -597,6 +598,49 @@ class PPO_Solver(Solver):
             return None
         return torch.argmax(policy_output)
     
+    def evaluate_batch(self, num_trials, eval_days, seed_lst = None, n_cpu = 1, parallel = None):
+        df_table_all = None
+        batch_size = int(math.ceil(num_trials / n_cpu))
+        if seed_lst is None:
+            seed_lst = [None] * num_trials
+        if parallel is None:
+            parallel = Parallel(n_jobs = n_cpu)
+        res = parallel(delayed(self.evaluate_batch_single)(
+            min(num_trials, (i + 1) * batch_size) - i * batch_size, eval_days, seed_lst[(i * batch_size):min(num_trials, (i + 1) * batch_size)]
+        ) for i in range(n_cpu))
+        payoff = 0
+        for df_table, payoff_single in res:
+            if df_table_all is None:
+                df_table_all = df_table
+            else:
+                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+            payoff += payoff_single
+        payoff /= num_trials
+        return df_table_all, payoff
+    
+    def evaluate_batch_single(self, num_trials, eval_days, seed_lst = None):
+        df_table_all = None
+        report_factory = ReportFactory()
+        norm_factor = eval_days #torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
+        payoff = 0
+        for i in tqdm(range(num_trials)):
+            for day in range(self.eval_days):
+                if seed_lst is not None:
+                    seed = seed_lst[i]
+                else:
+                    seed = None
+                _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = seed, day_num = day)
+                if len(payoff_lst) > 0:
+                    payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor
+                df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+                df_table["trial"] = i
+                df_table["t"] += self.time_horizon * day
+                if df_table_all is None:
+                    df_table_all = df_table
+                else:
+                    df_table_all = pd.concat([df_table_all, df_table], axis = 0)
+        return df_table_all, payoff
+    
     def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, day_num = 0):
         if True: #not train:
             self.value_model.eval()
@@ -631,6 +675,8 @@ class PPO_Solver(Solver):
             curr_car_batch = min(self.car_batch, num_available_cars - 1)
             if curr_car_batch > 0:
                 selected_idx_for_state_data = set(np.random.choice(num_available_cars - 1, size = curr_car_batch, replace = False))
+            else:
+                selected_idx_for_state_data = set([])
             for car_idx in tqdm(range(num_available_cars), leave = False):
                 ## Perform state transitions
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
@@ -967,8 +1013,8 @@ class ReportFactory:
                         num_trip_requests_region = markov_decision_process.get_num_trip_requests_region(region, state_counts = curr_state_counts)
                         num_cars_region = markov_decision_process.get_num_cars_region(region, state_counts = curr_state_counts)
                     else:
-                        num_trip_requests_region = None
-                        num_cars_region = None
+                        num_trip_requests_region = 0
+                        num_cars_region = 0
                     num_trip_requests_dct[region].append(num_trip_requests_region)
                     num_cars_dct[region].append(num_cars_region)
             if car_idx is None:
@@ -999,7 +1045,7 @@ class ReportFactory:
                     if detailed:
                         num_charging_cars_region = markov_decision_process.get_num_charging_cars_region(region, state_counts = curr_state_counts)
                     else:
-                        num_charging_cars_region = None
+                        num_charging_cars_region = 0
                     charging_car_dct[region].append(num_charging_cars_region)
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
