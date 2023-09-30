@@ -111,7 +111,7 @@ class PPO_Solver(Solver):
         self.policy_optimizer, self.policy_scheduler = self.policy_model_factory.prepare_optimizer()
         self.markov_decision_process_pg = copy.deepcopy(markov_decision_process)
         self.markov_decision_process_lst = []
-        for i in range(self.n_cpu): #self.n_cpu
+        for i in range(1): #self.n_cpu
             cp = copy.deepcopy(markov_decision_process)
             self.markov_decision_process_lst.append(cp)
         self.value_scale = self.value_model_factory.get_value_scale()
@@ -253,7 +253,7 @@ class PPO_Solver(Solver):
             tmp = []
             payoff_prev = 0
             for day in range(self.num_days):
-                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[worker_num], day_num = day)
+                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
 #                total_payoff += payoff_val * self.gamma ** day
