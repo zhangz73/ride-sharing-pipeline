@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-SCENARIO_NAME = "st-stc_12car4region_xi=0.5" #"12car4region48chargers15mins_fullycharged_nyc_combo" #"10car5region" #
+SCENARIO_NAME = "100car5region500chargers5mins_fullycharged_nyc_combo" #"st-stc_12car4region_xi=0.5" #"12car4region48chargers15mins_fullycharged_nyc_combo" #"10car5region" #
 
 trip_demand_df = pd.read_csv(f"Data/TripDemand/trip_demand_{SCENARIO_NAME}.tsv", sep = "\t")
 map_df = pd.read_csv(f"Data/Map/map_{SCENARIO_NAME}.tsv", sep = "\t")

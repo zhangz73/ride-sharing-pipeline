@@ -45,7 +45,7 @@ else:
 #    ]
     LOCATIONS_ID_OF_INTEREST = [
         [132], ## JFK Airport
-        [138], ## LGA Airport
+#        [138], ## LGA Airport
         [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown + Midtown Lower
         [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
         [239, 143, 142, 50, 48], ## Upper + Midtown West
@@ -72,7 +72,7 @@ NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_I
 CHARGING_RATE_DIS = 5 * TIME_FREQ #int(round(5/3 * TIME_FREQ)) #10 * TIME_FREQ #int(round(2.5 * TIME_FREQ)) #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
 NUM_REGIONS = len(LOCATIONS_ID_OF_INTEREST)
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)

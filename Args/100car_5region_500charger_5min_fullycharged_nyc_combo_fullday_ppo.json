@@ -1,16 +1,16 @@
 {
     "map": {
-        "data_dir": "Map/map_100car6region600chargers5mins_fullycharged_nyc_combo.tsv"
+        "data_dir": "Map/map_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_100car6region600chargers5mins_fullycharged_nyc_combo.tsv",
+        "parameter_fname": "TripDemand/trip_demand_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv",
         "data": null,
         "scaling_factor": 1
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_100car6region600chargers5mins_fullycharged_nyc_combo.tsv"
+        "reward_fname": "Payoff/payoff_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv"
     },
     "mdp": {
         "time_horizon": 288,
@@ -20,7 +20,7 @@
         "battery_jump": 0.3,
         "use_charging_curve": true,
         "force_charging": false,
-        "total_revenue_benchmark": 167888.27,
+        "total_revenue_benchmark": null,
         "charging_rates": [
             25
         ],
@@ -28,8 +28,8 @@
         "battery_per_step": 1,
         "normalize_by_tripnums": true,
         "battery_cutoff": [45, 90],
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_100car6region600chargers5mins_fullycharged_nyc_combo.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_100car6region600chargers5mins_fullycharged_nyc_combo.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv"
     },
     "solver": {
         "type": "ppo"
@@ -40,7 +40,7 @@
         "value_activation_lst": ["tanh", "relu", "tanh"],
         "value_batch_norm": false,
         "value_lr": 1e-2,
-        "value_epoch": 30,
+        "value_epoch": 50,
         "value_batch": 100,
         "value_decay": 0.1,
         "value_scheduler_step": 50,
