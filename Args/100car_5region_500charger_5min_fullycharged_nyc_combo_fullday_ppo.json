@@ -19,7 +19,8 @@
         "num_battery_levels": 132,
         "battery_jump": 0.3,
         "use_charging_curve": true,
-        "force_charging": false,
+        "charging_cost_inflation": 2,
+        "force_charging": true,
         "total_revenue_benchmark": null,
         "charging_rates": [
             25
@@ -50,7 +51,7 @@
         "policy_hidden_dim_lst": [500, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
-        "policy_lr": 5e-4,
+        "policy_lr": 2e-4,
         "policy_epoch": 3,
         "policy_batch": 100,
         "policy_decay": 0.1,
@@ -61,7 +62,7 @@
         "dir": ".",
         "num_itr": 80,
         "num_episodes": 500,
-        "num_days": 7,
+        "num_days": 1,
         "car_batch": 20,
         "network_horizon_repeat": 1,
         "useful_days": 2,

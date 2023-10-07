@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, battery_per_step = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, charging_cost_inflation = 1, battery_per_step = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -326,6 +326,7 @@ class MarkovDecisionProcess:
         self.car_deployment_type = car_deployment_type
         self.num_charging_rates = len(charging_rates)
         self.battery_jump = battery_jump
+        self.charging_cost_inflation = charging_cost_inflation
         self.battery_per_step = battery_per_step
         self.use_charging_curve = use_charging_curve
         self.force_charging = force_charging
@@ -1267,7 +1268,7 @@ class MarkovDecisionProcess:
         self.state_counts[plug_id] -= 1
         self.reduced_state_counts[plug_id] -= 1
         ## Update payoff
-        atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts) * (next_battery - battery) / rate
+        atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts) * (next_battery - battery) / rate * self.charging_cost_inflation
         self.payoff_curr_ts += atomic_payoff
         ## Update existing car types
         self.update_available_existing_car_types(id)

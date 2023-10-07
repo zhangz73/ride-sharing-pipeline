@@ -119,7 +119,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                     cost = tmp_df.iloc[0]["Payoff"]
                 else:
                     cost = 0
-                self.charging_costs[t, rate_idx] = cost
+                self.charging_costs[t, rate_idx] = cost * self.markov_decision_process.charging_cost_inflation
         ### Trip demand T x R^2
         self.trip_demands = self.markov_decision_process.trip_demands.get_arrival_rates()
         self.total_revenue = np.sum(self.trip_demands * self.trip_rewards)

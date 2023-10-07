@@ -18,6 +18,9 @@
         "pickup_patience": 1,
         "num_battery_levels": 132,
         "battery_jump": 0.3,
+        "use_charging_curve": true,
+        "charging_cost_inflation": 2,
+        "force_charging": true,
         "charging_rates": [
             25
         ],
