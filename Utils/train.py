@@ -506,7 +506,7 @@ class PPO_Solver(Solver):
 #                                df_table_all = pd.concat([df_table_all, df_table], axis = 0)
 #                    payoff /= num_trials
                     df_table_all = df_table_all.groupby(["t"]).mean().reset_index()
-                    report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}")
+                    report_factory.visualize_table(df_table_all, f"{label}_itr={itr}", title = f"Total Payoff: {payoff:.2f}", detailed = True)
             
 #            if return_payoff:
 #                _, _, payoff_lst, _ = self.evaluate(return_action = False, seed = 0)
@@ -629,10 +629,10 @@ class PPO_Solver(Solver):
                     seed = seed_lst[i]
                 else:
                     seed = None
-                _, _, payoff_lst, action_lst, discounted_payoff = self.evaluate(return_action = True, seed = seed, day_num = day)
+                _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars = self.evaluate(return_action = True, seed = seed, day_num = day)
                 if len(payoff_lst) > 0:
                     payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor
-                df_table = report_factory.get_table(self.markov_decision_process, action_lst)
+                df_table = report_factory.get_table(self.markov_decision_process, action_lst, passenger_carrying_cars, detailed = True)
                 df_table["trial"] = i
                 df_table["t"] += self.time_horizon * day
                 if df_table_all is None:
@@ -783,11 +783,12 @@ class PPO_Solver(Solver):
         if return_data:
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
             return state_action_advantage_lst, final_payoff, discounted_payoff
+        passenger_carrying_cars = markov_decision_process.passenger_carrying_cars
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)
 #        print("payoff", float(payoff_lst[-1].data))
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
-        return None, None, payoff_lst, action_lst, discounted_payoff
+        return None, None, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars
 
 class D_Closest_Car_Solver(Solver):
     def __init__(self, markov_decision_process = None, d = 1, num_days = 1, useful_days = 1, gamma = 1):
@@ -840,7 +841,8 @@ class D_Closest_Car_Solver(Solver):
         atomic_payoff_lst = torch.tensor([init_payoff] + payoff_lst)
         atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
         discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
-        return None, None, payoff_lst, action_lst_ret, discounted_payoff
+        passenger_carrying_cars = self.markov_decision_process.passenger_carrying_cars
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars
 
 ## This module constructs a corresponding solver given parameters
 class SolverFactory:
@@ -964,7 +966,8 @@ class ReportFactory:
             self.plot_bar([str(x) for x in range(num_regions)], y_arr, "Region", "% Charging Cars", "", f"region_charging_frac_{suffix}", dir = "TablePlots")
 #            self.plot_stacked(df_table["t"], y_lst, label_lst = label_lst, xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"region_charging_distribution_{suffix}")
     
-    def get_table(self, markov_decision_process, action_lst, detailed = False):
+    def get_table(self, markov_decision_process, action_lst, passenger_carrying_cars, detailed = False):
+        passenger_carrying_cars = passenger_carrying_cars.numpy()
         prev_t = -1
         begin = False
         num_active_requests_begin, num_traveling_cars_begin, num_idling_cars_begin, num_charging_cars_begin = 0, 0, 0, 0
@@ -999,7 +1002,7 @@ class ReportFactory:
         for i in tqdm(range(len(action_lst)), leave = False):
             tup = action_lst[i]
             curr_state_counts, action, t, car_idx = tup
-            if t > prev_t:
+            if t != prev_t:
                 begin = True
             else:
                 begin = False
@@ -1050,8 +1053,8 @@ class ReportFactory:
                 frac_traveling_cars = num_traveling_cars_end / num_total_cars
                 frac_charging_cars = num_charging_cars_end / num_total_cars
                 frac_idling_cars = num_idling_cars_end / num_total_cars
-                frac_passenger_carrying_cars = passenger_carrying_cars_arr[t] / num_total_cars
-                frac_rerouting_cars = (num_traveling_cars_end - passenger_carrying_cars_arr[t]) / num_total_cars
+                frac_passenger_carrying_cars = passenger_carrying_cars[t] / num_total_cars
+                frac_rerouting_cars = (num_traveling_cars_end - passenger_carrying_cars[t]) / num_total_cars
                 t_lst.append(t)
                 frac_requests_fulfilled_lst.append(frac_requests_fulfilled)
                 frac_traveling_cars_lst.append(frac_traveling_cars)

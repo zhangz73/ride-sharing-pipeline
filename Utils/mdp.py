@@ -559,6 +559,10 @@ class MarkovDecisionProcess:
             self.car_deployment_prepare()
             self.state_counts += self.region_battery_car_map
             self.reduced_state_counts += self.region_battery_car_reduced_map
+            self.passenger_carrying_cars = torch.zeros(self.time_horizon)
+        else:
+            self.passenger_carrying_cars = self.passenger_carrying_cars_next_day
+        self.passenger_carrying_cars_next_day = torch.zeros(self.time_horizon)
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp(seed = seed)
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
@@ -1200,6 +1204,13 @@ class MarkovDecisionProcess:
                     self.reduced_state_counts[trip_id_dest] -= 1
                     self.trip_request_matrix[origin, dest] -= 1
                 stag_time -= 1
+        ## Book-keeping the number of passenger-carrying cars
+        if action_fulfilled:
+            terminal_ts = self.curr_ts + max(trip_time, 1)
+            self.passenger_carrying_cars[self.curr_ts:min(terminal_ts, self.time_horizon)] += 1
+            if terminal_ts > self.time_horizon:
+                terminal_ts -= self.time_horizon
+                self.passenger_carrying_cars_next_day[:terminal_ts] += 1
         ## Update car states
         if origin != dest or action_fulfilled:
             new_eta = eta + max(trip_time, 1)
@@ -1565,14 +1576,14 @@ class MarkovDecisionProcess:
         begin, end = self.local_order_map[dest]
         start = 1 + len(self.regions) + self.num_binned_battery
         term = start + (end - begin)
-        local_state_counts[start:term] = self.state_counts[begin:end]
+        local_state_counts[start:term] += (self.state_counts[begin:end] > 0)
 #        local_state_counts[term:] = torch.from_numpy((np.add.reduceat(self.state_counts[begin:end].numpy(), np.arange(0, len(self.regions) * (self.connection_patience + 1), self.connection_patience + 1)) > 0) + 0.0)
         if torch.sum(self.state_counts[begin:end]) > 0:
             local_state_counts[term] = 1
         return local_state_counts
     
     ## Get the local state information given a region
-    def get_local_state_region(self, car):
+    def get_local_state_region(self, region):
         local_state_counts = torch.zeros(self.num_total_local_states_region)
         local_state_counts[region] = 1
         begin, end = self.local_order_map[region]

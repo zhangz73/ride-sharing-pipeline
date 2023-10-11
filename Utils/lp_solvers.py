@@ -31,7 +31,9 @@ class LP_Solver(train.Solver):
         print("\tSetting up...")
         model = gp.Model()
         m, n = self.A.shape
-        model.setParam("MIPFocus", 3)
+#        model.setParam("MIPFocus", 3)
+        model.setParam("Method", 2)
+        model.setParam("Crossover", 0)
         x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
         #model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
         model.addConstr(self.A @ x == self.b)
@@ -47,6 +49,7 @@ class LP_Solver(train.Solver):
         for i in tqdm(range(n), leave = False):
             self.x[i] = x[i].x
         self.describe_x()
+        np.save("lp_x.npy", self.x)
         return obj_val / self.total_revenue #self.x, obj_val
     
     def train_cvxpy(self):
@@ -353,15 +356,21 @@ class LP_On_AugmentedGraph(LP_Solver):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
+                    trip_time2 = 1
                     if self.num_days == 1:
                         t_lst = np.arange(t, min(t + trip_time, self.time_horizon))
+                        t_lst2 = np.arange(t, min(t + trip_time2, self.time_horizon))
                     else:
                         t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + trip_time)]
+                        t_lst2 = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + trip_time2)]
                     for b in range(self.num_battery_levels):
                         passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
                         reroute_begin = self.rerouting_flow_begin + passenger_begin
                         total_flow_mat[t_lst, passenger_begin] = 1
-                        total_flow_mat[t_lst, reroute_begin] = 1
+                        if origin != dest:
+                            total_flow_mat[t_lst, reroute_begin] = 1
+                        else:
+                            total_flow_mat[t_lst2, reroute_begin] = 1
             total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
         total_flow_mat = csr_matrix(total_flow_mat)
             
@@ -673,4 +682,5 @@ class LP_On_AugmentedGraph(LP_Solver):
         atomic_payoff_lst = torch.tensor([init_payoff] + payoff_lst)
         atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
         discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
-        return None, None, payoff_lst, action_lst_ret, discounted_payoff
+        passenger_carrying_cars = self.markov_decision_process.passenger_carrying_cars
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars
