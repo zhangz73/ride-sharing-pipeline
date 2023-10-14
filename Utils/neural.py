@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 ## This module defines a single feed-forward neural network
 class Net(nn.Module):
-    def __init__(self, input_dim, hidden_dim_lst, activation_lst, output_dim = 1, batch_norm = False, prob = False):
+    def __init__(self, input_dim, hidden_dim_lst, activation_lst, output_dim = 1, batch_norm = False, prob = False, use_embedding = False, num_embeddings = 1, embedding_dim = 1):
         super(Net, self).__init__()
         for act in activation_lst:
             assert act in ["relu", "softmax", "tanh"]
@@ -18,8 +18,15 @@ class Net(nn.Module):
         self.batch_norm = batch_norm
         self.activation_lst = activation_lst
         self.prob = prob
+        self.use_embedding = use_embedding
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.input_dim = input_dim
 
-        self.layer_lst.append(nn.Linear(input_dim, hidden_dim_lst[0]))
+        if self.use_embedding:
+            self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+            self.input_dim += embedding_dim
+        self.layer_lst.append(nn.Linear(self.input_dim, hidden_dim_lst[0]))
 #         self.bn.append(nn.BatchNorm1d(hidden_dim_lst[0],momentum=0.1))
         for i in range(1, len(hidden_dim_lst)):
             self.layer_lst.append(nn.Linear(hidden_dim_lst[i - 1], hidden_dim_lst[i]))
@@ -30,7 +37,12 @@ class Net(nn.Module):
 #                 self.layer_lst[i].bias.data.fill_(1)
 #                 self.layer_lst[i].weight.data.fill_(1)
 
-    def forward(self, x):
+    def forward(self, tup):
+        t, x = tup
+        if self.use_embedding:
+            embeds = self.embedding(t)
+            embeds = embeds.view(embeds.shape[0], embeds.shape[2])
+            x = torch.cat((x, embeds),dim=1)
         for i in range(len(self.layer_lst) - 1):
             x = self.layer_lst[i](x)
 #             if self.batch_norm:
@@ -43,21 +55,24 @@ class Net(nn.Module):
                 x = torch.tanh(x)
         x = self.layer_lst[-1](x)
         if self.prob:
-            x = F.softmax(x, dim = 0)
+            x = F.softmax(x, dim = 1)
         return x
 
 ## This module wraps time-discretized neural models and the non time-discretized models into a uniform format
 class ModelFull(nn.Module):
-    def __init__(self, predefined_model, is_discretized = False):
+    def __init__(self, predefined_model, is_discretized = False, ts_per_network = 1):
         super(ModelFull, self).__init__()
         self.model = predefined_model
         self.is_discretized = is_discretized
+        self.ts_per_network = ts_per_network
     
     ## Uniformize the input format as (t, x) for both discretized and non-discretized models
     def forward(self, tup):
         t, x = tup
         if self.is_discretized:
-            return self.model[t](x)
+            t_idx = t // self.ts_per_network
+            t_remainder = torch.tensor([t % self.ts_per_network] * x.shape[0]).reshape((x.shape[0], 1))
+            return self.model[t_idx]((t_remainder, x))
         else:
             return self.model(x)
 
@@ -67,7 +82,7 @@ class ModelFactory:
     ## descriptor is used only when retrain = False, so that it loads the latest model
     ##  attached to the given descriptor
     ## dir specifies the current working directory. It will be "." unless we are on Google Colab
-    def __init__(self, model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver = "Adam", retrain = False, discretized_len = 1, descriptor = None, dir = ".", device = "cpu", prob = False):
+    def __init__(self, model_name, input_dim, hidden_dim_lst, activation_lst, output_dim, batch_norm, lr, decay, scheduler_step, solver = "Adam", retrain = False, discretized_len = 1, descriptor = None, dir = ".", device = "cpu", prob = False, use_embedding = False, num_embeddings = 1, embedding_dim = 1, ts_per_network = 1):
         assert solver in ["Adam", "SGD", "RMSprop"]
         assert model_name in ["discretized_feedforward", "rnn"]
         assert len(hidden_dim_lst) == len(activation_lst)
@@ -87,6 +102,10 @@ class ModelFactory:
         self.dir = dir
         self.device = device
         self.prob = prob
+        self.use_embedding = use_embedding
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.ts_per_network = ts_per_network
         ## The timestamp when the latest model is stored into self.model
         self.model_ts = self.get_curr_ts()
         self.model = None
@@ -95,7 +114,7 @@ class ModelFactory:
         if self.model is None:
             if model_name == "discretized_feedforward":
                 self.model = self.discretized_feedforward()
-                self.model = ModelFull(self.model, is_discretized = True)
+                self.model = ModelFull(self.model, is_discretized = True, ts_per_network = self.ts_per_network)
             else:
                 self.model = self.rnn()
                 self.model = ModelFull(self.model, is_discretized = False)
@@ -112,7 +131,7 @@ class ModelFactory:
     def discretized_feedforward(self):
         model_list = nn.ModuleList()
         for _ in range(self.discretized_len):
-            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm, self.prob)
+            model = Net(self.input_dim, self.hidden_dim_lst, self.activation_lst, self.output_dim, self.batch_norm, self.prob, self.use_embedding, self.num_embeddings, self.embedding_dim)
             model_list.append(model)
         return model_list
     

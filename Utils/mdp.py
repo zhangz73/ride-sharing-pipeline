@@ -1576,7 +1576,7 @@ class MarkovDecisionProcess:
         begin, end = self.local_order_map[dest]
         start = 1 + len(self.regions) + self.num_binned_battery
         term = start + (end - begin)
-        local_state_counts[start:term] += (self.state_counts[begin:end] > 0)
+        local_state_counts[start:term] += self.state_counts[begin:end] #(self.state_counts[begin:end] > 0)
 #        local_state_counts[term:] = torch.from_numpy((np.add.reduceat(self.state_counts[begin:end].numpy(), np.arange(0, len(self.regions) * (self.connection_patience + 1), self.connection_patience + 1)) > 0) + 0.0)
         if torch.sum(self.state_counts[begin:end]) > 0:
             local_state_counts[term] = 1
