@@ -56,7 +56,7 @@
         "policy_retrain": true,
         "descriptor": "PPO",
         "dir": ".",
-        "ts_per_network": 5,
+        "ts_per_network": 1,
         "embedding_dim": 5,
         "num_itr": 20,
         "num_episodes": 300,

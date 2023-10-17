@@ -42,7 +42,7 @@ class Net(nn.Module):
         if self.use_embedding:
             embeds = self.embedding(t)
             embeds = embeds.view(embeds.shape[0], embeds.shape[2])
-            x = torch.cat((x, embeds),dim=1)
+            x = torch.cat((x, embeds), dim=1)
         for i in range(len(self.layer_lst) - 1):
             x = self.layer_lst[i](x)
 #             if self.batch_norm:
@@ -50,7 +50,7 @@ class Net(nn.Module):
             if self.activation_lst[i] == "relu":
                 x = F.relu(x)
             elif self.activation_lst[i] == "softmax":
-                x = F.softmax(x, dim = 0)
+                x = F.softmax(x, dim = 1)
             elif self.activation_lst[i] == "tanh":
                 x = torch.tanh(x)
         x = self.layer_lst[-1](x)
@@ -71,7 +71,7 @@ class ModelFull(nn.Module):
         t, x = tup
         if self.is_discretized:
             t_idx = t // self.ts_per_network
-            t_remainder = torch.tensor([t % self.ts_per_network] * x.shape[0]).reshape((x.shape[0], 1))
+            t_remainder = torch.ones((x.shape[0], 1)).long() * (t % self.ts_per_network) #torch.tensor([t % self.ts_per_network] * x.shape[0]).reshape((x.shape[0], 1))
             return self.model[t_idx]((t_remainder, x))
         else:
             return self.model(x)
