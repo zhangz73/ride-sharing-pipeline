@@ -460,9 +460,9 @@ class PPO_Solver(Solver):
                                     ## TODO: Fix it!!!
                                     ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
                                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                                    total_policy_loss += torch.sum(loss_curr)
+                                    total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
                                     total_policy_num += len(loss_curr)
-                    total_policy_loss /= total_policy_num
+#                    total_policy_loss /= total_policy_num
                     policy_curr_arr.append(float(total_policy_loss.data))
                     total_policy_loss.backward()
                     self.policy_optimizer.step()
