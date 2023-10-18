@@ -21,14 +21,14 @@
         "use_charging_curve": true,
         "charging_cost_inflation": 2,
         "force_charging": true,
-        "total_revenue_benchmark": null,
+        "total_revenue_benchmark": 129258,
         "charging_rates": [
             25
         ],
         "battery_offset": 0,
         "battery_per_step": 1,
         "normalize_by_tripnums": true,
-        "battery_cutoff": [45, 90],
+        "battery_cutoff": [13, 52],
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_100car5region500chargers5mins_fullycharged_nyc_combo_fullday.tsv"
     },
