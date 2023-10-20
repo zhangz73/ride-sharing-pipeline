@@ -88,6 +88,8 @@ class PPO_Solver(Solver):
             self.car_batch = markov_decision_process.num_total_cars - 1
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
+        self.value_retrain = value_retrain
+        self.policy_retrain = policy_retrain
         self.policy_epoch = policy_epoch
         self.value_batch = min(value_batch, num_episodes)
         self.policy_batch = min(policy_batch, num_episodes)
@@ -119,6 +121,9 @@ class PPO_Solver(Solver):
             cp = copy.deepcopy(markov_decision_process)
             self.markov_decision_process_lst.append(cp)
         self.value_scale = self.value_model_factory.get_value_scale()
+        self.input_scale = self.policy_model_factory.get_input_scale()
+        self.input_scaled = False
+        self.input_scale_value = self.input_scale[:self.value_input_dim]
     
     def get_value_model(self):
         return self.value_model_factory.get_model()
@@ -139,18 +144,18 @@ class PPO_Solver(Solver):
             curr, next = curr_state_counts[:self.value_input_dim], next_state_counts[:self.value_input_dim]
 #            curr, next = curr_state_counts, next_state_counts
         with torch.no_grad():
-            curr_value = self.value_model((ts + offset, curr)).reshape((-1,))
+            curr_value = self.value_model((ts + offset, curr / self.input_scale_value)).reshape((-1,))
         mu, sd = self.value_scale[ts + offset]
         curr_value = curr_value * sd + mu
         if next_ts < self.time_horizon - 1:
             with torch.no_grad():
-                next_value = self.value_model((next_ts + offset, next)).reshape((-1,))
+                next_value = self.value_model((next_ts + offset, next / self.input_scale_value)).reshape((-1,))
             mu2, sd2 = self.value_scale[next_ts + offset]
             next_value = next_value * sd2 + mu2
         else:
             #next_value = 0
             if self.num_days > 1:
-                next_value = self.value_model((0 + offset, next)).reshape((-1,))
+                next_value = self.value_model((0 + offset, next / self.input_scale_value)).reshape((-1,))
                 mu2, sd2 = self.value_scale[0 + offset]
                 next_value = next_value * sd2 + mu2
             else:
@@ -163,10 +168,10 @@ class PPO_Solver(Solver):
     
     def get_ratio(self, state_counts, action_id, ts, clipped = False, eps = 0.2, car_id = None, day_num = 0):
         offset = self.get_offset(day_num) * self.time_horizon
-        prob_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, car_id = car_id, day_num = day_num)
+        prob_output = self.policy_predict(state_counts / self.input_scale, ts, prob = True, remove_infeasible = False, car_id = car_id, day_num = day_num)
         action_id = action_id.reshape((len(action_id), 1))
         prob = prob_output.gather(1, action_id) #prob_output[action_id]
-        prob_benchmark_output = self.policy_predict(state_counts, ts, prob = True, remove_infeasible = False, use_benchmark = True, car_id = car_id, day_num = day_num)
+        prob_benchmark_output = self.policy_predict(state_counts / self.input_scale, ts, prob = True, remove_infeasible = False, use_benchmark = True, car_id = car_id, day_num = day_num)
 #         prob_benchmark_output = self.policy_benchmark_predict(state_counts, ts, prob = True, remove_infeasible = False)
         prob_benchmark = prob_benchmark_output.gather(1, action_id) #prob_benchmark_output[action_id]
         prob = prob.reshape((-1,))
@@ -238,14 +243,21 @@ class PPO_Solver(Solver):
             mu, sd = self.value_scale[t]
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
-                state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)[:,:self.value_input_dim]
+                state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
+                if not self.input_scaled and update_value_scale:
+                    input_norm = torch.abs(torch.mean(state_counts_lst, dim = 0))
+                    self.input_scale = torch.max(input_norm, torch.tensor(1.))
+                    self.input_scaled = True
+                    self.input_scale_value = self.input_scale[:self.value_input_dim]
+                state_counts_lst = state_counts_lst[:,:self.value_input_dim]
 #                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
-                value_model_output = self.value_model((t, state_counts_lst)).reshape((-1,))
+                value_model_output = self.value_model((t, state_counts_lst / self.input_scale_value)).reshape((-1,))
                 total_value_loss += torch.sum((value_model_output - payoff_lst) ** 2) / val_num #/ self.num_cars / self.time_horizon
 #        total_value_loss /= val_num #self.num_episodes
         value_dct = None
         if update_value_scale:
             self.value_model_factory.set_value_scale(self.value_scale)
+            self.policy_model_factory.set_input_scale(self.input_scale)
         return total_value_loss
     
     def get_data_single(self, num_episodes, episode_start = 0, worker_num = 0):
@@ -404,7 +416,7 @@ class PPO_Solver(Solver):
                             if data_traj_all[day][t]["state_counts"] is not None:
                                 value_dct[t]["state_counts"] += [data_traj_all[day][t]["state_counts"]]
                                 value_dct[t]["payoff"] += data_traj_all[day][t]["payoff"]
-                    total_value_loss = self.get_value_loss(value_dct, update_value_scale = itr == 0)
+                    total_value_loss = self.get_value_loss(value_dct, update_value_scale = itr == 0 and self.value_retrain)
                     value_curr_arr.append(float(total_value_loss.data))
                     total_value_loss.backward()
                     self.value_optimizer.step()
@@ -689,7 +701,7 @@ class PPO_Solver(Solver):
 #                if return_action:
                 curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                 curr_state_counts = curr_state_counts.view((1, len(curr_state_counts)))
-                action_id_prob = self.policy_predict(curr_state_counts, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full, day_num = day_num)
+                action_id_prob = self.policy_predict(curr_state_counts / self.input_scale, t, prob = True, use_benchmark = True, lazy_removal = lazy_removal, car_id = available_car_ids[car_idx], state_count_check = curr_state_counts_full, day_num = day_num)
                 action_id_prob = action_id_prob.flatten()
                 curr_state_counts = curr_state_counts.flatten()
                 if action_id_prob is not None:
@@ -699,7 +711,7 @@ class PPO_Solver(Solver):
                             msg = self.policy_describe(action_id_prob)
                             payoff = markov_decision_process.get_payoff_curr_ts().clone()
                             self.value_model.eval()
-                            inferred_value = float(self.value_model((t, curr_state_counts)).data)
+                            inferred_value = float(self.value_model((t, curr_state_counts / self.input_scale_value)).data)
                             f.write(f"\tt = {t}, car_id = {car_idx}, payoff = {payoff}, inferred state value = {inferred_value}:\n")
                             f.write(self.markov_decision_process.describe_state_counts(curr_state_counts))
                             f.write(msg)

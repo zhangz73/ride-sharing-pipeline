@@ -123,6 +123,7 @@ class ModelFactory:
             self.load_latest(self.descriptor)
         self.model = self.model.to(device = self.device)
         self.value_scale = {}
+        self.input_scale = torch.ones(self.input_dim)
 
     ## Construct a discretized feedforward neural network
     ## The neural network is discretized along the timestamps
@@ -142,6 +143,14 @@ class ModelFactory:
     ## Get the value scale
     def get_value_scale(self):
         return self.value_scale.copy()
+    
+    ## Set the input scale
+    def set_input_scale(self, input_scale):
+        self.input_scale = input_scale.clone()
+    
+    ## Get the input scale
+    def get_input_scale(self):
+        return self.input_scale.clone()
     
     ## Recurrent neural network. To be implemented
     def rnn(self):
@@ -180,7 +189,7 @@ class ModelFactory:
         if include_ts:
             name += "__" + self.model_ts
 #        ckpt = {"model_state_dict": model_save.state_dict(), "opt_state_dict": self.optimizer.state_dict(), "scheduler_state_dict": self.scheduler.state_dict(), "value_scale": self.value_scale}
-        ckpt = {"model_state_dict": model_save.state_dict(), "value_scale": self.value_scale}
+        ckpt = {"model_state_dict": model_save.state_dict(), "value_scale": self.value_scale, "input_scale": self.input_scale}
         torch.save(ckpt, f"{self.dir}/Models/{name}.pt")
         ## Convert the model back to its original device
         self.model = self.model.to(device = self.device)
@@ -214,6 +223,7 @@ class ModelFactory:
         ckpt = torch.load(dir_fname)
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.set_value_scale(ckpt["value_scale"])
+        self.set_input_scale(ckpt["input_scale"])
         self.model.eval()
 #         model = torch.load(dir_fname)
 #         model = model.to(device = self.device)
