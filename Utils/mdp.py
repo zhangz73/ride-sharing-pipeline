@@ -405,6 +405,7 @@ class MarkovDecisionProcess:
         ## Initialize car deployment distribution
         self.region_battery_car_distribution = np.zeros(self.num_total_states)
         ## Populate state variables
+        self.state_counts_norm = torch.ones(self.num_total_reduced_states + self.num_total_local_states)
         self.define_all_states()
         self.define_all_reduced_states()
         self.define_all_car_train_states()
@@ -483,6 +484,9 @@ class MarkovDecisionProcess:
                 return self.num_total_reduced_states + self.num_total_local_states
             return self.num_total_reduced_states + self.num_total_local_states_region
         return self.num_total_reduced_states
+    
+    def get_state_counts_norm(self):
+        return self.state_counts_norm.clone()
     
     ## Prepare trip demands
     def trip_demand_map_prepare(self):
@@ -815,6 +819,8 @@ class MarkovDecisionProcess:
         self.region_battery_car_num = self.df_to_dct(self.region_battery_car_df, keynames = ["region", "battery"], valname = "num")
         self.num_total_cars = int(round(self.region_battery_car_df["num"].sum()))
         self.region_rate_plug_num = self.df_to_dct(self.region_rate_plug_df, keynames = ["region", "rate"], valname = "num")
+        self.num_total_plugs = int(round(self.region_rate_plug_df["num"].sum()))
+        self.max_trip_arrival_rate = np.max(self.trip_demands.get_arrival_rates())
     
     ## Construct the list of all actions
     def construct_all_actions(self):
@@ -1061,6 +1067,8 @@ class MarkovDecisionProcess:
         self.reduced_state_to_id["plug"] = self.state_to_id["plug"]
         curr_id = len(self.reduced_state_to_id["plug"])
         self.reduced_state_counts[:curr_id] = self.state_counts[:curr_id]
+        self.state_counts_norm[:curr_id] = self.num_total_plugs
+        plug_pos = curr_id
         ## Define car states -- General type
         self.reduced_state_to_id["car"] = {}
         for dest in self.regions:
@@ -1089,6 +1097,8 @@ class MarkovDecisionProcess:
                     car = self.state_dict[full_id]
                     self.reduced_state_dict[car] = curr_id
                     curr_id += 1
+        car_pos = curr_id
+        self.state_counts_norm[plug_pos:car_pos] = self.num_total_cars
         ## Populate state counts for initial car deployment
         ## TODO: Modify!!!
 #        for region in self.regions:
@@ -1111,6 +1121,8 @@ class MarkovDecisionProcess:
                 curr_id += 1
                 self.reduced_state_to_id["trip"][("dest", region, stag_time)] = curr_id
                 curr_id += 1
+        trip_pos = curr_id
+        self.state_counts_norm[car_pos:trip_pos] = self.max_trip_arrival_rate
 #        ## Load new passenger requests
 #        for origin in self.regions:
 #            for dest in self.regions:
@@ -1577,6 +1589,7 @@ class MarkovDecisionProcess:
         start = 1 + len(self.regions) + self.num_binned_battery
         term = start + (end - begin)
         local_state_counts[start:term] += self.state_counts[begin:end] #(self.state_counts[begin:end] > 0)
+        self.state_counts_norm[(self.num_total_reduced_states + start):(self.num_total_reduced_states + term)] = self.max_trip_arrival_rate
 #        local_state_counts[term:] = torch.from_numpy((np.add.reduceat(self.state_counts[begin:end].numpy(), np.arange(0, len(self.regions) * (self.connection_patience + 1), self.connection_patience + 1)) > 0) + 0.0)
         if torch.sum(self.state_counts[begin:end]) > 0:
             local_state_counts[term] = 1

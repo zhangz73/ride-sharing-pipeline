@@ -61,7 +61,7 @@ class Solver:
         return None
 
 class PPO_Solver(Solver):
-    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, car_batch = None, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, use_region = False, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
+    def __init__(self, markov_decision_process = None, value_model_name = "discretized_feedforward", value_hidden_dim_lst = [10, 10], value_activation_lst = ["relu", "relu"], value_batch_norm = False, value_lr = 1e-2, value_epoch = 1, value_batch = 100, value_decay = 0.1, value_scheduler_step = 10000, value_solver = "Adam", value_retrain = False, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "PPO", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, car_batch = None, normalize_input = False, network_horizon_repeat = 1, num_days = 1, useful_days = 1, gamma = 1, eval_days = 1, use_region = False, ckpt_freq = 100, benchmarking_policy = "uniform", eps = 0.2, eps_sched = 1000, eps_eta = 0.5, policy_syncing_freq = 1, value_syncing_freq = 1, n_cpu = 1, n_threads = 4, lazy_removal = False, state_reduction = False):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process, state_reduction = state_reduction)
         ## Store some commonly used variables
         self.value_input_dim = self.markov_decision_process.get_state_len(state_reduction = state_reduction, model = "value")
@@ -86,6 +86,7 @@ class PPO_Solver(Solver):
         self.car_batch = car_batch
         if self.car_batch is None:
             self.car_batch = markov_decision_process.num_total_cars - 1
+        self.normalize_input = normalize_input
         self.ckpt_freq = ckpt_freq
         self.value_epoch = value_epoch
         self.value_retrain = value_retrain
@@ -122,6 +123,8 @@ class PPO_Solver(Solver):
             self.markov_decision_process_lst.append(cp)
         self.value_scale = self.value_model_factory.get_value_scale()
         self.input_scale = self.policy_model_factory.get_input_scale()
+        if self.normalize_input:
+            self.input_scale = self.markov_decision_process.get_state_counts_norm()
         self.input_scaled = False
         self.input_scale_value = self.input_scale[:self.value_input_dim]
     
@@ -244,11 +247,11 @@ class PPO_Solver(Solver):
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = torch.cat(value_dct[t]["state_counts"], dim = 0)
-                if not self.input_scaled and update_value_scale:
-                    input_norm = torch.abs(torch.mean(state_counts_lst, dim = 0))
-                    self.input_scale = torch.max(input_norm, torch.tensor(1.))
-                    self.input_scaled = True
-                    self.input_scale_value = self.input_scale[:self.value_input_dim]
+#                if not self.input_scaled and update_value_scale:
+#                    input_norm = torch.abs(torch.mean(state_counts_lst, dim = 0))
+#                    self.input_scale = torch.max(input_norm, torch.tensor(1.))
+#                    self.input_scaled = True
+#                    self.input_scale_value = self.input_scale[:self.value_input_dim]
                 state_counts_lst = state_counts_lst[:,:self.value_input_dim]
 #                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
                 value_model_output = self.value_model((t, state_counts_lst / self.input_scale_value)).reshape((-1,))
