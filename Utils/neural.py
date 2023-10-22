@@ -1,4 +1,5 @@
 import os, os.path
+import copy
 import pytz
 from datetime import datetime
 import numpy as np
@@ -123,7 +124,7 @@ class ModelFactory:
             self.load_latest(self.descriptor)
         self.model = self.model.to(device = self.device)
         self.value_scale = {}
-        self.input_scale = torch.ones(self.input_dim)
+        self.input_scale = {}
 
     ## Construct a discretized feedforward neural network
     ## The neural network is discretized along the timestamps
@@ -146,11 +147,11 @@ class ModelFactory:
     
     ## Set the input scale
     def set_input_scale(self, input_scale):
-        self.input_scale = input_scale.clone()
+        self.input_scale = copy.deepcopy(input_scale)
     
     ## Get the input scale
     def get_input_scale(self):
-        return self.input_scale.clone()
+        return copy.deepcopy(self.input_scale)
     
     ## Recurrent neural network. To be implemented
     def rnn(self):
