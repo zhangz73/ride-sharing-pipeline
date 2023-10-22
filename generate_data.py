@@ -93,7 +93,7 @@ def write_data_traffic_map(scenario_name, num_regions, time_horizon, payoff = {"
         for origin in regions:
             for dest in regions:
                 pickup_tup = (t, "Travel", 1, origin, dest, None, None, 1)
-                reroute_tup = (t, "Travel", 0, origin, dest, None, None, 1)
+                reroute_tup = (t, "Travel", 0, origin, dest, None, None, 0)
                 payoff_lst.append(pickup_tup)
                 payoff_lst.append(reroute_tup)
         ## Populate charging payoffs
@@ -162,7 +162,7 @@ p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 
 p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
 p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
 tau = [[9, 15, 75, 12, 24], [15, 6, 66, 6, 18], [75, 66, 6, 60, 39], [12, 6, 60, 9, 15], [24, 18, 39, 15, 12]]
-write_data_traffic_map("1000car5region", 5, 360, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 2, 200), (1, 2, 200), (2, 2, 200), (3, 2, 200), (4, 2, 200)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (120, lam_2), (240, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
+write_data_traffic_map("1000car5region", 5, 360, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 200), (1, 0, 200), (2, 0, 200), (3, 0, 200), (4, 0, 200)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (120, lam_2), (240, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
 
 ## 10 cars 5 regions
 #lam_1 = [0.18, 0.18, 0.18, 0.18, 1.8]
