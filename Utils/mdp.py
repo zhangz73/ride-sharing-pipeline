@@ -912,21 +912,23 @@ class MarkovDecisionProcess:
 #        print(self.trip_arrivals["Count"].sum())
 #        print(self.trip_arrivals[self.trip_arrivals["T"] == 0])
 
-    def compute_total_market_revenue(self):
-#        total_revenue = torch.sum(self.adj_reward_wide * self.trip_arrivals)
-        trip_arrivals_sorted = np.zeros((self.time_horizon, len(self.regions) ** 2))
-        trip_arrivals_numpy = self.trip_arrivals.numpy()
-        trip_arrivals_agg = np.zeros((self.time_horizon, len(self.regions) ** 2))
-        for t in range(self.time_horizon):
-            trip_arrivals_agg += trip_arrivals_numpy[t,:] * self.decomp_trip_counts_dct[t]
-        for t in range(self.time_horizon):
-            trip_arrivals_sorted[t,:] = trip_arrivals_agg[t,self.adj_reward_wide_sorted_indices[t,:]]
-        mask = np.ones(self.time_horizon) * self.num_total_cars
-        for pos in range(len(trip_arrivals_sorted[0,:])):
-            vec = np.minimum(mask, trip_arrivals_sorted[:,pos])
-            trip_arrivals_sorted[:,pos] = vec
-            mask -= vec
-        total_revenue = np.sum(trip_arrivals_sorted * self.adj_reward_wide_sorted)
+    def compute_total_market_revenue(self, adjusted = False):
+        if not adjusted:
+            total_revenue = torch.sum(self.reward_wide * self.trip_arrivals)
+        else:
+            trip_arrivals_sorted = np.zeros((self.time_horizon, len(self.regions) ** 2))
+            trip_arrivals_numpy = self.trip_arrivals.numpy()
+            trip_arrivals_agg = np.zeros((self.time_horizon, len(self.regions) ** 2))
+            for t in range(self.time_horizon):
+                trip_arrivals_agg += trip_arrivals_numpy[t,:] * self.decomp_trip_counts_dct[t]
+            for t in range(self.time_horizon):
+                trip_arrivals_sorted[t,:] = trip_arrivals_agg[t,self.adj_reward_wide_sorted_indices[t,:]]
+            mask = np.ones(self.time_horizon) * self.num_total_cars
+            for pos in range(len(trip_arrivals_sorted[0,:])):
+                vec = np.minimum(mask, trip_arrivals_sorted[:,pos])
+                trip_arrivals_sorted[:,pos] = vec
+                mask -= vec
+            total_revenue = np.sum(trip_arrivals_sorted * self.adj_reward_wide_sorted)
         return total_revenue
     
     ## Query the trip arrivals
