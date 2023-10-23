@@ -247,7 +247,7 @@ class PPO_Solver(Solver):
             payoff_lst = torch.tensor(value_dct[t]["payoff"]).to(device = self.device)
             if update_value_scale:
                 if not self.use_avg_value:
-                    mu, sd = 0, torch.std(payoff_lst) + 1 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
+                    mu, sd = 0, torch.std(payoff_lst) + 1e-3 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
                 else:
                     mu, sd = 0, 1
                 self.value_scale[t] = (mu, sd)
@@ -259,7 +259,7 @@ class PPO_Solver(Solver):
                     input_norm_mean = torch.mean(state_counts_lst, dim = 0)
                     input_norm_std = torch.std(state_counts_lst, dim = 0)
                     input_scale_mean = input_norm_mean
-                    input_scale_std = torch.max(input_norm_std, torch.tensor(1.))
+                    input_scale_std = torch.max(input_norm_std, torch.tensor(1e-3))
                     self.input_scale[t] = {"mu": input_scale_mean, "std": input_scale_std}
                 state_counts_lst = state_counts_lst[:,:self.value_input_dim]
 #                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
