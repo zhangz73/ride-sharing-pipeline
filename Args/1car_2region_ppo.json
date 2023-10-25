@@ -61,7 +61,7 @@
         "num_itr": 20,
         "num_episodes": 300,
         "num_days": 1,
-        "normalize_input": true,
+        "normalize_input": false,
         "network_horizon_repeat": 1,
         "useful_days": 2,
         "gamma": 1,

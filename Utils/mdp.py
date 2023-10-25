@@ -379,7 +379,7 @@ class MarkovDecisionProcess:
         self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
-        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + 1 #len(self.regions) #len(self.regions) * (self.connection_patience + 1) + 3
+        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + self.pickup_patience #len(self.regions) #len(self.regions) * (self.connection_patience + 1) + 3
         self.num_total_local_states_region = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + 1
 #        self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + 3
         ## Variables keeping track of states
@@ -1581,14 +1581,14 @@ class MarkovDecisionProcess:
     def get_local_state(self, car):
         dest, eta, battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
         local_state_counts = torch.zeros(self.num_total_local_states)
-        local_state_counts[0] = eta
-        local_state_counts[1 + dest] = 1
-        local_state_counts[1 + len(self.regions) + self.get_battery_pos(battery)] = 1
+        local_state_counts[eta] = 1
+        local_state_counts[self.pickup_patience + dest] = 1
+        local_state_counts[self.pickup_patience + len(self.regions) + self.get_battery_pos(battery)] = 1
 #        local_state_counts[0] = dest
 #        local_state_counts[1] = eta
 #        local_state_counts[2] = battery
         begin, end = self.local_order_map[dest]
-        start = 1 + len(self.regions) + self.num_binned_battery
+        start = self.pickup_patience + len(self.regions) + self.num_binned_battery
         term = start + (end - begin)
         local_state_counts[start:term] += self.state_counts[begin:end] #(self.state_counts[begin:end] > 0)
         self.state_counts_norm[(self.num_total_reduced_states + start):(self.num_total_reduced_states + term)] = self.max_trip_arrival_rate

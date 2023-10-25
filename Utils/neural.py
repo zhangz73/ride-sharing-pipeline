@@ -15,7 +15,7 @@ class Net(nn.Module):
         for act in activation_lst:
             assert act in ["relu", "softmax", "tanh"]
         self.layer_lst = nn.ModuleList()
-#         self.bn = nn.ModuleList()
+        self.bn = nn.ModuleList()
         self.batch_norm = batch_norm
         self.activation_lst = activation_lst
         self.prob = prob
@@ -28,7 +28,7 @@ class Net(nn.Module):
             self.embedding = nn.Embedding(num_embeddings, embedding_dim)
             self.input_dim += embedding_dim
         self.layer_lst.append(nn.Linear(self.input_dim, hidden_dim_lst[0]))
-#         self.bn.append(nn.BatchNorm1d(hidden_dim_lst[0],momentum=0.1))
+        self.bn.append(nn.BatchNorm1d(hidden_dim_lst[0],momentum=0.1))
         for i in range(1, len(hidden_dim_lst)):
             self.layer_lst.append(nn.Linear(hidden_dim_lst[i - 1], hidden_dim_lst[i]))
 #             self.bn.append(nn.BatchNorm1d(hidden_dim_lst[i],momentum=0.1))
@@ -46,8 +46,8 @@ class Net(nn.Module):
             x = torch.cat((x, embeds), dim=1)
         for i in range(len(self.layer_lst) - 1):
             x = self.layer_lst[i](x)
-#             if self.batch_norm:
-#                 x = self.bn[i](x)
+            if self.batch_norm and i == 0:
+                x = self.bn[i](x)
             if self.activation_lst[i] == "relu":
                 x = F.relu(x)
             elif self.activation_lst[i] == "softmax":
