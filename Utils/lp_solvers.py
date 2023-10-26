@@ -17,39 +17,44 @@ from joblib import Parallel, delayed
 import Utils.train as train
 
 class LP_Solver(train.Solver):
-    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1):
+    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, retrain = True):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         self.reward_df = self.markov_decision_process.reward_df
         self.num_days = num_days
         self.gamma = gamma
+        self.retrain = retrain
     
     def evaluate(self, **kargs):
         pass
     
     def train(self):
-        print("Training...")
-        print("\tSetting up...")
-        model = gp.Model()
-        m, n = self.A.shape
-#        model.setParam("MIPFocus", 3)
-        model.setParam("Method", 2)
-        model.setParam("Crossover", 0)
-        x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
-        #model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
-        model.addConstr(self.A @ x == self.b)
-#        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
-        objective = self.c @ x
-        model.setObjective(objective, GRB.MAXIMIZE)
-        print("\tOptimizing...")
-        model.optimize()
-        obj_val = model.ObjVal
-        print(obj_val / self.total_revenue)
-        print("\tGathering...")
-        self.x = np.zeros(n)
-        for i in tqdm(range(n), leave = False):
-            self.x[i] = x[i].x
-        self.describe_x()
-        np.save("lp_x.npy", self.x)
+        if self.retrain:
+            print("Training...")
+            print("\tSetting up...")
+            model = gp.Model()
+            m, n = self.A.shape
+    #        model.setParam("MIPFocus", 3)
+            model.setParam("Method", 2)
+            model.setParam("Crossover", 0)
+            x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
+            #model.addConstrs((gp.quicksum(self.A[i, r] * x[r] for r in range(n)) == self.b[i] for i in range(m)))
+            model.addConstr(self.A @ x == self.b)
+    #        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
+            objective = self.c @ x
+            model.setObjective(objective, GRB.MAXIMIZE)
+            print("\tOptimizing...")
+            model.optimize()
+            obj_val = model.ObjVal
+            print(obj_val / self.total_revenue)
+            print("\tGathering...")
+            self.x = np.zeros(n)
+            for i in tqdm(range(n), leave = False):
+                self.x[i] = x[i].x
+            self.describe_x()
+            np.save("lp_x.npy", self.x)
+        else:
+            self.x = np.load("lp_x.npy")
+            obj_val = -1
         return obj_val / self.total_revenue #self.x, obj_val
     
     def train_cvxpy(self):
@@ -73,8 +78,8 @@ class LP_Solver(train.Solver):
         return self.x, obj_val
 
 class LP_On_AugmentedGraph(LP_Solver):
-    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0, **kargs):
-        super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma)
+    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, patience_time = 0, retrain = True, **kargs):
+        super().__init__(markov_decision_process = markov_decision_process, num_days = num_days, gamma = gamma, retrain = retrain)
         self.patience_time = markov_decision_process.connection_patience + markov_decision_process.pickup_patience
         print("Constructing the solver...")
         self.load_data()
@@ -161,10 +166,11 @@ class LP_On_AugmentedGraph(LP_Solver):
             num = region_battery_car_df.iloc[i]["num"]
             self.init_car_num[region * self.num_battery_levels + battery] = num
     
-    def reset_timestamp(self):
+    def reset_timestamp(self, fractional_cars = True, full_knowledge = False):
         self.trip_demands = self.markov_decision_process.trip_arrivals.numpy()
         self.total_revenue = self.markov_decision_process.get_total_market_revenue() #np.sum(self.trip_demands * self.trip_rewards) #
-        self.construct_problem()
+        if fractional_cars or full_knowledge:
+            self.construct_problem()
     
     def construct_problem(self):
         self.construct_x()
@@ -614,7 +620,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         self.markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
         
         if random_eval_round == 0:
-            self.reset_timestamp()
+            self.reset_timestamp(fractional_cars, full_knowledge)
         
         if full_knowledge and random_eval_round == 0:
             obj_val_normalized = self.train()
@@ -622,7 +628,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         x_copy = self.cap_flow_with_demands()
         if fractional_cars:
             obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
-            return None, None, torch.tensor([0, obj_val_normalized]), None, torch.tensor(obj_val_normalized)
+            return None, None, torch.tensor([0, obj_val_normalized]), None, torch.tensor(obj_val_normalized), None
         
         init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
@@ -643,7 +649,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         x_id = charge_x_ids[i]
                         if self.x_charge[x_id] > 0:
                             action_prob = min(self.x_charge[x_id], 1)
-                            rv = np.random.binomial(n = 1, p = action_prob)
+#                            rv = np.random.binomial(n = 1, p = action_prob)
+                            rv = int(round(action_prob))
                             if rv == 1:
                                 self.x_charge[x_id] -= 1
                                 action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))

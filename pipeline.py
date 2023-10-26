@@ -176,37 +176,10 @@ def main(args, json_name = ""):
             solver.plot_fleet_status(f"{json_name}_{descriptor}")
     
     df_table_all, payoff = evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = seed_lst, randomized_eval_time = randomized_eval_time, solver_type = solver_type, lp_eval_fractional_cars = lp_eval_fractional_cars, lp_assume_full_knowledge = lp_assume_full_knowledge, n_cpu = min(n_cpu, num_trials))
-#    df_table_all = None
-#    payoff = 0
-##    num_trials = 10#args["neural"]["num_episodes"]
-#    norm_factor = eval_days #torch.sum(gamma ** (time_horizon * torch.arange(eval_days)))
-##    norm_factor = torch.sum(gamma ** torch.arange(eval_days))
-#    for i in tqdm(range(num_trials)):
-#        for random_eval_round in tqdm(range(randomized_eval_time), leave = False):
-#            for day in range(eval_days):
-#                if solver_type != "LP-AugmentedGraph":
-#                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day)
-#                else:
-#                    _, _, payoff_lst, action_lst, discounted_payoff = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars, random_eval_round = random_eval_round)
-#                #            print(f"Policy Loss = {policy_loss}")
-#        #            print(f"Total Payoff = {float(payoff_lst[-1].data)}")
-#                    #print(f"Total Payoff = {float(torch.sum(payoff_lst).data)}")
-#        #            print(payoff_lst)
-#                if len(payoff_lst) > 0:
-#                    curr_payoff = float(payoff_lst[-1].data - payoff_lst[0].data) * 1 ** (day * time_horizon) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
-#                    payoff += curr_payoff
-#    #            payoff += float(payoff_lst[-1].data) * gamma ** day / norm_factor
-#    #            if i == 0:
-#    #                print(day, payoff_lst[-1])
-#                if solver_type != "LP-AugmentedGraph" or not lp_eval_fractional_cars:
-#                    df_table = report_factory.get_table(markov_decision_process, action_lst, detailed = True)
-#                    df_table["trial"] = i
-#                    df_table["t"] += day * time_horizon
-#                    if df_table_all is None:
-#                        df_table_all = df_table
-#                    else:
-#                        df_table_all = pd.concat([df_table_all, df_table], axis = 0)
-#    payoff /= num_trials
+#    vis_day = 3
+#    df_table_all = df_table_all[(df_table_all["t"] >= vis_day * time_horizon) & (df_table_all["t"] < (vis_day + 1) * time_horizon)]
+#    df_table_all["t"] = df_table_all["t"].apply(lambda x: x % time_horizon)
+
     print(f"Total Payoff = {payoff}")
     if solver_type == "LP-AugmentedGraph" and lp_eval_fractional_cars:
         return None

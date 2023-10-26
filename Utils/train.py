@@ -283,7 +283,7 @@ class PPO_Solver(Solver):
             tmp = []
             payoff_prev = 0
             for day in range(self.num_days):
-                state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
+                curr_state_lst, next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
 #                total_payoff += payoff_val * self.gamma ** day
@@ -304,7 +304,9 @@ class PPO_Solver(Solver):
             record_num = 0
             for i in range(state_num - 1, -1, -1):
                 tup = tmp[i]
-                curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, atomic_payoff, day_num = tup
+                curr_state_counts = curr_state_lst[i]
+                next_state_counts = next_state_lst[i]
+                _, action_id, _, t, curr_payoff, next_t, atomic_payoff, day_num = tup
                 offset = self.get_offset(day_num) * self.time_horizon
                 if self.use_avg_value:
                     next_cum_ts = total_ts - (day_num * self.time_horizon + t)
@@ -648,6 +650,8 @@ class PPO_Solver(Solver):
         action_lst = []
         policy_loss = 0
         state_action_advantage_lst = []
+        curr_state_lst = []
+        next_state_lst = []
         total_cars = 0
         total_trips = 0
         curr_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
@@ -731,7 +735,9 @@ class PPO_Solver(Solver):
 #                                tup = state_action_advantage_lst[-1]
 #                                tup_new = (tup[0], tup[1], None, tup[3], tup[4], tup[5], tup[6], tup[7])
 #                                state_action_advantage_lst[-1] = tup_new
-                        state_action_advantage_lst.append((curr_state_counts, action_id, next_state_counts, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
+                        state_action_advantage_lst.append((None, action_id, None, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
+                        curr_state_lst.append(curr_state_counts)
+                        next_state_lst.append(next_state_counts)
                     atomic_payoff_lst.append(payoff - curr_payoff)
                     discount_lst.append(self.gamma ** t)
                     ## Compute loss
@@ -775,7 +781,7 @@ class PPO_Solver(Solver):
         discounted_payoff = torch.sum(discount_lst * atomic_payoff_lst) / markov_decision_process.get_total_market_revenue()
         if return_data:
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
-            return state_action_advantage_lst, final_payoff, discounted_payoff
+            return curr_state_lst, next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff
         passenger_carrying_cars = markov_decision_process.passenger_carrying_cars
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)
