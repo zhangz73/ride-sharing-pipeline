@@ -21,6 +21,7 @@
         "charging_rates": [
             2
         ],
+        "max_tracked_eta": 10,
         "battery_offset": 0,
         "battery_per_step": 0,
         "normalize_by_tripnums": true,

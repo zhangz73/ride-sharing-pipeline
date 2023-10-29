@@ -633,7 +633,7 @@ class PPO_Solver(Solver):
                     df_table_all = pd.concat([df_table_all, df_table], axis = 0)
         return df_table_all, payoff
     
-    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, day_num = 0):
+    def evaluate(self, seed = None, train = False, return_data = False, return_action = False, debug = False, debug_dir = "debugging_log.txt", lazy_removal = False, markov_decision_process = None, day_num = 0, log_policy = False, policy_log_dir = "PolicyLogs/policy_log.csv"):
         if True: #not train:
             self.value_model.eval()
             self.benchmark_policy_model.eval()
@@ -656,6 +656,12 @@ class PPO_Solver(Solver):
         total_trips = 0
         curr_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
         payoff_lst.append(curr_payoff)
+        if log_policy:
+            with open(policy_log_dir, "w") as f:
+                f.write("t,car_dest,car_eta,car_battery,action_type,action_info\n")
+            trip_requests_realized = markov_decision_process.trip_arrivals.numpy()
+            df_trips = pd.DataFrame(trip_requests_realized)
+            df_trips.to_csv("PolicyLogs/trip_requests_realized.csv", index = False)
         for t in tqdm(range(self.time_horizon), leave = False):
             ## Add up ||v_model - v_hat||^2
             ## Add up ratio * advantage
@@ -704,6 +710,18 @@ class PPO_Solver(Solver):
                     else:
                         action_id = np.argmax(action_id_prob)
                     action = self.all_actions[int(action_id)]
+                    if log_policy:
+                        car = markov_decision_process.state_dict[available_car_ids[car_idx]]
+                        car_dest, car_eta, car_battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
+                        action_type = action.get_type()
+                        if action_type in ["pickup", "rerouting", "idling"]:
+                            action_info = action.get_dest()
+                        elif action_type == "charged":
+                            action_info = action.get_rate()
+                        else:
+                            action_info = "n/a"
+                        with open(policy_log_dir, "a") as f:
+                            f.write(f"{t},{car_dest},{car_eta},{car_battery},{action_type},{action_info}\n")
                     if action.get_type() in ["pickup", "rerouting"]:
                         total_trips += 1
                     if return_action:

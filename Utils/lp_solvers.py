@@ -5,7 +5,7 @@ import copy
 import numpy as np
 import pandas as pd
 import torch
-import cvxpy as cvx
+#import cvxpy as cvx
 import gurobipy as gp
 from gurobipy import GRB
 import scipy

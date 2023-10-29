@@ -1238,7 +1238,7 @@ class MarkovDecisionProcess:
         target_car_train_state = ("assigned", dest, new_eta, self.get_battery_pos(new_battery))
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
-        target_car_state = ("assigned", dest, new_eta, new_battery)
+        target_car_state = ("assigned", dest, eta + trip_time, new_battery)
         target_car_id = self.state_to_id["car"][target_car_state]
 #        if new_eta <= self.max_tracked_eta:
         target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
