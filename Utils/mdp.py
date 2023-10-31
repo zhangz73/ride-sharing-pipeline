@@ -1165,7 +1165,7 @@ class MarkovDecisionProcess:
         target_car_id = self.state_to_id["car"][target_car_state]
         self.state_counts[id] -= 1
         self.state_counts[target_car_id] += 1
-        eta = min(eta, self.max_tracked_eta)
+#        eta = min(eta, self.max_tracked_eta)
         if eta <= self.max_tracked_eta:
             reduced_id = self.reduced_state_to_id["car"][("general", origin, eta, self.get_battery_pos(battery))]
             curr_car_train_state = ("general", origin, eta, self.get_battery_pos(battery))
@@ -1233,12 +1233,12 @@ class MarkovDecisionProcess:
         else:
             new_eta = eta
             new_battery = battery
-        new_eta = min(new_eta, self.max_tracked_eta)
-        curr_car_train_state = ("general", dest, eta + trip_time, self.get_battery_pos(battery))
-        target_car_train_state = ("assigned", dest, new_eta, self.get_battery_pos(new_battery))
+        new_eta_train = min(new_eta, self.max_tracked_eta)
+        curr_car_train_state = ("general", dest, min(eta, self.max_tracked_eta), self.get_battery_pos(battery))
+        target_car_train_state = ("assigned", dest, new_eta_train, self.get_battery_pos(new_battery))
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
-        target_car_state = ("assigned", dest, eta + trip_time, new_battery)
+        target_car_state = ("assigned", dest, new_eta, new_battery)
         target_car_id = self.state_to_id["car"][target_car_state]
 #        if new_eta <= self.max_tracked_eta:
         target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
@@ -1446,7 +1446,7 @@ class MarkovDecisionProcess:
                     car_id_assigned = self.state_to_id["car"][("assigned", dest, eta, battery)]
                     car_curr = self.state_dict[car_id_curr]
                     eta_next = min(eta - 1, self.max_tracked_eta)
-                    next_state = ("general", dest, eta_next, battery)
+                    next_state = ("general", dest, eta - 1, battery)
                     next_car_train_state = ("general", dest, eta_next, self.get_battery_pos(battery))
                     car_train_id_next = self.car_train_state_to_id["car"][next_car_train_state]
 #                    if next_state in self.state_to_id["car"]:
@@ -1640,9 +1640,6 @@ class MarkovDecisionProcess:
                 else:
                     ## Idle is always feasible
                     return eta == 0
-            ## Idle action is always feasible
-            if eta == 0 and dest == new_dest:
-                return True
             return eta <= self.pickup_patience and battery >= min_battery_needed
         ## If not in the state reduction scheme
         action = self.all_actions[action_id]
@@ -1715,9 +1712,6 @@ class MarkovDecisionProcess:
                 ## Check if trip has requests
                 if eta > 0:
                     mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
-                ## Idling action is always feasible when eta = 0
-                if eta == 0:
-                    mask[origin] = 1
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0
@@ -1729,7 +1723,7 @@ class MarkovDecisionProcess:
                         mask[origin] = 0
             else:
                 ## Idle action is always feasible
-                if eta == 0: # and self.trip_request_matrix[origin, origin] == 0:
+                if eta == 0 and self.trip_request_matrix[origin, origin] == 0:
                     mask[origin] = 1
             ## Do-nothing is feasible only when the idling action is infeasible
             if eta == 0:

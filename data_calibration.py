@@ -27,10 +27,10 @@ dct_key = {
 ###     Working Area 1: (161, "Midtown Center"), (230, Times Sq/Theatre District)
 ###     Restaurants 2: (158, "Meatpacking/West Village West"), (249, "West Village"), (114, "Greenwich Village South"), (79, "East Village"), (148, "Lower East Side")
 ###     Residential 3: (238, "Upper West Side North"), (141, "Lenox Hill West"), (263, Yorkville West)
-REGION = "big" #"small" # small or big
+REGION = "giant" #"small" # small or big or giant
 if REGION == "small":
     LOCATIONS_ID_OF_INTEREST = [[132], [161], [79], [238]] #[132, 230, 79, 238]
-else:
+elif REGION == "big":
 #    LOCATIONS_ID_OF_INTEREST = [
 #        [132], ## JFK Airport
 #        [138], ## LGA Airport
@@ -51,6 +51,43 @@ else:
         [239, 143, 142, 50, 48], ## Upper + Midtown West
         [236, 263, 262, 237, 141, 140, 229, 233, 170, 137] ## Upper + Midtown East
     ]
+else:
+#    LOCATIONS_ID_OF_INTEREST = [
+#        [132], ## JFK Airport
+#        ## Workplace
+#        [244, 120], ## Hudson Heights
+#        [152, 166], ## Columbia University
+#        [75], ## Upper East
+#        [163, 230, 161, 162], ## Midtown Lower
+#        [100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
+#        [125, 211, 144, 148, 232, 231, 45, 209, 13, 261, 87, 12, 88], ## Downtown
+#        ## Restarants
+#        [158, 249, 113, 114], ## West Village
+#        [79, 4, 107, 224], ## East Village
+#        ## Residential
+#        [128, 127, 243], ## Inwood
+#        [116, 42, 41, 74], ## Harlem
+#        [24, 151, 238, 239], ## Upper West
+#        [143, 142, 50, 48], ## Midtown West
+#        [236, 263, 262, 237, 141, 140], ## Upper East
+#        [229, 233, 170, 137], ## Midtown East
+#    ]
+    LOCATIONS_ID_OF_INTEREST = [
+        [132], ## JFK Airport
+        ## Workplace
+        [244, 120], ## Hudson Heights
+        [152, 166], ## Columbia University
+        [75], ## Upper East
+        [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
+        [125, 211, 144, 148, 232, 231, 45, 209, 13, 261, 87, 12, 88], ## Downtown
+        ## Restarants
+        [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
+        ## Residential
+        [128, 127, 243], ## Inwood
+        [116, 42, 41, 74], ## Harlem
+        [24, 151, 238, 239, 143, 142, 50, 48], ## Upper + Midtown West
+        [236, 263, 262, 237, 141, 140, 229, 233, 170, 137], ## Upper + Midtown East
+    ]
 LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
     LOCATIONS_ID_LST = LOCATIONS_ID_OF_INTEREST[i]
@@ -63,7 +100,7 @@ TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 100 #12#50 #200
+TOTAL_CARS_NEW = 300 #12#50 #200
 CHARGING_RATE = 0.505 #1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 132 #264
 SCALE_DEMAND_UP = 1
