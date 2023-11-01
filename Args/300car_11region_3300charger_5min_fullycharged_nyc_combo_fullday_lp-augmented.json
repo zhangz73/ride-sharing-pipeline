@@ -41,7 +41,8 @@
         "fractional_cars": true,
         "full_knowledge": false,
         "randomized_eval_time": 1,
-        "retrain": true
+        "retrain": true,
+        "n_cpu": 48
     },
     "metric": ["total_payoff"],
     "report": {

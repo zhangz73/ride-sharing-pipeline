@@ -21,7 +21,7 @@
         "use_charging_curve": true,
         "charging_cost_inflation": 2,
         "force_charging": true,
-        "total_revenue_benchmark": null,
+        "total_revenue_benchmark": 408318,
         "charging_rates": [
             25
         ],
@@ -52,7 +52,7 @@
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": false,
         "policy_lr": 2e-4,
-        "policy_epoch": 50,
+        "policy_epoch": 20,
         "policy_batch": 4096,
         "policy_decay": 0.1,
         "policy_scheduler_step": 1000,
@@ -63,7 +63,7 @@
         "num_itr": 80,
         "num_episodes": 300,
         "num_days": 1,
-        "car_batch": null,
+        "car_batch": 50,
         "normalize_input": false,
         "network_horizon_repeat": 1,
         "useful_days": 2,
