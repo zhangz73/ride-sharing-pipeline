@@ -1,0 +1,89 @@
+{
+    "map": {
+        "data_dir": "Map/map_200car11region2200chargers10mins_fullycharged_nyc_combo_fullday.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_200car11region2200chargers10mins_fullycharged_nyc_combo_fullday.tsv",
+        "data": null,
+        "scaling_factor": 1
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_200car11region2200chargers10mins_fullycharged_nyc_combo_fullday.tsv"
+    },
+    "mdp": {
+        "time_horizon": 288,
+        "connection_patience": 1,
+        "pickup_patience": 1,
+        "num_battery_levels": 132,
+        "battery_jump": 0.3,
+        "use_charging_curve": true,
+        "charging_cost_inflation": 2,
+        "force_charging": true,
+        "total_revenue_benchmark": 408318,
+        "charging_rates": [
+            25
+        ],
+        "battery_offset": 0,
+        "battery_per_step": 1,
+        "normalize_by_tripnums": true,
+        "battery_cutoff": [13, 52],
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_200car11region2200chargers10mins_fullycharged_nyc_combo_fullday.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_200car11region2200chargers10mins_fullycharged_nyc_combo_fullday.tsv"
+    },
+    "solver": {
+        "type": "ppo"
+    },
+    "neural": {
+        "value_model_name": "discretized_feedforward",
+        "value_hidden_dim_lst": [500, 64, 64],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
+        "value_batch_norm": false,
+        "value_lr": 1e-2,
+        "value_epoch": 100,
+        "value_batch": 4096,
+        "value_decay": 0.1,
+        "value_scheduler_step": 50,
+        "value_solver": "Adam",
+        "value_retrain": true,
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [500, 64, 64],
+        "policy_activation_lst": ["tanh", "tanh", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 2e-4,
+        "policy_epoch": 20,
+        "policy_batch": 4096,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 1000,
+        "policy_solver": "Adam",
+        "policy_retrain": true,
+        "descriptor": "PPO",
+        "dir": ".",
+        "num_itr": 80,
+        "num_episodes": 300,
+        "num_days": 1,
+        "car_batch": 50,
+        "normalize_input": false,
+        "network_horizon_repeat": 1,
+        "useful_days": 2,
+        "gamma": 1,
+        "eval_days": 10,
+        "ckpt_freq": 10,
+        "benchmarking_policy": "uniform",
+        "eps": 0.1,
+        "eps_sched": 1,
+        "eps_eta": 0.97,
+        "policy_syncing_freq": 1,
+        "n_cpu": 30,
+        "lazy_removal": true,
+        "state_reduction": true
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": [],
+        "eval_days": 10,
+        "gamma": 1
+    }
+}

@@ -682,7 +682,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         x_id = travel_x_ids[i]
                         if self.x_travel[x_id] > 0:
                             action_prob = min(self.x_travel[x_id], 1)
-                            rv = np.random.binomial(n = 1, p = action_prob)
+#                            rv = np.random.binomial(n = 1, p = action_prob)
+                            rv = int(round(action_prob))
                             if rv == 1:
                                 self.x_travel[x_id] -= 1
                                 action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))

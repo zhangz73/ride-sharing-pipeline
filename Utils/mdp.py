@@ -314,7 +314,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, charging_cost_inflation = 1, battery_per_step = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed"):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, charging_cost_inflation = 1, battery_per_step = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed", max_rerouting_distance = None):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -338,6 +338,7 @@ class MarkovDecisionProcess:
         self.region_rate_plug_fname = region_rate_plug_fname
         self.normalize_by_tripnums = normalize_by_tripnums
         self.max_tracked_eta = max_tracked_eta
+        self.max_rerouting_distance = max_rerouting_distance
         if battery_cutoff is None:
             battery_cutoff = list(range(1, self.num_battery_levels))
         self.battery_cutoff = battery_cutoff
@@ -368,6 +369,8 @@ class MarkovDecisionProcess:
         self.max_travel_time = self.map.get_max_travel_time()
         if max_tracked_eta is None:
             self.max_tracked_eta = self.pickup_patience + self.max_travel_time #self.pickup_patience
+        if max_rerouting_distance is None:
+            self.max_rerouting_distance = int(torch.max(self.trip_distance_matrix))
         self.num_charging_rates = len(self.charging_rates)
         self.num_car_states = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
         self.num_car_states_train = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
@@ -1636,7 +1639,7 @@ class MarkovDecisionProcess:
             trip_id_begin = self.state_to_id["trip"][(dest, new_dest, 0)]
             if torch.sum(state_counts[trip_id_begin:(trip_id_begin + self.connection_patience + 1)]) == 0:
                 if dest != new_dest:
-                    return eta == 0 and battery >= min_battery_needed
+                    return eta == 0 and battery >= min_battery_needed and trip_distance <= self.max_rerouting_distance
                 else:
                     ## Idle is always feasible
                     return eta == 0
@@ -1712,6 +1715,9 @@ class MarkovDecisionProcess:
                 ## Check if trip has requests
                 if eta > 0:
                     mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
+                else:
+                    ## Not reroute if distance is too long
+                    mask[:num_regions] *= ((self.trip_request_matrix[origin,:] > 0) + ((self.trip_request_matrix[origin,:] == 0) * (self.trip_distance_matrix[origin,:] <= self.max_rerouting_distance))) > 0
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0

@@ -278,17 +278,21 @@ class PPO_Solver(Solver):
         state_action_advantage_lst_episodes = []
         total_payoff = 0
         single_day_payoffs = np.zeros(self.num_days)
+        single_day_payoffs_raw = np.zeros((num_episodes, self.num_days))
+        single_day_total_revenue = np.zeros((num_episodes, self.num_days))
         data_traj = {}
         for episode in tqdm(range(num_episodes)):
             tmp = []
             payoff_prev = 0
             for day in range(self.num_days):
-                curr_state_lst, next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
+                curr_state_lst, next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
 #                total_payoff += payoff_val * self.gamma ** day
                 single_day_payoffs[day] += payoff_val - payoff_prev
                 payoff_prev = payoff_val
+                single_day_payoffs_raw[episode, day] = payoff_raw
+                single_day_total_revenue[episode, day] = total_revenue
             state_num = len(tmp)
             ## Collect trajectory data
             payoff = 0
@@ -360,7 +364,7 @@ class PPO_Solver(Solver):
                     data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key], dim = 0)
                 else:
                     data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key])
-        return data_traj_combo, (num_episodes, total_payoff), single_day_payoffs
+        return data_traj_combo, (num_episodes, total_payoff), single_day_payoffs, single_day_payoffs_raw, single_day_total_revenue
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
         value_loss_arr = []
@@ -383,7 +387,7 @@ class PPO_Solver(Solver):
                 data_traj_all = {}
                 print("\tGathering data...")
                 if self.n_cpu == 1:
-                    data_traj_all, tup, single_day_payoffs = self.get_data_single(self.num_episodes)
+                    data_traj_all, tup, single_day_payoffs, single_day_payoffs_raw, single_day_total_revenue = self.get_data_single(self.num_episodes)
                     payoff_val = float(tup[1] / tup[0])
                     single_day_payoffs = single_day_payoffs / tup[0]
                 else:
@@ -394,20 +398,29 @@ class PPO_Solver(Solver):
                     print("Gathering results...")
                     payoff_val = 0
                     single_day_payoffs = np.zeros(self.num_days)
+                    single_day_payoffs_raw_lst = []
+                    single_day_total_revenue_lst = []
                     for res in results:
 #                        state_action_advantage_lst_episodes += res[0]
                         data_traj_all.update(res[0])
                         tup = res[1]
                         payoff_val += tup[1]
                         single_day_payoffs += res[2]
+                        single_day_payoffs_raw_lst.append(res[3])
+                        single_day_total_revenue_lst.append(res[4])
                     payoff_val /= self.num_episodes
                     single_day_payoffs /= self.num_episodes
+                    single_day_payoffs_raw = np.vstack(single_day_payoffs_raw_lst)
+                    single_day_total_revenue = np.vstack(single_day_total_revenue)
                     results = None
                 payoff_arr.append(payoff_val)
                 with open(f"payoff_log_{label}.txt", "a") as f:
                     f.write(f"{float(payoff_val)}\n")
                 with open(f"payoff_log_multi_{label}.csv", "a") as f:
                     f.write(f"{','.join([str(x) for x in list(single_day_payoffs)])}\n")
+                ## Log detailed payoff and revenue per iteration
+                np.save(f"Logs/single_day_payoff_raw_{label}_itr={itr+1}.npy", single_day_payoffs_raw)
+                np.save(f"Logs/single_day_total_revenue_{label}_itr={itr+1}.npy", single_day_total_revenue)
                 if itr == self.num_itr:
                     break
                     
@@ -656,6 +669,8 @@ class PPO_Solver(Solver):
         total_trips = 0
         curr_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
         payoff_lst.append(curr_payoff)
+        total_revenue = markov_decision_process.get_total_market_revenue()
+        payoff_begin_raw = float(markov_decision_process.get_payoff_curr_ts(deliver = False))
         if log_policy:
             with open(policy_log_dir, "w") as f:
                 f.write("t,car_dest,car_eta,car_battery,action_type,action_info\n")
@@ -797,9 +812,11 @@ class PPO_Solver(Solver):
         discount_lst = torch.tensor(discount_lst)
         atomic_payoff_lst = torch.tensor(atomic_payoff_lst)
         discounted_payoff = torch.sum(discount_lst * atomic_payoff_lst) / markov_decision_process.get_total_market_revenue()
+        payoff_end_raw = float(markov_decision_process.get_payoff_curr_ts(deliver = False))
+        payoff_raw = payoff_end_raw - payoff_begin_raw
         if return_data:
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
-            return curr_state_lst, next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff
+            return curr_state_lst, next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff, payoff_raw, total_revenue
         passenger_carrying_cars = markov_decision_process.passenger_carrying_cars
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)
