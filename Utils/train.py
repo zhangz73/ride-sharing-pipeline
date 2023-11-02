@@ -411,7 +411,7 @@ class PPO_Solver(Solver):
                     payoff_val /= self.num_episodes
                     single_day_payoffs /= self.num_episodes
                     single_day_payoffs_raw = np.vstack(single_day_payoffs_raw_lst)
-                    single_day_total_revenue = np.vstack(single_day_total_revenue)
+                    single_day_total_revenue = np.vstack(single_day_total_revenue_lst)
                     results = None
                 payoff_arr.append(payoff_val)
                 with open(f"payoff_log_{label}.txt", "a") as f:
