@@ -73,7 +73,7 @@ else:
 #        [229, 233, 170, 137], ## Midtown East
 #    ]
     LOCATIONS_ID_OF_INTEREST = [
-        [132], ## JFK Airport
+#        [132], ## JFK Airport
         ## Workplace
         [244, 120], ## Hudson Heights
         [152, 166], ## Columbia University
@@ -96,12 +96,12 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
-TIME_FREQ = 10 #5 #15 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 200 #300 #12#50 #200
-CHARGING_RATE = 1.01 #0.505 #1.515 #0.833 #[0.128, 0.833]
+TOTAL_CARS_NEW = 300 #300 #12#50 #200
+CHARGING_RATE = 0.505 #1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 132 #264
 SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
