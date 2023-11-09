@@ -21,6 +21,7 @@
         "charging_rates": [
             2
         ],
+        "use_charging_curve": false,
         "battery_offset": 0,
         "car_deployment_type": "random",
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
@@ -31,7 +32,8 @@
     },
     "LP-AugmentedGraph": {
         "num_days": 1,
-        "gamma": 1
+        "gamma": 1,
+        "charging_capacity_as_var": true
     },
     "metric": ["total_payoff"],
     "report": {

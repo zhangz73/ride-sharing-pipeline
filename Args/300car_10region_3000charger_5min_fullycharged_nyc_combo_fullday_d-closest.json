@@ -21,7 +21,7 @@
         "use_charging_curve": true,
         "charging_cost_inflation": 2,
         "force_charging": true,
-        "total_revenue_benchmark": null,
+        "total_revenue_benchmark": 453244,
         "charging_rates": [
             25
         ],

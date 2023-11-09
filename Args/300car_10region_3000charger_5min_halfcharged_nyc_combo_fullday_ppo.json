@@ -21,8 +21,8 @@
         "use_charging_curve": true,
         "charging_cost_inflation": 2,
         "force_charging": true,
-        "total_revenue_benchmark": 408318,
-        "max_rerouting_distance": 15,
+        "total_revenue_benchmark": 453244,
+        "max_rerouting_distance": null,
         "charging_rates": [
             25
         ],
