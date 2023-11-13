@@ -30,13 +30,13 @@ dct_key = {
 transformer = Transformer.from_crs(4326, 2263, always_xy = True)
 
 ## Load data from files
-df = gpd.read_file("Data/Map/taxi_zones/taxi_zones.shp")
-df_data = pd.read_parquet("Data/Map/fhvhv_tripdata_2022-07.parquet")
-df_chargers = pd.read_csv("Data/Map/ny_charging_stations.csv")
+df = gpd.read_file("Data/MapData/taxi_zones/taxi_zones.shp")
+df_data = pd.read_parquet("Data/MapData/fhvhv_tripdata_2022-07.parquet")
+df_chargers = pd.read_csv("Data/MapData/ny_charging_stations.csv")
 #df_chargers = df_chargers[(df_chargers["City"] == "New York") & (df_chargers["Restricted Access"] == False)]
 df_chargers = df_chargers[df_chargers["City"] == "New York"]
 df_chargers_cp = df_chargers.copy()
-df_zone_lookup = pd.read_csv("Data/Map/taxi_zone_lookup.csv")
+df_zone_lookup = pd.read_csv("Data/MapData/taxi_zone_lookup.csv")
 
 df_data = df_data[df_data["hvfhs_license_num"].isin(dct_key[SCOPE])]
 
@@ -212,12 +212,18 @@ def get_triporig_time_heatmap(df_data, hours = None, desc = "all_time", save = T
     return fig, ax
 
 ### Generate trip destination heatmap for given regions
-def get_supply_time_heatmap(df_data, hours = None, desc = "all_time", save = True, cmap = "OrRd"):
+def get_supply_time_heatmap(df_data, hours = None, desc = "all_time", save = True, cmap = "OrRd", regions = None):
     if hours is not None and len(hours) > 0:
         df_sub = df_data[df_data["Hours"].isin(hours)]
     else:
         df_sub = df_data
-    df_merged_out = df.merge(df_sub, left_on = "LocationID", right_on = "PULocationID")
+    if regions is not None and len(regions) > 0:
+        df_region = df[df["borough"].isin(regions)]
+        name = "-".join(regions)
+    else:
+        df_region = df
+        name = "nyc"
+    df_merged_out = df_region.merge(df_sub, left_on = "LocationID", right_on = "PULocationID")
     df_merged_out["OutCounts"] = 1
     df_outcounts = df_merged_out[["LocationID", "OutCounts"]].groupby("LocationID").sum().reset_index()
     df_merged_in = df.merge(df_sub, left_on = "LocationID", right_on = "DOLocationID")
@@ -484,8 +490,8 @@ def get_numcars(df):
 #get_tripmiles_daily(df_data)
 #get_numcars(df_data)
 
-visualize_chargers(charger_type = "Level2")
-visualize_chargers(charger_type = "DCFast")
+#visualize_chargers(charger_type = "Level2")
+#visualize_chargers(charger_type = "DCFast")
 #get_charger_networks()
 
 """
@@ -529,7 +535,6 @@ get_hist(df_vis[df_vis["Holiday"] == 1]["TripRequests"], "# Trip Requests on Hol
 ## Weekday rush v.s. leisure hours: 7am - 11 pm v.s. 0-6 am
 ## Weekend/Holiday rush v.s. leisure hours: 0-1 am, 10am - 11pm v.s. 2-9 am
 
-"""
 ## Visualize the trip time, trip distance, trip waiting time densities
 df_vis = df_data.copy()
 df_vis["Hours"] = df_vis["request_datetime"].apply(lambda x: x.hour)
@@ -547,12 +552,12 @@ df_vis = df_vis[(df_vis["PULocationID"] < 264) & (df_vis["DOLocationID"] < 264)]
 df_vis["TripTime"] = (df_vis["dropoff_datetime"] - df_vis["pickup_datetime"]).apply(lambda x: x.seconds / 60)
 df_vis["WaitingTime"] = (df_vis["on_scene_datetime"] - df_vis["request_datetime"]).apply(lambda x: x.seconds / 60)
 
-arg_lst = [([3,4,5,6], 1, "weekday_early_morning"), ([7,8,9,10], 1, "weekday_morning_rush"), ([11,12,13,14,15,16], 1, "weekday_noon"), ([17,18,19,20], 1, "weekday_evening_rush"), ([0,1,2,21,22,23], 1, "weekday_late_night"), ([2,3,4,5,6,7,8], 0, "weekend_early_morning"), ([9,10,11,12,13,14,15,16,17], 0, "weekend_daytime"), ([0,1,18,19,20,21,22,23], 0, "weekend_evening")]
+#arg_lst = [([3,4,5,6], 1, "weekday_early_morning"), ([7,8,9,10], 1, "weekday_morning_rush"), ([11,12,13,14,15,16], 1, "weekday_noon"), ([17,18,19,20], 1, "weekday_evening_rush"), ([0,1,2,21,22,23], 1, "weekday_late_night"), ([2,3,4,5,6,7,8], 0, "weekend_early_morning"), ([9,10,11,12,13,14,15,16,17], 0, "weekend_daytime"), ([0,1,18,19,20,21,22,23], 0, "weekend_evening")]
+arg_lst = [([7,8,9,10], 1, "weekday_morning_rush"), ([17,18,19,20], 1, "weekday_evening_rush")]
 
 for hours, busy, desc in arg_lst:
-#    get_supply_time_heatmap(df_vis[df_vis["Busy"] == busy], hours = hours, desc = desc)
-    get_travel_link_plot("NYC Trip Links", "nyc_trip_links", regions = None, overlay_chargers = False, hours = hours, desc = desc, df_data = df_vis[df_vis["Busy"] == busy])
-"""
+    get_supply_time_heatmap(df_vis[df_vis["Busy"] == busy], hours = hours, desc = desc, regions = ["Manhattan"])
+#    get_travel_link_plot("NYC Trip Links", "nyc_trip_links", regions = None, overlay_chargers = False, hours = hours, desc = desc, df_data = df_vis[df_vis["Busy"] == busy])
 
 #for hour in [] + list(range(24)):
 #    if hour is None:

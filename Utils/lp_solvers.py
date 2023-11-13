@@ -39,12 +39,14 @@ class LP_Solver(train.Solver):
             m, n = self.A.shape
     #        model.setParam("MIPFocus", 3)
             model.setParam("Method", 2)
+            model.setParam("NodeMethod", 2)
             model.setParam("Crossover", 0)
             x = model.addMVar(n, lb = 0, vtype = GRB.CONTINUOUS, name = "x")
             if self.add_integer_var:
                 n2 = self.B.shape[1]
                 y = model.addMVar(n2, lb = 0, vtype = GRB.INTEGER, name = "y")
                 model.addConstr(self.A @ x + self.B @ y == self.b)
+                model.addConstr(y <= 5)
             else:
                 model.addConstr(self.A @ x == self.b)
     #        objective = gp.quicksum(self.c[r] * x[r] for r in range(n))
@@ -309,7 +311,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                     end = begin + self.num_regions
                     self.c[begin:end] = cost * self.gamma ** t
         self.c2 = np.zeros(self.y_len)
-        self.c2 += -13.36 #-0.1
+        self.c2 += -27 #-13.36 #-0.1
 
     def construct_trip_demand_matrix_single(self, t_lo, t_hi):
         trip_demand_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions)
@@ -454,9 +456,10 @@ class LP_On_AugmentedGraph(LP_Solver):
         total_flow_target = np.ones(self.adjusted_time_horizon) * self.num_total_cars
         ### Concatenate together
         self.A = vstack((flow_conservation_mat, trip_demand_mat, slack_request_patience_mat, charging_facility_mat, total_flow_mat, battery_feasible_mat))
-        leading_zero_B = csr_matrix((flow_conservation_mat.shape[0] + trip_demand_mat.shape[0] + slack_request_patience_mat.shape[0], self.y_len))
-        trailing_zero_B = csr_matrix((total_flow_mat.shape[0] + battery_feasible_mat.shape[0], self.y_len))
-        self.B = vstack((leading_zero_B, charging_facility_mat2, trailing_zero_B))
+        if self.charging_capacity_as_var:
+            leading_zero_B = csr_matrix((flow_conservation_mat.shape[0] + trip_demand_mat.shape[0] + slack_request_patience_mat.shape[0], self.y_len))
+            trailing_zero_B = csr_matrix((total_flow_mat.shape[0] + battery_feasible_mat.shape[0], self.y_len))
+            self.B = vstack((leading_zero_B, charging_facility_mat2, trailing_zero_B))
         self.b = np.concatenate((flow_conservation_target, trip_demand_target, slack_request_patience_target, charging_facility_target, total_flow_target, battery_feasible_target), axis = None)
 #        self.b = csr_matrix(self.b.reshape((len(self.b), 1)))
     
