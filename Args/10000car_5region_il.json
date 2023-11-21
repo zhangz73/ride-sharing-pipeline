@@ -1,18 +1,18 @@
 {
     "map": {
-        "data_dir": "Map/map_1000car5region.tsv"
+        "data_dir": "Map/map_10000car5region.tsv"
     },
     "trip_demand": {
         "parameter_source": "given",
         "arrival_type": "poisson",
-        "parameter_fname": "TripDemand/trip_demand_1000car5region.tsv",
+        "parameter_fname": "TripDemand/trip_demand_10000car5region.tsv",
         "data": null
     },
     "reward": {
-        "reward_fname": "Payoff/payoff_1000car5region.tsv"
+        "reward_fname": "Payoff/payoff_10000car5region.tsv"
     },
     "mdp": {
-        "time_horizon": 360,
+        "time_horizon": 120,
         "connection_patience": 0,
         "pickup_patience": 0,
         "num_battery_levels": 1,
@@ -26,8 +26,8 @@
         "battery_per_step": 0,
         "normalize_by_tripnums": true,
         "total_revenue_benchmark": null,
-        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1000car5region.tsv",
-        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1000car5region.tsv"
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_10000car5region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_10000car5region.tsv"
     },
     "solver": {
         "type": "IL",
