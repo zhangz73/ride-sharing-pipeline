@@ -1326,6 +1326,9 @@ class MarkovDecisionProcess:
     def query_action(self, query_tup):
         return self.action_desc_to_id[query_tup]
     
+    def query_reduced_action(self, query_tup):
+        return self.reduced_action_desc_to_id[query_tup]
+    
     def get_all_low_battery_car_ids(self):
         low_battery_car_ids = []
         for dest in self.regions:

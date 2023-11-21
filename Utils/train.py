@@ -92,8 +92,8 @@ class PPO_Solver(Solver):
         self.value_retrain = value_retrain
         self.policy_retrain = policy_retrain
         self.policy_epoch = policy_epoch
-        self.value_batch = min(value_batch, num_episodes)
-        self.policy_batch = min(policy_batch, num_episodes)
+        self.value_batch = value_batch #min(value_batch, num_episodes)
+        self.policy_batch = policy_batch #min(policy_batch, num_episodes)
         self.benchmarking_policy = benchmarking_policy
         self.eps = eps
         self.eps_sched = eps_sched
@@ -385,6 +385,8 @@ class PPO_Solver(Solver):
                 print(f"Iteration #{itr+1}/{self.num_itr}:")
                 ## Obtain simulated data from each episode
                 data_traj_all = {}
+                for t in range(self.time_horizon * self.network_horizon_repeat):
+                    data_traj_all[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": []}
                 print("\tGathering data...")
                 if self.n_cpu == 1:
                     data_traj_all, tup, single_day_payoffs, single_day_payoffs_raw, single_day_total_revenue = self.get_data_single(self.num_episodes)
@@ -402,12 +404,20 @@ class PPO_Solver(Solver):
                     single_day_total_revenue_lst = []
                     for res in results:
 #                        state_action_advantage_lst_episodes += res[0]
-                        data_traj_all.update(res[0])
+                        for t in range(self.time_horizon * self.network_horizon_repeat):
+                            for key in data_traj_all[t]:
+                                data_traj_all[t][key] += [res[0][t][key]]
                         tup = res[1]
                         payoff_val += tup[1]
                         single_day_payoffs += res[2]
                         single_day_payoffs_raw_lst.append(res[3])
                         single_day_total_revenue_lst.append(res[4])
+                    for t in range(self.time_horizon * self.network_horizon_repeat):
+                        for key in data_traj_all[t]:
+                            if key in ["state_counts", "next_state_counts"]:
+                                data_traj_all[t][key] = torch.cat(data_traj_all[t][key], dim = 0)
+                            else:
+                                data_traj_all[t][key] = torch.cat(data_traj_all[t][key])
                     payoff_val /= self.num_episodes
                     single_day_payoffs /= self.num_episodes
                     single_day_payoffs_raw = np.vstack(single_day_payoffs_raw_lst)
@@ -482,9 +492,9 @@ class PPO_Solver(Solver):
                                     ## TODO: Fix it!!!
                                     ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
                                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                                    total_policy_loss += torch.sum(loss_curr) / len(batch_idx)
+                                    total_policy_loss += torch.sum(loss_curr) #/ len(batch_idx)
                                     total_policy_num += len(loss_curr)
-#                    total_policy_loss /= total_policy_num
+                    total_policy_loss /= total_policy_num
                     policy_curr_arr.append(float(total_policy_loss.data))
                     total_policy_loss.backward()
                     self.policy_optimizer.step()

@@ -1,6 +1,1 @@
-passenger-carry, t = 0, b = 2, origin = 0, dest = 1, val = 1.0
-passenger-carry, t = 1, b = 1, origin = 1, dest = 0, val = 1.0
-passenger-carry, t = 3, b = 2, origin = 0, dest = 1, val = 1.0
-reroute, t = 4, b = 1, origin = 1, dest = 1, val = 1.0
-charge, t = 2, b = 0, region = 0, rate = 2, val = 1.0
-Charging Station, region = 0, rate = 2, val = 1.0
+reroute, t = 0, b = 1, origin = 1, dest = 0, val = 1.0

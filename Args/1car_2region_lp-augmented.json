@@ -33,6 +33,10 @@
     "LP-AugmentedGraph": {
         "num_days": 1,
         "gamma": 1,
+        "fractional_cars": false,
+        "full_knowledge": false,
+        "randomized_eval_time": 1,
+        "retrain": false,
         "charging_capacity_as_var": true
     },
     "metric": ["total_payoff"],

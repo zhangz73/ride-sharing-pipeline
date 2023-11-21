@@ -8,6 +8,7 @@ import Utils.neural as neural
 import Utils.mdp as mdp
 import Utils.train as train
 import Utils.lp_solvers as lp_solvers
+import Utils.imitate_solvers as imitate_solvers
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
@@ -114,6 +115,9 @@ def main(args, json_name = ""):
             randomized_eval_time = args["LP-AugmentedGraph"]["randomized_eval_time"]
         else:
             randomized_eval_time = 1
+    elif solver_type == "IL":
+        solver = imitate_solvers.IL_Solver(markov_decision_process = markov_decision_process, **args["IL"])
+    
     if solver_type != "LP-AugmentedGraph":
         randomized_eval_time = 1
     if "eval_days" in args["report"]:
@@ -174,6 +178,10 @@ def main(args, json_name = ""):
         if not lp_assume_full_knowledge:
             solver.train()
             solver.plot_fleet_status(f"{json_name}_{descriptor}")
+    elif solver_type == "IL":
+        report_factory = train.ReportFactory()
+        loss_arr = solver.train()
+        report_factory.get_training_loss_plot(loss_arr, "Cross Entropy Loss", f"loss_{json_name}_{descriptor}")
     
     df_table_all, payoff = evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = seed_lst, randomized_eval_time = randomized_eval_time, solver_type = solver_type, lp_eval_fractional_cars = lp_eval_fractional_cars, lp_assume_full_knowledge = lp_assume_full_knowledge, n_cpu = min(n_cpu, num_trials))
 #    vis_day = 3
