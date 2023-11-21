@@ -19,7 +19,7 @@ import Utils.neural as neural
 import Utils.lp_solvers as lp_solvers
 
 class IL_Solver(train.Solver):
-    def __init__(self, markov_decision_process = None, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "IL", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, **kargs):
+    def __init__(self, markov_decision_process = None, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "IL", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, traj_recollect = True, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, **kargs):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         self.reward_df = self.markov_decision_process.reward_df
         self.num_days = num_days
@@ -28,6 +28,7 @@ class IL_Solver(train.Solver):
         self.n_cpu = n_cpu
         self.device = device
         self.descriptor = descriptor
+        self.traj_recollect = traj_recollect
         self.state_reduction = True
         self.lp_solver = lp_solvers.LP_On_AugmentedGraph(markov_decision_process = self.markov_decision_process, num_days = self.num_days, gamma = self.gamma, retrain = self.retrain, n_cpu = self.n_cpu)
         self.num_regions = self.lp_solver.num_regions
@@ -96,6 +97,7 @@ class IL_Solver(train.Solver):
         for t in range(self.time_horizon):
             data_dict[t] = {"state_counts": [], "atomic_actions": []}
         markov_decision_process = self.markov_decision_process
+        payoff = 0
         for traj in tqdm(range(n_traj)):
             ## Simulate trajectory
             ## Query fluid resolve to get joint actions
@@ -142,11 +144,12 @@ class IL_Solver(train.Solver):
                     data_dict[t]["state_counts"].append(curr_state_counts)
                     data_dict[t]["atomic_actions"].append(action_id)
                 markov_decision_process.transit_across_timestamp()
-        curr_payoff = markov_decision_process.get_payoff_curr_ts(deliver = True)
+            curr_payoff = markov_decision_process.get_payoff_curr_ts(deliver = True)
+            payoff += curr_payoff
         for t in range(self.time_horizon):
             data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
             data_dict[t]["atomic_actions"] = torch.tensor(data_dict[t]["atomic_actions"])
-        return data_dict
+        return data_dict, payoff
     
     def collect_data(self, n_traj = 1):
         batch_size = int(math.ceil(n_traj / self.n_cpu))
@@ -156,13 +159,17 @@ class IL_Solver(train.Solver):
         data_dict = {}
         for t in range(self.time_horizon):
             data_dict[t] = {"state_counts": [], "atomic_actions": []}
-        for res in results:
+        total_payoff = 0
+        for tup in results:
+            res, payoff = tup
+            total_payoff += payoff / n_traj
             for t in range(self.time_horizon):
                 data_dict[t]["state_counts"].append(res[t]["state_counts"])
                 data_dict[t]["atomic_actions"].append(res[t]["atomic_actions"])
         for t in range(self.time_horizon):
             data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
             data_dict[t]["atomic_actions"] = torch.cat(data_dict[t]["atomic_actions"])
+        print(total_payoff)
         return data_dict
 
     def remove_infeasible_actions(self, state_counts, ts, output, car_id = None, state_count_check = None):
@@ -194,19 +201,26 @@ class IL_Solver(train.Solver):
 
     ## Train a neural network classifier for atomic actions given a state and car category
     def train(self):
-        self.data_dict = self.collect_data(n_traj = self.num_episodes)
-        torch.save(self.data_dict, f"TrainingData/il_traj_{self.descriptor}.pt")
+        if self.traj_recollect:
+            self.data_dict = self.collect_data(n_traj = self.num_episodes)
+            # torch.save(self.data_dict, f"TrainingData/il_traj_{self.descriptor}.pt")
+        else:
+            self.data_dict = torch.load(f"TrainingData/il_traj_{self.descriptor}.pt")
         loss_fn = torch.nn.CrossEntropyLoss()
         loss_arr = []
+        self.policy_optimizer.zero_grad(set_to_none=True)
         for itr in tqdm(range(self.num_itr)):
             total_loss = 0
-            for t in range(self.time_horizon):
+            for t in tqdm(range(self.time_horizon), leave = False):
                 batch_idx = torch.from_numpy(np.random.choice(len(self.data_dict[t]["state_counts"]), size = min(self.policy_batch, len(self.data_dict[t]["state_counts"])), replace = False))
                 curr_state_counts_lst = self.data_dict[t]["state_counts"][batch_idx, :]
                 atomic_actions_lst = self.data_dict[t]["atomic_actions"][batch_idx]
                 predicted_actions = self.policy_predict(state_counts = curr_state_counts_lst, ts = t, prob = True, remove_infeasible = False)
                 loss = loss_fn(predicted_actions, atomic_actions_lst)
-                total_loss += loss
+                total_loss += loss / self.time_horizon
+                # loss.backward()
+                # self.policy_optimizer.step()
+                # self.policy_scheduler.step()
             loss_arr.append(float(total_loss.data))
             total_loss.backward()
             self.policy_optimizer.step()
