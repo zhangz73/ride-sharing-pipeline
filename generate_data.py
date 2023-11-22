@@ -199,7 +199,7 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 #tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
 #write_data_traffic_map("1000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
 
-## 3000 cars 3 regions
+## 900 cars 3 regions
 lam_1 = [30, 30, 300]
 lam_2 = [200, 150, 150]
 lam_3 = [50, 50, 500]
@@ -207,7 +207,7 @@ p_1 = [[0.1, 0.1, 0.8], [0.1, 0.1, 0.8], [0.1, 0.1, 0.8]]
 p_2 = [[0.1, 0.8, 0.1], [0.1, 0.8, 0.1], [0.1, 0.8, 0.1]]
 p_3 = [[0.8, 0.1, 0.1], [0.8, 0.1, 0.1], [0.8, 0.1, 0.1]]
 tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
-write_data_traffic_map("3000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1000), (1, 0, 1000), (2, 0, 1000)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
+write_data_traffic_map("2400car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 800), (1, 0, 800), (2, 0, 800)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
 
 ## Spatial-Temporal Star-To-Complete Network (ST-STC)
 ### 12 cars 4 regions
