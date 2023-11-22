@@ -479,8 +479,10 @@ class MarkovDecisionProcess:
         return min(curr_battery + rate, self.num_battery_levels - 1)
     
     ## Get the length of states
-    def get_state_len(self, state_reduction = False, model = "policy", use_region = True):
+    def get_state_len(self, state_reduction = False, model = "policy", use_region = True, has_local = True):
         if not state_reduction:
+            if has_local:
+                return self.num_total_states_train + self.num_total_local_states
             return self.num_total_states_train
         if model == "policy":
             if not use_region:
@@ -783,6 +785,12 @@ class MarkovDecisionProcess:
             return self.state_counts.clone()
         if not state_reduction:
             ret = torch.cat([self.state_counts[:self.full_car_state_range[0]], self.car_train_state_counts, self.state_counts[self.full_car_state_range[1]:]])
+            if car_id is not None and not use_region:
+                car = self.state_dict[car_id]
+                local_state_counts = self.get_local_state(car)
+            elif use_region:
+                local_state_counts = self.get_local_state_region(region)
+            ret = torch.cat([ret, local_state_counts])
             return ret.clone() #(ret.to_sparse(), ret.to_sparse()) #
         assert (not use_region and car_id is not None) or (use_region and region is not None)
         reduced_state_counts = self.reduced_state_counts.clone()

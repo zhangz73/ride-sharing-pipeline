@@ -37,7 +37,7 @@ class IL_Solver(train.Solver):
         self.charging_rates = self.lp_solver.charging_rates
         self.all_actions = self.lp_solver.all_actions
         self.all_actions_reduced = self.markov_decision_process.get_all_actions(state_reduction = self.state_reduction)
-        self.policy_input_dim = self.markov_decision_process.get_state_len(state_reduction = True, model = "policy", use_region = False)
+        self.policy_input_dim = self.markov_decision_process.get_state_len(state_reduction = self.state_reduction, model = "policy", use_region = False, has_local = True)
         self.policy_output_dim = len(self.all_actions_reduced)
         self.ts_per_network = ts_per_network
         self.discretized_len = int(math.ceil(self.time_horizon / self.ts_per_network))
@@ -113,7 +113,7 @@ class IL_Solver(train.Solver):
                 for car_idx in range(num_available_cars):
                     car = markov_decision_process.state_dict[available_car_ids[car_idx]]
                     car_id = available_car_ids[car_idx]
-                    curr_state_counts = markov_decision_process.get_state_counts(state_reduction = True, car_id = car_id)
+                    curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = car_id)
                     curr_state_counts = curr_state_counts.view((1, len(curr_state_counts)))
                     car_dest, car_eta, car_battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
                     ## Extract atomic action from the dct
