@@ -164,15 +164,15 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 #tau = [[9, 15, 75, 12, 24], [15, 6, 66, 6, 18], [75, 66, 6, 60, 39], [12, 6, 60, 9, 15], [24, 18, 39, 15, 12]]
 #write_data_traffic_map("1000car5region", 5, 360, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 200), (1, 0, 200), (2, 0, 200), (3, 0, 200), (4, 0, 200)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1), (120, lam_2), (240, lam_3)], transition_prob = [(0, p_1), (120, p_2), (240, p_3)], traffic_time = [(0, tau)])
 
-## 10000 cars 5 regions
-lam_1 = [50, 50, 50, 50, 540]
-lam_2 = [360, 240, 240, 240, 60]
-lam_3 = [60, 60, 60, 660, 60]
-p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 0.2, 0.2, 0.2, 0.2], [0.3, 0.3, 0.3, 0.1, 0]]
-p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
-p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
-tau = [[3, 5, 25, 4, 8], [5, 2, 22, 3, 6], [25, 22, 2, 20, 13], [4, 2, 20, 3, 5], [8, 6, 13, 5, 4]]
-write_data_traffic_map("10000car5region", 5, 120, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 2000), (1, 0, 2000), (2, 0, 2000), (3, 0, 2000), (4, 0, 2000)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (40, lam_2), (80, lam_3)], transition_prob = [(0, p_1), (40, p_2), (80, p_3)], traffic_time = [(0, tau)])
+### 10000 cars 5 regions
+#lam_1 = [50, 50, 50, 50, 540]
+#lam_2 = [360, 240, 240, 240, 60]
+#lam_3 = [60, 60, 60, 660, 60]
+#p_1 = [[0.6, 0.1, 0, 0.3, 0], [0.1, 0.6, 0, 0.3, 0], [0, 0, 0.7, 0.3, 0], [0.2, 0.2, 0.2, 0.2, 0.2], [0.3, 0.3, 0.3, 0.1, 0]]
+#p_2 = [[0.1, 0, 0, 0.9, 0], [0, 0.1, 0, 0.9, 0], [0, 0, 0.1, 0.9, 0], [0.05, 0.05, 0.05, 0.8, 0.05], [0, 0, 0, 0.9, 0.1]]
+#p_3 = [[0.9, 0.05, 0, 0.05, 0], [0.05, 0.9, 0, 0.05, 0], [0, 0, 0.9, 0.1, 0], [0.3, 0.3, 0.3, 0.05, 0.05], [0, 0, 0, 0.1, 0.9]]
+#tau = [[3, 5, 25, 4, 8], [5, 2, 22, 3, 6], [25, 22, 2, 20, 13], [4, 2, 20, 3, 5], [8, 6, 13, 5, 4]]
+#write_data_traffic_map("10000car5region", 5, 120, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 2000), (1, 0, 2000), (2, 0, 2000), (3, 0, 2000), (4, 0, 2000)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (40, lam_2), (80, lam_3)], transition_prob = [(0, p_1), (40, p_2), (80, p_3)], traffic_time = [(0, tau)])
 
 ## 10 cars 5 regions
 #lam_1 = [0.18, 0.18, 0.18, 0.18, 1.8]
@@ -191,13 +191,21 @@ write_data_traffic_map("10000car5region", 5, 120, payoff = {"pickup": 1, "rerout
 #tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
 #write_data_traffic_map("100car3region", 3, 10, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1)], traffic_time = [(0, tau)])
 
-## 1000 cars 3 regions
-lam_1 = [3, 3, 30]
-lam_2 = [20, 15, 15]
-lam_3 = [5, 5, 50]
+### 1000 cars 3 regions
+#lam_1 = [3, 3, 30]
+#lam_2 = [20, 15, 15]
+#lam_3 = [5, 5, 50]
+#p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
+#tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
+#write_data_traffic_map("1000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
+
+## 3000 cars 3 regions
+lam_1 = [30, 30, 300]
+lam_2 = [200, 150, 150]
+lam_3 = [50, 50, 500]
 p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
 tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
-write_data_traffic_map("1000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
+write_data_traffic_map("10000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1000), (1, 0, 1000), (2, 0, 1000)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
 
 ## Spatial-Temporal Star-To-Complete Network (ST-STC)
 ### 12 cars 4 regions
