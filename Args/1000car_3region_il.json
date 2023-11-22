@@ -1,0 +1,63 @@
+{
+    "map": {
+        "data_dir": "Map/map_1000car3region.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_1000car3region.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1000car3region.tsv"
+    },
+    "mdp": {
+        "time_horizon": 36,
+        "connection_patience": 0,
+        "pickup_patience": 1,
+        "num_battery_levels": 1,
+        "use_charging_curve": false,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            2
+        ],
+        "max_tracked_eta": null,
+        "battery_offset": 0,
+        "battery_per_step": 0,
+        "normalize_by_tripnums": true,
+        "total_revenue_benchmark": null,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1000car3region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1000car3region.tsv"
+    },
+    "solver": {
+        "type": "IL",
+        "n_cpu": 10
+    },
+    "IL": {
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [500, 64, 64],
+        "policy_activation_lst": ["tanh", "tanh", "tanh"],
+        "policy_batch_norm": true,
+        "policy_lr": 1e-3,
+        "policy_batch": 4096,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 10000,
+        "policy_solver": "Adam",
+        "policy_retrain": true,
+        "ts_per_network": 1,
+        "embedding_dim": 6,
+        "traj_recollect": true,
+        "num_days": 1,
+        "gamma": 1,
+        "num_itr": 500,
+        "num_episodes": 50,
+        "n_cpu": 50
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": [],
+        "gamma": 1,
+        "eval_days": 1
+    }
+}
