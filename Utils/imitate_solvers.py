@@ -19,7 +19,7 @@ import Utils.neural as neural
 import Utils.lp_solvers as lp_solvers
 
 class IL_Solver(train.Solver):
-    def __init__(self, markov_decision_process = None, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "IL", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, traj_recollect = True, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, **kargs):
+    def __init__(self, markov_decision_process = None, policy_model_name = "discretized_feedforward", policy_hidden_dim_lst = [10, 10], policy_activation_lst = ["relu", "relu"], policy_batch_norm = False, policy_lr = 1e-2, policy_epoch = 1, policy_batch = 100, policy_decay = 0.1, policy_scheduler_step = 10000, policy_solver = "Adam", policy_retrain = False, descriptor = "IL", dir = ".", device = "cpu", ts_per_network = 1, embedding_dim = 1, num_itr = 100, num_episodes = 100, traj_recollect = True, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, state_reduction = True, **kargs):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         self.reward_df = self.markov_decision_process.reward_df
         self.num_days = num_days
@@ -29,7 +29,7 @@ class IL_Solver(train.Solver):
         self.device = device
         self.descriptor = descriptor
         self.traj_recollect = traj_recollect
-        self.state_reduction = True
+        self.state_reduction = state_reduction
         self.lp_solver = lp_solvers.LP_On_AugmentedGraph(markov_decision_process = self.markov_decision_process, num_days = self.num_days, gamma = self.gamma, retrain = self.retrain, n_cpu = self.n_cpu)
         self.num_regions = self.lp_solver.num_regions
         self.num_charging_rates = self.lp_solver.num_charging_rates
@@ -77,7 +77,10 @@ class IL_Solver(train.Solver):
             for eta in range(self.pickup_patience + 1):
                 travel_x_ids, _ = self.lp_solver.get_relevant_x(0, dest, 0, eta, strict = False)
                 for region in range(self.num_regions):
-                    policy_dct[dest][(eta, region)] = x_travel[travel_x_ids[region]]
+                    if len(travel_x_ids) > 0:
+                        policy_dct[dest][(eta, region)] = x_travel[travel_x_ids[region]]
+                    else:
+                        policy_dct[dest][(eta, region)] = 0
         return policy_dct
     
     def get_policy_indicator(self, x):

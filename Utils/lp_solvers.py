@@ -259,8 +259,10 @@ class LP_On_AugmentedGraph(LP_Solver):
             ## Charge: t, \delta, region
             travel_len = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_battery_levels * self.num_regions
-            x_travel = np.array([[x_copy[:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.time_horizon * 2)]).sum(axis = 2).flatten()
-            x_charge = np.array([[x_copy[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
+            x_travel = np.array([[x_copy[:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.adjusted_time_horizon * 2)]).sum(axis = 2)
+            x_travel = x_travel[:self.adjusted_time_horizon,:] + x_travel[self.adjusted_time_horizon:,:]
+            x_travel = x_travel.flatten()
+            x_charge = np.array([[x_copy[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.adjusted_time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
         self.x_travel = x_travel #x_travel.round().astype(int)
         self.x_charge = x_charge
 
@@ -650,14 +652,17 @@ class LP_On_AugmentedGraph(LP_Solver):
         else:
             ## Travel: t, origin, dest
             ## Charge: t, \delta, region
-            travel_idx_begin = t * self.num_regions * self.num_regions + region * self.num_regions
-            travel_idx_end = travel_idx_begin + self.num_regions
-            eta_offset = eta * self.adjusted_time_horizon * self.num_regions * self.num_regions
-            travel_idx_begin, travel_idx_end = travel_idx_begin + eta_offset, travel_idx_end + eta_offset
-            charge_idx_begin = t * self.num_charging_rates * self.num_regions + region
-            charge_idx_end = charge_idx_begin + self.num_charging_rates * self.num_regions
-            travel_x_ids = list(range(travel_idx_begin, travel_idx_end))
-            charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
+            if t < self.adjusted_time_horizon:
+                travel_idx_begin = t * self.num_regions * self.num_regions + region * self.num_regions
+                travel_idx_end = travel_idx_begin + self.num_regions
+                eta_offset = eta * self.adjusted_time_horizon * self.num_regions * self.num_regions
+                travel_idx_begin, travel_idx_end = travel_idx_begin + eta_offset, travel_idx_end + eta_offset
+                charge_idx_begin = t * self.num_charging_rates * self.num_regions + region
+                charge_idx_end = charge_idx_begin + self.num_charging_rates * self.num_regions
+                travel_x_ids = list(range(travel_idx_begin, travel_idx_end))
+                charge_x_ids = list(range(charge_idx_begin, charge_idx_end, self.num_regions))
+            else:
+                travel_x_ids, charge_x_ids = [], []
         return travel_x_ids, charge_x_ids
     
     def get_fleet_status(self):
@@ -774,7 +779,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         payoff_lst = []
         discount_lst = []
         atomic_payoff_lst = []
-        self.reset_x_infer(strict = strict, x_copy = x_copy)
+        self.reset_x_infer(strict = strict, x_copy = None)
         for t in range(self.time_horizon):
             available_car_ids = self.markov_decision_process.get_available_car_ids(True)
             num_available_cars = len(available_car_ids)

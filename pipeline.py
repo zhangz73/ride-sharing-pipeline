@@ -180,8 +180,9 @@ def main(args, json_name = ""):
             solver.plot_fleet_status(f"{json_name}_{descriptor}")
     elif solver_type == "IL":
         report_factory = train.ReportFactory()
-        loss_arr = solver.train()
-        report_factory.get_training_loss_plot(loss_arr, "Cross Entropy Loss", f"loss_{json_name}_{descriptor}")
+        if args["IL"]["num_itr"] > 0:
+            loss_arr = solver.train()
+            report_factory.get_training_loss_plot(loss_arr, "Cross Entropy Loss", f"loss_{json_name}_{descriptor}")
     
     df_table_all, payoff = evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = seed_lst, randomized_eval_time = randomized_eval_time, solver_type = solver_type, lp_eval_fractional_cars = lp_eval_fractional_cars, lp_assume_full_knowledge = lp_assume_full_knowledge, n_cpu = min(n_cpu, num_trials))
 #    vis_day = 3

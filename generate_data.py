@@ -191,6 +191,14 @@ write_data_traffic_map("10000car5region", 5, 120, payoff = {"pickup": 1, "rerout
 #tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
 #write_data_traffic_map("100car3region", 3, 10, payoff = {"pickup": 1, "reroute": 0, "charge": {2: -0.5}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 1)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1)], traffic_time = [(0, tau)])
 
+## 1000 cars 3 regions
+lam_1 = [3, 3, 30]
+lam_2 = [20, 15, 15]
+lam_3 = [5, 5, 50]
+p_1 = [[0.6, 0.1, 0.3], [0.1, 0.6, 0.3], [0.1, 0.7, 0.2]]
+tau = [[1, 2, 3], [2, 1, 3], [3, 3, 1]]
+write_data_traffic_map("1000car3region", 3, 36, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 30), (1, 0, 40), (2, 0, 30)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (12, lam_2), (24, lam_3)], transition_prob = [(0, p_1), (12, p_2), (24, p_3)], traffic_time = [(0, tau)])
+
 ## Spatial-Temporal Star-To-Complete Network (ST-STC)
 ### 12 cars 4 regions
 #xi = 1
