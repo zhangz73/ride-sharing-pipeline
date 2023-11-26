@@ -1387,6 +1387,8 @@ class MarkovDecisionProcess:
                 start = self.general_car_id_region_eta_map[(origin, eta)]
                 start_feasible = start + int(round(self.battery_per_step * trip_distance))
                 end = start + self.num_battery_levels
+                if start_feasible >= end:
+                    return None
                 relev_state_counts_reverse = self.state_counts[start_feasible:end].flip(dims = (0,))
                 idx_reverse = torch.argmax((relev_state_counts_reverse > 0) + 0)
                 idx = int(len(relev_state_counts_reverse) - 1 - idx_reverse + start_feasible)

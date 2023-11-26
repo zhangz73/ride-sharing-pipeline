@@ -267,27 +267,28 @@ class PPO_Solver(Solver):
                     if self.normalize_input:
                         self.input_scale[t] = {"mu": input_scale_mean, "std": input_scale_std}
         for t in tqdm(range(self.time_horizon), leave = False):
-            payoff_lst = value_dct[t]["payoff"].to(device = self.device)
-            mu, sd = self.value_scale[t]
-            payoff_lst = (payoff_lst - mu) / sd
-            if len(value_dct[t]["state_counts"]) > 0:
-                state_counts_lst = value_dct[t]["state_counts"]
-                state_counts_lst = state_counts_lst[:,:self.value_input_dim]
-#                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
-                if self.normalize_input:
-                    state_counts_lst = self.scale_input(state_counts_lst, t, "value")
-                idx_lst = np.random.permutation(state_counts_lst.shape[0])
-                batch_num = int(math.ceil(state_counts_lst.shape[0] / self.value_batch))
-                for batch in tqdm(range(batch_num), leave = False):
-#                    self.value_optimizer.zero_grad(set_to_none=True)
-                    curr_idx = idx_lst[(batch * self.value_batch):min((batch + 1) * self.value_batch, state_counts_lst.shape[0])]
-                    curr_state_counts_lst = state_counts_lst[curr_idx,:]
-                    curr_payoff_lst = payoff_lst[curr_idx]
-                    value_model_output = self.value_model((t, curr_state_counts_lst)).reshape((-1,))
-                    total_value_loss += torch.sum((value_model_output - curr_payoff_lst) ** 2) #/ val_num #/ self.num_cars / self.time_horizon
-                    # total_value_loss.backward()
-                    # self.value_optimizer.step()
-                    # self.value_scheduler.step()
+            if len(value_dct[t]["payoff"]) > 0:
+                payoff_lst = value_dct[t]["payoff"].to(device = self.device)
+                mu, sd = self.value_scale[t]
+                payoff_lst = (payoff_lst - mu) / sd
+                if len(value_dct[t]["state_counts"]) > 0:
+                    state_counts_lst = value_dct[t]["state_counts"]
+                    state_counts_lst = state_counts_lst[:,:self.value_input_dim]
+    #                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
+                    if self.normalize_input:
+                        state_counts_lst = self.scale_input(state_counts_lst, t, "value")
+                    idx_lst = np.random.permutation(state_counts_lst.shape[0])
+                    batch_num = int(math.ceil(state_counts_lst.shape[0] / self.value_batch))
+                    for batch in tqdm(range(batch_num), leave = False):
+    #                    self.value_optimizer.zero_grad(set_to_none=True)
+                        curr_idx = idx_lst[(batch * self.value_batch):min((batch + 1) * self.value_batch, state_counts_lst.shape[0])]
+                        curr_state_counts_lst = state_counts_lst[curr_idx,:]
+                        curr_payoff_lst = payoff_lst[curr_idx]
+                        value_model_output = self.value_model((t, curr_state_counts_lst)).reshape((-1,))
+                        total_value_loss += torch.sum((value_model_output - curr_payoff_lst) ** 2) #/ val_num #/ self.num_cars / self.time_horizon
+                        # total_value_loss.backward()
+                        # self.value_optimizer.step()
+                        # self.value_scheduler.step()
         total_value_loss /= val_num #self.num_episodes
         value_dct = None
         if update_value_scale:
@@ -378,13 +379,15 @@ class PPO_Solver(Solver):
         for t in range(self.time_horizon * self.network_horizon_repeat):
             data_traj_combo[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": []}
             for episode in range(num_episodes):
+                if len(data_traj[episode_start + episode][t]["state_counts"]) > 0:
+                    for key in data_traj_combo[t]:
+                        data_traj_combo[t][key] += [data_traj[episode_start + episode][t][key]]
+            if len(data_traj_combo[t]["state_counts"]) > 0:
                 for key in data_traj_combo[t]:
-                    data_traj_combo[t][key] += [data_traj[episode_start + episode][t][key]]
-            for key in data_traj_combo[t]:
-                if key in ["state_counts", "next_state_counts"]:
-                    data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key], dim = 0)
-                else:
-                    data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key])
+                    if key in ["state_counts", "next_state_counts"]:
+                        data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key], dim = 0)
+                    else:
+                        data_traj_combo[t][key] = torch.cat(data_traj_combo[t][key])
         return data_traj_combo, (num_episodes, total_payoff), single_day_payoffs, single_day_payoffs_raw, single_day_total_revenue
     
     def train(self, return_payoff = False, debug = False, debug_dir = "debugging_log.txt", label = ""):
@@ -434,11 +437,12 @@ class PPO_Solver(Solver):
                         single_day_payoffs_raw_lst.append(res[3])
                         single_day_total_revenue_lst.append(res[4])
                     for t in range(self.time_horizon * self.network_horizon_repeat):
-                        for key in data_traj_all[t]:
-                            if key in ["state_counts", "next_state_counts"]:
-                                data_traj_all[t][key] = torch.cat(data_traj_all[t][key], dim = 0)
-                            else:
-                                data_traj_all[t][key] = torch.cat(data_traj_all[t][key])
+                        if len(data_traj_all[t]["state_counts"]) > 0:
+                            for key in data_traj_all[t]:
+                                if key in ["state_counts", "next_state_counts"]:
+                                    data_traj_all[t][key] = torch.cat(data_traj_all[t][key], dim = 0)
+                                else:
+                                    data_traj_all[t][key] = torch.cat(data_traj_all[t][key])
                     payoff_val /= self.num_episodes
                     single_day_payoffs /= self.num_episodes
                     single_day_payoffs_raw = np.vstack(single_day_payoffs_raw_lst)
@@ -488,7 +492,10 @@ class PPO_Solver(Solver):
                     for offset in [0, 1]:
                         tup = (t, t + offset, 0)
                         policy_dct[tup] = {"curr_state_counts": [], "next_state_counts": [], "action_id": [], "atomic_payoff": []}
-                        relevant_idx = (data_traj_all[t]["next_ts"] == t + offset).nonzero(as_tuple = True)[0].numpy()
+                        if len(data_traj_all[t]["state_counts"]) > 0:
+                            relevant_idx = (data_traj_all[t]["next_ts"] == t + offset).nonzero(as_tuple = True)[0].numpy()
+                        else:
+                            relevant_idx = []
                         if len(relevant_idx) > 0:
                             policy_dct[tup]["curr_state_counts"] = data_traj_all[t]["state_counts"][relevant_idx,:]
                             policy_dct[tup]["next_state_counts"] = data_traj_all[t]["next_state_counts"][relevant_idx,:]

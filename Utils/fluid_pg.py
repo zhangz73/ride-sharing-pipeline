@@ -112,7 +112,10 @@ class FluidPG(train.Solver):
                 data_traj[t]["action_id"].append(action_id)
         for t in range(self.time_horizon):
             data_traj[t]["advantage"] = torch.tensor(data_traj[t]["advantage"])
-            data_traj[t]["state_counts"] = torch.cat(data_traj[t]["state_counts"], dim = 0)
+            if len(data_traj[t]["state_counts"]) > 0:
+                data_traj[t]["state_counts"] = torch.cat(data_traj[t]["state_counts"], dim = 0)
+            else:
+                data_traj[t]["state_counts"] = None
             data_traj[t]["action_id"] = torch.tensor(data_traj[t]["action_id"])
         return data_traj, (num_episodes, total_payoff)
 
@@ -172,22 +175,29 @@ class FluidPG(train.Solver):
             data_traj_curr = res[0]
             for t in range(self.time_horizon):
                 for key in data_traj[t]:
-                    data_traj[t][key].append(data_traj_curr[t][key])
+                    if data_traj_curr[t]["state_counts"] is not None:
+                        data_traj[t][key].append(data_traj_curr[t][key])
             _, payoff = res[1]
             total_payoff += payoff
         for t in range(self.time_horizon):
-            data_traj[t]["advantage"] = torch.cat(data_traj[t]["advantage"])
-            data_traj[t]["state_counts"] = torch.cat(data_traj[t]["state_counts"], dim = 0)
-            data_traj[t]["action_id"] = torch.cat(data_traj[t]["action_id"])
+            if len(data_traj[t]["state_counts"]) > 0:
+                data_traj[t]["advantage"] = torch.cat(data_traj[t]["advantage"])
+                data_traj[t]["state_counts"] = torch.cat(data_traj[t]["state_counts"], dim = 0)
+                data_traj[t]["action_id"] = torch.cat(data_traj[t]["action_id"])
+            else:
+                data_traj[t]["state_counts"] = None
+                data_traj[t]["advantage"] = None
+                data_traj[t]["action_id"] = None
         total_payoff /= self.num_episodes
         loss_arr = []
         for epoch in tqdm(range(self.policy_epoch)):
             self.policy_optimizer.zero_grad(set_to_none=True)
             total_loss = 0
             for t in tqdm(range(self.time_horizon), leave = False):
-                prob_lst = self.get_prob(data_traj[t]["state_counts"], data_traj[t]["action_id"], t)
-                loss = -torch.sum(data_traj[t]["advantage"] * prob_lst)
-                total_loss += loss
+                if data_traj[t]["state_counts"] is not None:
+                    prob_lst = self.get_prob(data_traj[t]["state_counts"], data_traj[t]["action_id"], t)
+                    loss = -torch.sum(data_traj[t]["advantage"] * prob_lst)
+                    total_loss += loss
             loss_arr.append(float(total_loss.data))
             total_loss.backward()
             self.policy_optimizer.step()
@@ -297,8 +307,6 @@ class FluidPG(train.Solver):
                     if return_data:
                         if day_num >= self.useful_days:
                             curr_state_counts, next_state_counts = None, None
-                        if car_idx < num_available_cars - 1 and car_idx not in selected_idx_for_state_data:
-                            curr_state_counts = None
                         if curr_state_counts is None:
                             next_state_counts is None
                         state_action_advantage_lst.append((None, action_id, None, t, curr_payoff, next_t, payoff - curr_payoff, day_num))

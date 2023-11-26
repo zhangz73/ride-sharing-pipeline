@@ -71,8 +71,7 @@ class LP_Solver(train.Solver):
             self.x = np.zeros(n)
             for i in tqdm(range(n), leave = False):
                 self.x[i] = x[i].x
-            if self.adjusted_time_horizon == 5:
-                self.describe_x()
+            self.describe_x()
 #                with open("lp_b.txt", "a") as f:
 #                    f.write(f"{self.b}\n")
             np.save("lp_x.npy", self.x)
@@ -524,12 +523,25 @@ class LP_On_AugmentedGraph(LP_Solver):
                 for eta in range(self.max_tracked_eta + 1):
                     car_idx = self.state_to_id["car"][("general", region, eta, battery)]
                     car_num = int(state_counts[car_idx])
+                    car_idx2 = self.state_to_id["car"][("assigned", region, eta, battery)]
+                    car_num2 = int(state_counts[car_idx2])
                     passenger_begin = battery * self.num_regions * self.num_regions + 0 * self.num_regions + region
                     reroute_begin = self.rerouting_flow_begin + passenger_begin
 #                    total_flow_mat[:min(eta, self.adjusted_time_horizon), passenger_begin] = 1
-                    total_flow_target[:min(eta, self.adjusted_time_horizon)] -= car_num
+                    total_flow_target[:min(eta, self.adjusted_time_horizon)] -= (car_num + car_num2)
                     if eta < self.adjusted_time_horizon:
                         flow_idx = eta * self.num_battery_levels * self.num_regions + battery * self.num_regions + region
+                        flow_conservation_target[flow_idx] += car_num + car_num2
+        ## Charging cars
+        for region in range(self.num_regions):
+            for battery in range(self.num_battery_levels):
+                for rate_idx in range(self.num_charging_rates):
+                    rate = self.charging_rates[rate_idx]
+                    car_idx = self.state_to_id["car"][("charged", region, battery, rate)]
+                    car_num = int(state_counts[car_idx])
+                    total_flow_target[0] -= car_num
+                    if self.adjusted_time_horizon > 1:
+                        flow_idx = self.num_battery_levels * self.num_regions + battery * self.num_regions + region
                         flow_conservation_target[flow_idx] += car_num
         return flow_conservation_target, total_flow_target
     

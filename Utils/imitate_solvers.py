@@ -150,8 +150,9 @@ class IL_Solver(train.Solver):
             curr_payoff = markov_decision_process.get_payoff_curr_ts(deliver = True)
             payoff += curr_payoff
         for t in range(self.time_horizon):
-            data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
-            data_dict[t]["atomic_actions"] = torch.tensor(data_dict[t]["atomic_actions"])
+            if len(data_dict[t]["state_counts"]) > 0:
+                data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
+                data_dict[t]["atomic_actions"] = torch.tensor(data_dict[t]["atomic_actions"])
         return data_dict, payoff
     
     def collect_data(self, n_traj = 1):
@@ -167,11 +168,13 @@ class IL_Solver(train.Solver):
             res, payoff = tup
             total_payoff += payoff / n_traj
             for t in range(self.time_horizon):
-                data_dict[t]["state_counts"].append(res[t]["state_counts"])
-                data_dict[t]["atomic_actions"].append(res[t]["atomic_actions"])
+                if len(res[t]["state_counts"]) > 0:
+                    data_dict[t]["state_counts"].append(res[t]["state_counts"])
+                    data_dict[t]["atomic_actions"].append(res[t]["atomic_actions"])
         for t in range(self.time_horizon):
-            data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
-            data_dict[t]["atomic_actions"] = torch.cat(data_dict[t]["atomic_actions"])
+            if len(data_dict[t]["state_counts"]) > 0:
+                data_dict[t]["state_counts"] = torch.cat(data_dict[t]["state_counts"], dim = 0)
+                data_dict[t]["atomic_actions"] = torch.cat(data_dict[t]["atomic_actions"])
         print(total_payoff)
         return data_dict
 
@@ -215,12 +218,13 @@ class IL_Solver(train.Solver):
             total_loss = 0
             self.policy_optimizer.zero_grad(set_to_none=True)
             for t in tqdm(range(self.time_horizon), leave = False):
-                batch_idx = torch.from_numpy(np.random.choice(len(self.data_dict[t]["state_counts"]), size = min(self.policy_batch, len(self.data_dict[t]["state_counts"])), replace = False))
-                curr_state_counts_lst = self.data_dict[t]["state_counts"][batch_idx, :]
-                atomic_actions_lst = self.data_dict[t]["atomic_actions"][batch_idx]
-                predicted_actions = self.policy_predict(state_counts = curr_state_counts_lst, ts = t, prob = True, remove_infeasible = False)
-                loss = loss_fn(predicted_actions, atomic_actions_lst)
-                total_loss += loss / self.time_horizon
+                if len(self.data_dict[t]["state_counts"]) > 0:
+                    batch_idx = torch.from_numpy(np.random.choice(len(self.data_dict[t]["state_counts"]), size = min(self.policy_batch, len(self.data_dict[t]["state_counts"])), replace = False))
+                    curr_state_counts_lst = self.data_dict[t]["state_counts"][batch_idx, :]
+                    atomic_actions_lst = self.data_dict[t]["atomic_actions"][batch_idx]
+                    predicted_actions = self.policy_predict(state_counts = curr_state_counts_lst, ts = t, prob = True, remove_infeasible = False)
+                    loss = loss_fn(predicted_actions, atomic_actions_lst)
+                    total_loss += loss / self.time_horizon
                 # loss.backward()
                 # self.policy_optimizer.step()
                 # self.policy_scheduler.step()

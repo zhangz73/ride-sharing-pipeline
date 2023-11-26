@@ -1,0 +1,51 @@
+{
+    "map": {
+        "data_dir": "Map/map_1car2region_wgc.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "constant",
+        "parameter_fname": "TripDemand/trip_demand_1car2region_wgc.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_1car2region_wgc.tsv"
+    },
+    "mdp": {
+        "time_horizon": 100,
+        "connection_patience": 0,
+        "pickup_patience": 0,
+        "num_battery_levels": 1,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            2
+        ],
+        "use_charging_curve": false,
+        "battery_offset": 0,
+        "battery_per_step": 0,
+        "normalize_by_tripnums": true,
+        "total_revenue_benchmark": null,
+        "car_deployment_type": "random",
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region_wgc.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region_wgc.tsv"
+    },
+    "solver": {
+        "type": "LP-AugmentedGraph"
+    },
+    "LP-AugmentedGraph": {
+        "num_days": 1,
+        "gamma": 1,
+        "fractional_cars": false,
+        "full_knowledge": false,
+        "randomized_eval_time": 1,
+        "retrain": true,
+        "charging_capacity_as_var": false
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": [],
+        "eval_days": 1,
+        "gamma": 1
+    }
+}
