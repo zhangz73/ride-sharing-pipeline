@@ -30,15 +30,16 @@
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_2400car3region.tsv"
     },
     "solver": {
-        "type": "IL",
+        "type": "FluidPG",
         "n_cpu": 10
     },
-    "IL": {
+    "FluidPG": {
         "policy_model_name": "discretized_feedforward",
         "policy_hidden_dim_lst": [500, 64, 64],
         "policy_activation_lst": ["tanh", "tanh", "tanh"],
         "policy_batch_norm": true,
         "policy_lr": 1e-3,
+        "policy_epoch": 300,
         "policy_batch": 4096,
         "policy_decay": 0.1,
         "policy_scheduler_step": 10000,
@@ -49,9 +50,9 @@
         "traj_recollect": true,
         "num_days": 1,
         "gamma": 1,
-        "num_itr": 500,
-        "num_episodes": 4,
-        "n_cpu": 2
+        "num_itr": 1,
+        "num_episodes": 100,
+        "n_cpu": 50
     },
     "metric": ["total_payoff"],
     "report": {

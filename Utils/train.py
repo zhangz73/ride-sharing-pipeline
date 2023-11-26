@@ -243,24 +243,35 @@ class PPO_Solver(Solver):
         val_num = 0
         for t in range(self.time_horizon):
             val_num += len(value_dct[t]["payoff"])
-        for t in tqdm(range(self.time_horizon), leave = False):
-            payoff_lst = value_dct[t]["payoff"].to(device = self.device)
-            if update_value_scale:
+        if update_value_scale:
+            network_num = int(math.ceil(self.time_horizon / self.ts_per_network))
+            for i in range(network_num):
+                payoff_lst = []
+                input_lst = []
+                for t in range(i * self.ts_per_network, min((i + 1) * self.ts_per_network, self.time_horizon)):
+                    payoff_lst.append(value_dct[t]["payoff"])
+                    input_lst.append(value_dct[t]["state_counts"])
+                payoff_lst = torch.cat(payoff_lst)
+                input_lst = torch.cat(input_lst, dim = 0)
                 if not self.use_avg_value:
                     mu, sd = torch.mean(payoff_lst), torch.std(payoff_lst) + 1e-3 #0, 1#0, torch.max(torch.abs(payoff_lst)) + 1e-3 #0, torch.std(payoff_lst) + 1e-3 #torch.mean(payoff_lst), torch.std(payoff_lst) + 1 #(self.time_horizon - t)
                 else:
                     mu, sd = 0, 1
-                self.value_scale[t] = (mu, sd)
+                if self.normalize_input:
+                    input_norm_mean = torch.mean(input_lst, dim = 0)
+                    input_norm_std = torch.std(input_lst, dim = 0)
+                    input_scale_mean = input_norm_mean
+                    input_scale_std = torch.max(input_norm_std, torch.tensor(1e-3))
+                for t in range(i * self.ts_per_network, min((i + 1) * self.ts_per_network, self.time_horizon)):
+                    self.value_scale[t] = (mu, sd)
+                    if self.normalize_input:
+                        self.input_scale[t] = {"mu": input_scale_mean, "std": input_scale_std}
+        for t in tqdm(range(self.time_horizon), leave = False):
+            payoff_lst = value_dct[t]["payoff"].to(device = self.device)
             mu, sd = self.value_scale[t]
             payoff_lst = (payoff_lst - mu) / sd
             if len(value_dct[t]["state_counts"]) > 0:
                 state_counts_lst = value_dct[t]["state_counts"]
-                if update_value_scale and self.normalize_input:
-                    input_norm_mean = torch.mean(state_counts_lst, dim = 0)
-                    input_norm_std = torch.std(state_counts_lst, dim = 0)
-                    input_scale_mean = input_norm_mean
-                    input_scale_std = torch.max(input_norm_std, torch.tensor(1e-3))
-                    self.input_scale[t] = {"mu": input_scale_mean, "std": input_scale_std}
                 state_counts_lst = state_counts_lst[:,:self.value_input_dim]
 #                state_counts_lst = torch.vstack(value_dct[t]["state_counts"]).to_dense()
                 if self.normalize_input:
@@ -268,16 +279,16 @@ class PPO_Solver(Solver):
                 idx_lst = np.random.permutation(state_counts_lst.shape[0])
                 batch_num = int(math.ceil(state_counts_lst.shape[0] / self.value_batch))
                 for batch in tqdm(range(batch_num), leave = False):
-                    self.value_optimizer.zero_grad(set_to_none=True)
+#                    self.value_optimizer.zero_grad(set_to_none=True)
                     curr_idx = idx_lst[(batch * self.value_batch):min((batch + 1) * self.value_batch, state_counts_lst.shape[0])]
                     curr_state_counts_lst = state_counts_lst[curr_idx,:]
                     curr_payoff_lst = payoff_lst[curr_idx]
                     value_model_output = self.value_model((t, curr_state_counts_lst)).reshape((-1,))
-                    total_value_loss = torch.mean((value_model_output - curr_payoff_lst) ** 2) #/ val_num #/ self.num_cars / self.time_horizon
-                    total_value_loss.backward()
-                    self.value_optimizer.step()
-                    self.value_scheduler.step()
-#        total_value_loss /= val_num #self.num_episodes
+                    total_value_loss += torch.sum((value_model_output - curr_payoff_lst) ** 2) #/ val_num #/ self.num_cars / self.time_horizon
+                    # total_value_loss.backward()
+                    # self.value_optimizer.step()
+                    # self.value_scheduler.step()
+        total_value_loss /= val_num #self.num_episodes
         value_dct = None
         if update_value_scale:
             self.value_model_factory.set_value_scale(self.value_scale)
@@ -454,17 +465,17 @@ class PPO_Solver(Solver):
                     value_dct[t]["state_counts"] = data_traj_all[t]["state_counts"]
                     value_dct[t]["payoff"] = data_traj_all[t]["payoff"]
                 for _ in tqdm(range(self.value_epoch)):
-                    # self.value_optimizer.zero_grad(set_to_none=True)
+                    self.value_optimizer.zero_grad(set_to_none=True)
                     total_value_loss = self.get_value_loss(value_dct, update_value_scale = itr == 0 and self.value_retrain)
                     value_curr_arr.append(float(total_value_loss.data))
-                    # total_value_loss.backward()
-                    # self.value_optimizer.step()
-                    # self.value_scheduler.step()
-    #             plt.plot(value_curr_arr)
-    #             plt.title(f"Itr = {itr + 1}\nFinal Loss = {value_curr_arr[-1]}")
-    #             plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
-    #             plt.clf()
-    #             plt.close()
+                    total_value_loss.backward()
+                    self.value_optimizer.step()
+                    self.value_scheduler.step()
+                plt.plot(value_curr_arr)
+                plt.title(f"Itr = {itr + 1}\nFinal Loss = {value_curr_arr[-1]}")
+                plt.savefig(f"DebugPlots/value_itr={itr+1}.png")
+                plt.clf()
+                plt.close()
     #            if debug:
     #                with open(debug_dir, "a") as f:
     #                    f.write(f"\tFinal Value Loss = {float(total_value_loss.data)}\n")
@@ -486,7 +497,7 @@ class PPO_Solver(Solver):
                 for _ in tqdm(range(self.policy_epoch)):
                     total_policy_loss = 0
                     total_policy_num = 0
-                    # self.policy_optimizer.zero_grad(set_to_none=True)
+                    self.policy_optimizer.zero_grad(set_to_none=True)
                     for day_num in range(1):
                         for t in tqdm(range(self.time_horizon), leave = False):
                             for offset in [0, 1]:
@@ -499,24 +510,24 @@ class PPO_Solver(Solver):
                                     idx_lst = np.random.permutation(curr_state_counts_lst.shape[0])
                                     batch_num = int(math.ceil(curr_state_counts_lst.shape[0] / self.policy_batch))
                                     for batch in tqdm(range(batch_num), leave = False):
-                                        self.policy_optimizer.zero_grad(set_to_none=True)
+#                                        self.policy_optimizer.zero_grad(set_to_none=True)
                                         curr_idx = idx_lst[(batch * self.policy_batch):min((batch + 1) * self.policy_batch, curr_state_counts_lst.shape[0])]
                                         advantage = self.get_advantage(curr_state_counts_lst[curr_idx,:], next_state_counts_lst[curr_idx,:], action_id_lst[curr_idx], t, next_t, atomic_payoff_lst[curr_idx], day_num = day_num)
                                         ## TODO: Fix it!!!
                                         ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst[curr_idx,:], action_id_lst[curr_idx], t, clipped = True, eps = eps, day_num = day_num)
                                         loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
-                                        total_policy_loss = torch.sum(loss_curr) #/ len(batch_idx)
-                                        total_policy_num = len(loss_curr)
-                                        total_policy_loss /= total_policy_num
-                                        policy_curr_arr.append(float(total_policy_loss.data))
-                                        total_policy_loss.backward()
-                                        self.policy_optimizer.step()
-                                        self.policy_scheduler.step()
-    #             plt.plot(policy_curr_arr)
-    #             plt.title(f"Itr = {itr + 1}\nFinal Loss = {policy_curr_arr[-1]}")
-    #             plt.savefig(f"DebugPlots/policy_itr={itr+1}.png")
-    #             plt.clf()
-    #             plt.close()
+                                        total_policy_loss += torch.sum(loss_curr) #/ len(batch_idx)
+                                        total_policy_num += len(loss_curr)
+                    total_policy_loss /= total_policy_num
+                    policy_curr_arr.append(float(total_policy_loss.data))
+                    total_policy_loss.backward()
+                    self.policy_optimizer.step()
+                    self.policy_scheduler.step()
+                plt.plot(policy_curr_arr)
+                plt.title(f"Itr = {itr + 1}\nFinal Loss = {policy_curr_arr[-1]}")
+                plt.savefig(f"DebugPlots/policy_itr={itr+1}.png")
+                plt.clf()
+                plt.close()
                 if itr % self.value_syncing_freq == 0:
                     self.benchmark_value_model = copy.deepcopy(self.value_model)
                 if itr % self.policy_syncing_freq == 0:

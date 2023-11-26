@@ -1,0 +1,5 @@
+passenger-carry, t = 0, b = 2, origin = 0, dest = 1, val = 0.999999999762803
+passenger-carry, t = 1, b = 1, origin = 1, dest = 0, val = 0.9999999991702369
+passenger-carry, t = 3, b = 2, origin = 0, dest = 1, val = 0.9999999990936241
+reroute, t = 4, b = 1, origin = 1, dest = 0, val = 0.9999999991100654
+charge, t = 2, b = 0, region = 0, rate = 2, val = 0.9999999990953519

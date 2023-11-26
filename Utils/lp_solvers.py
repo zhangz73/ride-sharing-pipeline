@@ -17,7 +17,7 @@ from joblib import Parallel, delayed
 import Utils.train as train
 
 class LP_Solver(train.Solver):
-    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, add_integer_var = False):
+    def __init__(self, markov_decision_process = None, num_days = 1, gamma = 1, retrain = True, n_cpu = 1, add_integer_var = False, verbose = True):
         super().__init__(type = "sequential", markov_decision_process = markov_decision_process)
         self.reward_df = self.markov_decision_process.reward_df
         self.num_days = num_days
@@ -27,6 +27,11 @@ class LP_Solver(train.Solver):
         self.retrain = retrain
         self.n_cpu = n_cpu
         self.add_integer_var = add_integer_var
+        self.verbose = verbose
+        if not self.verbose:
+            with gp.Env(empty=True) as env:
+                env.setParam("OutputFlag", 0)
+                env.start()
     
     def evaluate(self, **kargs):
         pass
@@ -56,15 +61,20 @@ class LP_Solver(train.Solver):
             if self.add_integer_var:
                 objective += self.c2 @ y
             model.setObjective(objective, GRB.MAXIMIZE)
-            print("\tOptimizing...")
+            if self.verbose:
+                print("\tOptimizing...")
             model.optimize()
             obj_val = model.ObjVal
-            print(obj_val / self.total_revenue, obj_val)
-            print("\tGathering...")
+            if self.verbose:
+                print(obj_val / self.total_revenue, obj_val)
+                print("\tGathering...")
             self.x = np.zeros(n)
             for i in tqdm(range(n), leave = False):
                 self.x[i] = x[i].x
-            self.describe_x()
+            if self.adjusted_time_horizon == 5:
+                self.describe_x()
+#                with open("lp_b.txt", "a") as f:
+#                    f.write(f"{self.b}\n")
             np.save("lp_x.npy", self.x)
             if self.add_integer_var:
                 self.y = np.zeros(n2)
@@ -75,7 +85,7 @@ class LP_Solver(train.Solver):
         else:
             self.x = np.load("lp_x.npy")
             obj_val = -1
-        return obj_val / self.total_revenue #self.x, obj_val
+        return obj_val #obj_val / self.total_revenue #self.x, obj_val
     
     def train_cvxpy(self):
         print("Training...")
@@ -385,7 +395,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                     slack_request_patience_lst.append(slack_request_patience_vec)
 #                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
 #                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
-                    if self.construct_via_state_counts:
+                    if self.construct_via_state_counts and t == 0:
                         for stag_time in range(self.connection_patience + 1):
                             trip_idx = self.state_to_id["trip"][(origin, dest, stag_time)]
                             trip_num = int(self.state_counts[trip_idx])

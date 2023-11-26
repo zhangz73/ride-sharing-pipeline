@@ -18,26 +18,37 @@
         "num_battery_levels": 3,
         "battery_cutoff": [1, 2],
         "battery_jump": 0.3,
+        "force_charging": true,
+        "use_charging_curve": false,
         "charging_rates": [
             2
         ],
-        "use_charging_curve": false,
         "battery_offset": 0,
         "car_deployment_type": "random",
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"
     },
     "solver": {
-        "type": "LP-AugmentedGraph"
+        "type": "FluidPG"
     },
-    "LP-AugmentedGraph": {
+    "FluidPG": {
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [64, 64, 64],
+        "policy_activation_lst": ["tanh", "tanh", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 1e-3,
+        "policy_epoch": 300,
+        "policy_batch": 100,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 1000,
+        "policy_solver": "Adam",
+        "policy_retrain": true,
+        "ts_per_network": 1,
+        "embedding_dim": 5,
+        "num_itr": 100,
+        "num_episodes": 100,
         "num_days": 1,
-        "gamma": 1,
-        "fractional_cars": false,
-        "full_knowledge": false,
-        "randomized_eval_time": 1,
-        "retrain": true,
-        "charging_capacity_as_var": false
+        "n_cpu": 2
     },
     "metric": ["total_payoff"],
     "report": {

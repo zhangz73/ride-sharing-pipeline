@@ -9,6 +9,7 @@ import Utils.mdp as mdp
 import Utils.train as train
 import Utils.lp_solvers as lp_solvers
 import Utils.imitate_solvers as imitate_solvers
+import Utils.fluid_pg as fluid_pg
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
@@ -117,6 +118,8 @@ def main(args, json_name = ""):
             randomized_eval_time = 1
     elif solver_type == "IL":
         solver = imitate_solvers.IL_Solver(markov_decision_process = markov_decision_process, **args["IL"])
+    elif solver_type == "FluidPG":
+        solver = fluid_pg.FluidPG(markov_decision_process = markov_decision_process, **args["FluidPG"])
     
     if solver_type != "LP-AugmentedGraph":
         randomized_eval_time = 1
@@ -183,6 +186,11 @@ def main(args, json_name = ""):
         if args["IL"]["num_itr"] > 0:
             loss_arr = solver.train()
             report_factory.get_training_loss_plot(loss_arr, "Cross Entropy Loss", f"loss_{json_name}_{descriptor}")
+    elif solver_type == "FluidPG":
+        report_factory = train.ReportFactory()
+        if args["FluidPG"]["num_itr"] > 0:
+            loss_arr = solver.train()
+            report_factory.get_training_loss_plot(loss_arr, "Policy Loss", f"loss_{json_name}_{descriptor}")
     
     df_table_all, payoff = evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = seed_lst, randomized_eval_time = randomized_eval_time, solver_type = solver_type, lp_eval_fractional_cars = lp_eval_fractional_cars, lp_assume_full_knowledge = lp_assume_full_knowledge, n_cpu = min(n_cpu, num_trials))
 #    vis_day = 3
@@ -211,7 +219,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "2400car_3region_il" #"300car_10region_3000charger_5min_halfcharged_nyc_combo_fullday_ppo" #"100car_5region_500charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_4charger_15min_fullycharged_nyc_combo_fullday_slowchargers_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "300car_10region_3000charger_5min_halfcharged_nyc_combo_fullday_ppo" #"100car_5region_500charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_4charger_15min_fullycharged_nyc_combo_fullday_slowchargers_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)
