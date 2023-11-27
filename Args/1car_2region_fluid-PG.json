@@ -12,7 +12,7 @@
         "reward_fname": "Payoff/payoff_1car2region.tsv"
     },
     "mdp": {
-        "time_horizon": 100,
+        "time_horizon": 5,
         "connection_patience": 0,
         "pickup_patience": 0,
         "num_battery_levels": 3,
@@ -24,9 +24,6 @@
             2
         ],
         "battery_offset": 0,
-        "battery_per_step": 0,
-        "normalize_by_tripnums": true,
-        "total_revenue_benchmark": 10,
         "car_deployment_type": "random",
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region.tsv"

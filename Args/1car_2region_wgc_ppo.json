@@ -4,7 +4,7 @@
     },
     "trip_demand": {
         "parameter_source": "given",
-        "arrival_type": "constant",
+        "arrival_type": "poisson",
         "parameter_fname": "TripDemand/trip_demand_1car2region_wgc.tsv",
         "data": null
     },
@@ -26,7 +26,7 @@
         "battery_per_step": 0,
         "normalize_by_tripnums": true,
         "total_revenue_benchmark": 10,
-        "car_deployment_type": "random",
+        "car_deployment_type": "fixed",
         "region_battery_car_fname": "RegionBatteryCar/region_battery_car_1car2region_wgc.tsv",
         "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_1car2region_wgc.tsv"
     },

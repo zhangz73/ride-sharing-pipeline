@@ -115,6 +115,8 @@ class LP_On_AugmentedGraph(LP_Solver):
         self.start_ts = 0
         self.charging_capacity_as_var = charging_capacity_as_var
         self.adjusted_time_horizon = self.time_horizon
+        self.state_reduction = True
+        self.all_actions_reduced = self.markov_decision_process.get_all_actions(state_reduction = True)
         self.construct_via_state_counts = False
         print("Constructing the solver...")
         self.load_data()
@@ -746,13 +748,16 @@ class LP_On_AugmentedGraph(LP_Solver):
     ## Assign demands to s_{ij}^{t + l, t} in increasing order of l
     ## Update f according to \sum_b f_{ij}^{t, b} = \sum_l s_{ij}^{t, t - l}
     ##  Assign plethora of f (if any) to the corresponding e, starting from lowest possible battery (it doesn't matter though)
-    def cap_flow_with_demands(self):
+    def cap_flow_with_demands(self, cap_demand = True):
         x_copy = self.x.copy()
         ## Update s
-        for t in range(self.time_horizon):
+        for t in range(self.adjusted_time_horizon):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
-                    trip_demand = self.trip_demands[t, origin * self.num_regions + dest]
+                    if cap_demand:
+                        trip_demand = self.trip_demands[t, origin * self.num_regions + dest]
+                    else:
+                        trip_demand = np.inf
                     for l in range(self.patience_time, -1, -1):
                         if t + l < self.time_horizon:
                             s_idx = self.slack_request_patience_begin + (t + l) * self.num_regions * self.num_regions * (self.patience_time + 1) + origin * self.num_regions * (self.patience_time + 1) + dest * (self.patience_time + 1) + l
@@ -760,7 +765,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                             x_copy[s_idx] = num
                             trip_demand -= num
         ## Update f and e
-        for t in range(self.time_horizon):
+        for t in range(self.adjusted_time_horizon):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     f_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
@@ -780,10 +785,12 @@ class LP_On_AugmentedGraph(LP_Solver):
                         fs_gap -= num
         return x_copy
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0, strict = False, full_knowledge = False, fractional_cars = False, random_eval_round = 0):
+    def evaluate(self, return_action = True, return_data = False, seed = None, day_num = 0, strict = False, full_knowledge = False, fractional_cars = False, random_eval_round = 0, markov_decision_process = None):
         if seed is not None:
             torch.manual_seed(seed)
-        self.markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
+        if markov_decision_process is None:
+            markov_decision_process = self.markov_decision_process
+        markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
         
         if random_eval_round == 0:
             self.reset_timestamp(fractional_cars, full_knowledge)
@@ -791,25 +798,34 @@ class LP_On_AugmentedGraph(LP_Solver):
         if full_knowledge and random_eval_round == 0:
             obj_val_normalized = self.train()
 
-        x_copy = self.cap_flow_with_demands()
+        x_copy = self.cap_flow_with_demands(cap_demand = fractional_cars)
         if fractional_cars:
             obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
             return None, None, torch.tensor([0, obj_val_normalized]), None, torch.tensor(obj_val_normalized), None
         
-        init_payoff = float(self.markov_decision_process.get_payoff_curr_ts(deliver = True))
+        init_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
         payoff_lst = []
         discount_lst = []
         atomic_payoff_lst = []
+        state_action_advantage_lst = []
+        curr_state_lst = []
+        next_state_lst = []
+        full_state_lst = []
+        full_next_state_lst = []
         self.reset_x_infer(strict = strict, x_copy = None)
         for t in range(self.time_horizon):
-            available_car_ids = self.markov_decision_process.get_available_car_ids(True)
+            available_car_ids = markov_decision_process.get_available_car_ids(True)
             num_available_cars = len(available_car_ids)
             for car_idx in range(num_available_cars):
                 car_id = available_car_ids[car_idx]
-                dest, eta, battery = self.markov_decision_process.get_car_info(car_id)
+                dest, eta, battery = markov_decision_process.get_car_info(car_id)
                 action_assigned = False
                 travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery, 0, strict = strict)
+                curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
+#                if return_action:
+                curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
+                curr_payoff = markov_decision_process.get_payoff_curr_ts().clone()
                 if eta == 0:
                     for i in range(len(charge_x_ids)):
                         x_id = charge_x_ids[i]
@@ -818,9 +834,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                             rv = np.random.binomial(n = 1, p = action_prob)
 #                            rv = int(round(action_prob))
                             if rv == 1:
-                                action_id = self.markov_decision_process.query_action(("charge", dest, self.charging_rates[i]))
-                                action = self.all_actions[action_id]
-                                action_success = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                                action_id = markov_decision_process.query_reduced_action(("charge", self.charging_rates[i]))
+                                action = self.all_actions_reduced[action_id]
+                                action_success = markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
                                 if action_success:
                                     action_assigned = True
                                     self.x_charge[x_id] -= 1
@@ -834,29 +850,48 @@ class LP_On_AugmentedGraph(LP_Solver):
                             rv = np.random.binomial(n = 1, p = action_prob)
 #                            rv = int(round(action_prob))
                             if rv == 1:
-                                action_id = self.markov_decision_process.query_action(("travel", dest, i % self.num_regions))
-                                action = self.all_actions[action_id]
-                                action_success = self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
+                                action_id = markov_decision_process.query_reduced_action(("travel", i % self.num_regions))
+                                action = self.all_actions_reduced[action_id]
+                                action_success = markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
                                 if action_success:
                                     action_assigned = True
                                     self.x_travel[x_id] -= 1
                                     break
                 if not action_assigned:
-                    action_id = self.markov_decision_process.query_action(("nothing"))
-                    action = self.all_actions[action_id]
-                    self.markov_decision_process.transit_within_timestamp(action, car_id = car_id)
-                curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+                    action_id = markov_decision_process.query_reduced_action(("nothing"))
+                    action = self.all_actions_reduced[action_id]
+                    markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
+                if car_idx == num_available_cars - 1:
+                    markov_decision_process.transit_across_timestamp()
+                next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
+                full_next_state_counts = markov_decision_process.get_state_counts(deliver = True)
+                payoff = markov_decision_process.get_payoff_curr_ts().clone()
+                if return_data:
+                    if car_idx == num_available_cars - 1:
+                        next_t = t + 1
+                    else:
+                        next_t = t
+                    state_action_advantage_lst.append((None, action_id, None, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
+                    curr_state_lst.append(curr_state_counts)
+                    next_state_lst.append(next_state_counts)
+                    full_state_lst.append(curr_state_counts_full)
+                    full_next_state_lst.append(full_next_state_counts)
+                curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                 action_lst_ret.append((curr_state_counts_full, action, t, car_id))
-            curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
+            curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
             action_lst_ret.append((curr_state_counts_full, None, t, None))
-            self.markov_decision_process.transit_across_timestamp()
-            curr_payoff = self.markov_decision_process.get_payoff_curr_ts(deliver = True)
+            if num_available_cars == 0:
+                markov_decision_process.transit_across_timestamp()
+            curr_payoff = markov_decision_process.get_payoff_curr_ts(deliver = True)
             payoff_lst.append(curr_payoff)
             discount_lst.append(self.gamma ** t)
         discount_lst = torch.tensor(discount_lst)
         atomic_payoff_lst = torch.tensor([init_payoff] + payoff_lst)
         atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
         discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
+        if return_data:
+            final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
+            return curr_state_lst, next_state_lst, full_state_lst, full_next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff, None, None
         passenger_carrying_cars = self.markov_decision_process.passenger_carrying_cars
         payoff_lst = torch.tensor([init_payoff] + payoff_lst)
         return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars

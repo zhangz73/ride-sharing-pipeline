@@ -1,0 +1,73 @@
+{
+    "map": {
+        "data_dir": "Map/map_60car3region.tsv"
+    },
+    "trip_demand": {
+        "parameter_source": "given",
+        "arrival_type": "poisson",
+        "parameter_fname": "TripDemand/trip_demand_60car3region.tsv",
+        "data": null
+    },
+    "reward": {
+        "reward_fname": "Payoff/payoff_60car3region.tsv"
+    },
+    "mdp": {
+        "time_horizon": 20,
+        "connection_patience": 0,
+        "pickup_patience": 1,
+        "num_battery_levels": 1,
+        "battery_jump": 0.3,
+        "charging_rates": [
+            2
+        ],
+        "use_charging_curve": false,
+        "battery_offset": 0,
+        "battery_per_step": 0,
+        "normalize_by_tripnums": true,
+        "region_battery_car_fname": "RegionBatteryCar/region_battery_car_60car3region.tsv",
+        "region_rate_plug_fname": "RegionRatePlug/region_rate_plug_60car3region.tsv"
+    },
+    "solver": {
+        "type": "ppo"
+    },
+    "neural": {
+        "value_model_name": "discretized_feedforward",
+        "value_hidden_dim_lst": [500, 64, 64],
+        "value_activation_lst": ["tanh", "relu", "tanh"],
+        "value_batch_norm": false,
+        "value_lr": 1e-3,
+        "value_epoch": 100,
+        "value_batch": 100,
+        "value_decay": 0.1,
+        "value_scheduler_step": 1000,
+        "value_solver": "Adam",
+        "value_retrain": true,
+        "policy_model_name": "discretized_feedforward",
+        "policy_hidden_dim_lst": [500, 64, 64],
+        "policy_activation_lst": ["tanh", "tanh", "tanh"],
+        "policy_batch_norm": false,
+        "policy_lr": 1e-3,
+        "policy_epoch": 10,
+        "policy_batch": 100,
+        "policy_decay": 0.1,
+        "policy_scheduler_step": 1000,
+        "policy_solver": "Adam",
+        "policy_retrain": true,
+        "descriptor": "PPO",
+        "dir": ".",
+        "num_itr": 20,
+        "num_episodes": 10,
+        "ckpt_freq": 1000,
+        "benchmarking_policy": "uniform",
+        "eps": 0.1,
+        "policy_syncing_freq": 1,
+        "n_cpu": 1,
+        "lazy_removal": true,
+        "state_reduction": true
+    },
+    "metric": ["total_payoff"],
+    "report": {
+        "plot": ["training_loss"],
+        "table": []
+    }
+}

@@ -51,8 +51,8 @@
         "num_days": 1,
         "gamma": 1,
         "num_itr": 1,
-        "num_episodes": 100,
-        "n_cpu": 50
+        "num_episodes": 2,
+        "n_cpu": 2
     },
     "metric": ["total_payoff"],
     "report": {

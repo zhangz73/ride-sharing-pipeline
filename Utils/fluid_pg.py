@@ -31,6 +31,9 @@ class FluidPG(train.Solver):
         self.traj_recollect = traj_recollect
         self.state_reduction = state_reduction
         self.lp_solver = lp_solvers.LP_On_AugmentedGraph(markov_decision_process = self.markov_decision_process, num_days = self.num_days, gamma = self.gamma, retrain = self.retrain, n_cpu = self.n_cpu, verbose = False)
+        if self.retrain:
+            self.lp_solver.train()
+        self.lp_x = self.lp_solver.x.copy()
         self.num_regions = self.lp_solver.num_regions
         self.num_charging_rates = self.lp_solver.num_charging_rates
         self.num_battery_levels = self.lp_solver.num_battery_levels
@@ -89,7 +92,8 @@ class FluidPG(train.Solver):
             payoff_prev = 0
             curr_state_counts_lst, next_state_counts_lst, full_state_counts_lst, full_next_state_counts_lst = [], [], [], []
             for day in range(self.num_days):
-                curr_state_lst, next_state_lst, full_state_lst, full_next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, markov_decision_process = self.markov_decision_process, day_num = day)
+                #curr_state_lst, next_state_lst, full_state_lst, full_next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, markov_decision_process = self.markov_decision_process, day_num = day)
+                curr_state_lst, next_state_lst, full_state_lst, full_next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.lp_solver.evaluate(return_data = True, strict = False, full_knowledge = False, fractional_cars = False, markov_decision_process = self.markov_decision_process, day_num = day, random_eval_round = 0)
                 tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
                 curr_state_counts_lst += curr_state_lst
@@ -163,6 +167,7 @@ class FluidPG(train.Solver):
 
     ## Train a neural network classifier for atomic actions given a state and car category
     def train(self):
+        self.lp_solver.x = self.lp_x.copy()
         batch_size = int(math.ceil(self.num_episodes / self.n_cpu))
         results = Parallel(n_jobs = self.n_cpu)(delayed(self.get_data_single)(
             min(self.num_episodes, (i + 1) * batch_size) - i * batch_size

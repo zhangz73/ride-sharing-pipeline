@@ -221,10 +221,11 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 
 ### 1 car 2 regions WGC
 p_1 = [[0, 1], [1, 0]]
-p_2 = [[1, 0], [0, 1]]
+p_2 = [[0.5, 0.5], [1, 0]]
 lam_1 = [1, 0]
+lam_2 = [2, 1]
 tau = [[10, 10], [10, 10]]
-write_data_traffic_map("1car2region_wgc", 2, 100, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1), (1, 0, 0)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1)], transition_prob = [(0, p_1), (9, p_2), (10, p_1), (19, p_2), (20, p_1), (29, p_2), (30, p_1), (39, p_2), (40, p_1), (49, p_2), (50, p_1), (59, p_2), (60, p_1), (69, p_2), (70, p_1), (79, p_2), (80, p_1), (89, p_2), (90, p_1), (99, p_2)], traffic_time = [(0, tau)])
+write_data_traffic_map("1car2region_wgc", 2, 100, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1), (1, 0, 0)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (9, lam_2), (10, lam_1), (19, lam_2), (20, lam_1), (29, lam_2), (30, lam_1), (39, lam_2), (40, lam_1), (49, lam_2), (50, lam_1), (59, lam_2), (60, lam_1), (69, lam_2), (70, lam_1), (79, lam_2), (80, lam_1), (89, lam_2), (90, lam_1), (99, lam_2)], transition_prob = [(0, p_1), (9, p_2), (10, p_1), (19, p_2), (20, p_1), (29, p_2), (30, p_1), (39, p_2), (40, p_1), (49, p_2), (50, p_1), (59, p_2), (60, p_1), (69, p_2), (70, p_1), (79, p_2), (80, p_1), (89, p_2), (90, p_1), (99, p_2)], traffic_time = [(0, tau)])
 
 ## 1 car 2 regions WGC - Simple
 #p_1 = [[0, 1], [1, 0]]
