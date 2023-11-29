@@ -40,14 +40,14 @@ class Net(nn.Module):
 
     def forward(self, tup):
         t, x = tup
-        if self.use_embedding:
-            embeds = self.embedding(t)
-            embeds = embeds.view(embeds.shape[0], embeds.shape[2])
-            x = torch.cat((x, embeds), dim=1)
         for i in range(len(self.layer_lst) - 1):
             x = self.layer_lst[i](x)
             if self.batch_norm and i == 0:
                 x = self.bn[i](x)
+            if self.use_embedding and i == 0:
+                embeds = self.embedding(t)
+                embeds = embeds.view(embeds.shape[0], embeds.shape[2])
+                x = torch.cat((x, embeds), dim=1)
             if self.activation_lst[i] == "relu":
                 x = F.relu(x)
             elif self.activation_lst[i] == "softmax":

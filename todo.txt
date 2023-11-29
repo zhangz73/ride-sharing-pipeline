@@ -1,3 +1,0 @@
-Stage 2 Implementations
- - Implement grid and hexagon systems
- - Apply real data

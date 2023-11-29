@@ -479,16 +479,20 @@ class MarkovDecisionProcess:
         return min(curr_battery + rate, self.num_battery_levels - 1)
     
     ## Get the length of states
-    def get_state_len(self, state_reduction = False, model = "policy", use_region = True, has_local = True):
+    def get_state_len(self, state_reduction = False, model = "policy", use_region = True, has_local = True, remove_trip = False):
         if not state_reduction:
             if has_local:
                 return self.num_total_states_train + self.num_total_local_states
             return self.num_total_states_train
+        if remove_trip:
+            num_total_reduced_states = self.reduced_state_trip_begin
+        else:
+            num_total_reduced_states = self.num_total_reduced_states
         if model == "policy":
             if not use_region:
-                return self.num_total_reduced_states + self.num_total_local_states
-            return self.num_total_reduced_states + self.num_total_local_states_region
-        return self.num_total_reduced_states
+                return num_total_reduced_states + self.num_total_local_states
+            return num_total_reduced_states + self.num_total_local_states_region
+        return num_total_reduced_states
     
     def get_state_counts_norm(self):
         return self.state_counts_norm.clone()
@@ -780,7 +784,7 @@ class MarkovDecisionProcess:
     
     ## Get the state counts (cloned version)
     ## TODO: Implement it!
-    def get_state_counts(self, state_reduction = False, car_id = None, deliver = False, region = None, use_region = False):
+    def get_state_counts(self, state_reduction = False, car_id = None, deliver = False, region = None, use_region = False, remove_trip = False):
         if deliver:
             return self.state_counts.clone()
         if not state_reduction:
@@ -793,7 +797,10 @@ class MarkovDecisionProcess:
             ret = torch.cat([ret, local_state_counts])
             return ret.clone() #(ret.to_sparse(), ret.to_sparse()) #
         assert (not use_region and car_id is not None) or (use_region and region is not None)
-        reduced_state_counts = self.reduced_state_counts.clone()
+        if remove_trip:
+            reduced_state_counts = self.reduced_state_counts[:self.reduced_state_trip_begin].clone()
+        else:
+            reduced_state_counts = self.reduced_state_counts.clone()
         if not use_region:
             car = self.state_dict[car_id]
             local_state_counts = self.get_local_state(car)
@@ -1135,6 +1142,7 @@ class MarkovDecisionProcess:
                 self.reduced_state_to_id["trip"][("dest", region, stag_time)] = curr_id
                 curr_id += 1
         trip_pos = curr_id
+        self.reduced_state_trip_end = curr_id
         self.state_counts_norm[car_pos:trip_pos] = self.max_trip_arrival_rate
 #        ## Load new passenger requests
 #        for origin in self.regions:
