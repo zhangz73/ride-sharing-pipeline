@@ -220,12 +220,25 @@ def generate_spatialtemporal_star_to_complete_network(num_regions = 4, xi = 0.5)
 #write_data_traffic_map("60car3region", 3, 20, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 20), (1, 0, 20), (2, 0, 20)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (7, lam_2), (14, lam_3)], transition_prob = [(0, p_1), (7, p_2), (14, p_3)], traffic_time = [(0, tau)])
 
 ### 1 car 2 regions WGC
-p_1 = [[0, 1], [1, 0]]
-p_2 = [[0.5, 0.5], [1, 0]]
-lam_1 = [1, 0]
-lam_2 = [2, 1]
-tau = [[10, 10], [10, 10]]
-write_data_traffic_map("1car2region_wgc", 2, 100, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1), (1, 0, 0)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (9, lam_2), (10, lam_1), (19, lam_2), (20, lam_1), (29, lam_2), (30, lam_1), (39, lam_2), (40, lam_1), (49, lam_2), (50, lam_1), (59, lam_2), (60, lam_1), (69, lam_2), (70, lam_1), (79, lam_2), (80, lam_1), (89, lam_2), (90, lam_1), (99, lam_2)], transition_prob = [(0, p_1), (9, p_2), (10, p_1), (19, p_2), (20, p_1), (29, p_2), (30, p_1), (39, p_2), (40, p_1), (49, p_2), (50, p_1), (59, p_2), (60, p_1), (69, p_2), (70, p_1), (79, p_2), (80, p_1), (89, p_2), (90, p_1), (99, p_2)], traffic_time = [(0, tau)])
+#p_1 = [[0, 1], [1, 0]]
+#p_2 = [[0.5, 0.5], [1, 0]]
+#lam_1 = [1, 0]
+#lam_2 = [2, 1]
+#tau = [[10, 10], [10, 10]]
+#write_data_traffic_map("1car2region_wgc", 2, 100, payoff = {"pickup": 1, "reroute": 0, "charge": {2: 0}}, region_battery_car = [(0, 0, 1), (1, 0, 0)], region_rate_plug = [(0, 2, 0)], arrival_rate = [(0, lam_1), (9, lam_2), (10, lam_1), (19, lam_2), (20, lam_1), (29, lam_2), (30, lam_1), (39, lam_2), (40, lam_1), (49, lam_2), (50, lam_1), (59, lam_2), (60, lam_1), (69, lam_2), (70, lam_1), (79, lam_2), (80, lam_1), (89, lam_2), (90, lam_1), (99, lam_2)], transition_prob = [(0, p_1), (9, p_2), (10, p_1), (19, p_2), (20, p_1), (29, p_2), (30, p_1), (39, p_2), (40, p_1), (49, p_2), (50, p_1), (59, p_2), (60, p_1), (69, p_2), (70, p_1), (79, p_2), (80, p_1), (89, p_2), (90, p_1), (99, p_2)], traffic_time = [(0, tau)])
+
+### 1 car 2 regions WGC 2
+aggr = 10
+T = 100
+wgc_map = pd.read_csv("Data/Map/map_1car2region_wgc.tsv", sep = "\t")
+wgc_trip_demand = pd.read_csv("Data/TripDemand/trip_demand_1car2region_wgc.tsv", sep = "\t")
+wgc_trip_demand["T"] = wgc_trip_demand["T"].apply(lambda x: x // aggr)
+wgc_trip_demand = wgc_trip_demand.groupby(["T", "Origin", "Destination"]).sum().reset_index()
+wgc_map["T"] = wgc_map["T"].apply(lambda x: x // aggr)
+wgc_map["Distance"] = wgc_map["Distance"] // aggr
+wgc_map["TripTime"] = wgc_map["TripTime"] // aggr
+wgc_map.to_csv(f"Data/Map/map_1car2region_wgc_{aggr}.tsv", sep = "\t", index = False)
+wgc_trip_demand.to_csv(f"Data/TripDemand/trip_demand_1car2region_wgc_{aggr}.tsv", sep = "\t", index = False)
 
 ## 1 car 2 regions WGC - Simple
 #p_1 = [[0, 1], [1, 0]]

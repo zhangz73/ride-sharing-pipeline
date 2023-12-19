@@ -45,7 +45,7 @@ def evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, ev
 
 def evaluate_batch_single(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = None, randomized_eval_time = 1, solver_type = "ppo", lp_eval_fractional_cars = True, lp_assume_full_knowledge = False):
     df_table_all = None
-    report_factory = train.ReportFactory()
+    report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
     norm_factor = eval_days #torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
     payoff = 0
     for i in tqdm(range(num_trials)):
@@ -153,11 +153,11 @@ def main(args, json_name = ""):
             print(t, markov_decision_process.describe_state_counts(solver.optimal_states[t]))
     elif solver_type == "policy_iteration":
         loss_arr = solver.train()
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
         if "training_loss" in args["report"]["plot"]:
             report_factory.get_training_loss_plot(loss_arr, "Total Payoff Loss", "train_loss")
     elif solver_type == "ppo":
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
         if args["neural"]["num_itr"] > 0:
             value_loss_arr, policy_loss_arr, payoff_arr = solver.train(return_payoff = True, debug = True, debug_dir = f"debugging_log_{json_name}.txt", label = f"{json_name}_{descriptor}")
             suffix = f"epi={args['neural']['num_episodes']}_batch={args['neural']['value_batch']}_itr={args['neural']['num_itr']}_eps={args['neural']['eps']}"
@@ -175,19 +175,19 @@ def main(args, json_name = ""):
                 f.write(",".join([str(x) for x in payoff_arr]))
         #        print(markov_decision_process.describe_state_counts())
     elif solver_type == "d_closest":
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
     elif solver_type == "LP-AugmentedGraph":
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
         if not lp_assume_full_knowledge:
             solver.train()
             solver.plot_fleet_status(f"{json_name}_{descriptor}")
     elif solver_type == "IL":
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
         if args["IL"]["num_itr"] > 0:
             loss_arr = solver.train()
             report_factory.get_training_loss_plot(loss_arr, "Cross Entropy Loss", f"loss_{json_name}_{descriptor}")
     elif solver_type == "FluidPG":
-        report_factory = train.ReportFactory()
+        report_factory = train.ReportFactory(markov_decision_process = markov_decision_process)
         if args["FluidPG"]["num_itr"] > 0:
             loss_arr = solver.train()
             report_factory.get_training_loss_plot(loss_arr, "Policy Loss", f"loss_{json_name}_{descriptor}")
@@ -195,7 +195,7 @@ def main(args, json_name = ""):
     df_table_all, payoff = evaluate_batch(solver, markov_decision_process, time_horizon, num_trials, eval_days, seed_lst = seed_lst, randomized_eval_time = randomized_eval_time, solver_type = solver_type, lp_eval_fractional_cars = lp_eval_fractional_cars, lp_assume_full_knowledge = lp_assume_full_knowledge, n_cpu = min(n_cpu, num_trials))
 #    vis_day = 3
 #    df_table_all = df_table_all[(df_table_all["t"] >= vis_day * time_horizon) & (df_table_all["t"] < (vis_day + 1) * time_horizon)]
-#    df_table_all["t"] = df_table_all["t"].apply(lambda x: x % time_horizon)
+##    df_table_all["t"] = df_table_all["t"].apply(lambda x: x % time_horizon)
 
     print(f"Total Payoff = {payoff}")
     if solver_type == "LP-AugmentedGraph" and lp_eval_fractional_cars:
