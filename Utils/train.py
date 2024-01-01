@@ -649,7 +649,7 @@ class PPO_Solver(Solver):
     
     def evaluate_batch_single(self, num_trials, eval_days, seed_lst = None):
         df_table_all = None
-        report_factory = ReportFactory()
+        report_factory = ReportFactory(markov_decision_process = self.markov_decision_process)
         norm_factor = eval_days #torch.sum(self.gamma ** (self.time_horizon * torch.arange(self.eval_days)))
         payoff = 0
         for i in tqdm(range(num_trials)):
@@ -856,7 +856,7 @@ class D_Closest_Car_Solver(Solver):
         self.useful_days = useful_days
         self.gamma = gamma
     
-    def evaluate(self, return_action = True, seed = None, day_num = 0):
+    def evaluate(self, return_action = True, seed = None, day_num = 0, log_policy = False, policy_log_dir = "PolicyLogs/policy_log.csv"):
         if seed is not None:
             torch.manual_seed(seed)
         self.markov_decision_process.reset_states(new_episode = day_num == 0, seed = seed)
@@ -1001,7 +1001,8 @@ class ReportFactory:
         assert len(y_arr_lst) == len(label_lst)
         curr_lo = 0
         curr_hi = 0
-        fig, ax = plt.subplots()
+        x_arr = np.array(x_arr)
+        fig, ax = plt.subplots(figsize = (12, 4))
         interval = int(24 * 60 / self.time_horizon)
         day_start = x_arr[0] // self.time_horizon
         start = datetime(1900, 1, 1 + day_start, 0, 0, 0)

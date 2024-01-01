@@ -1,3 +1,4 @@
+import sys
 import json
 import math
 import numpy as np
@@ -207,6 +208,10 @@ def main(args, json_name = ""):
         df_table_all[col] = df_table_all_cp[col].copy()
     df_table_all.to_csv(f"Tables/table_{json_name}_{descriptor}.csv", index = False)
     report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}", detailed = True)
+#    vis_day = 3
+#    t_range = (time_horizon * vis_day, time_horizon * (vis_day + 1))
+#    df_table_all = df_table_all[(df_table_all["t"] >= t_range[0]) & (df_table_all["t"] < t_range[1])]
+#    report_factory.visualize_table(df_table_all, f"{json_name}_{descriptor}_singleday", detailed = True)
 #    for tup in action_lst:
 #        curr_state_counts, action, t, car_idx = tup
 #        if action is not None:

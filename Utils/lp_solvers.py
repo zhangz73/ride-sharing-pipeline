@@ -876,7 +876,7 @@ class LP_On_AugmentedGraph(LP_Solver):
                     next_state_lst.append(next_state_counts)
                     full_state_lst.append(curr_state_counts_full)
                     full_next_state_lst.append(full_next_state_counts)
-                curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
+#                curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                 action_lst_ret.append((curr_state_counts_full, action, t, car_id))
             curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
             action_lst_ret.append((curr_state_counts_full, None, t, None))

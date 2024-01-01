@@ -353,10 +353,20 @@ class MarkovDecisionProcess:
         self.regions = self.map.get_regions()
         num_regions = len(self.regions)
         self.trip_distance_matrix = torch.zeros((num_regions, num_regions))
-        self.load_initial_data()
+        self.distance_to_nearest_charger_vec = torch.zeros(num_regions)
         for origin in self.regions:
             for dest in self.regions:
                 self.trip_distance_matrix[origin, dest] = self.map.distance(origin, dest)
+        for region in self.regions:
+            distance = torch.max(self.trip_distance_matrix)
+            for dest in self.regions:
+                for rate in self.charging_rates:
+                    if (dest, rate) in self.region_rate_plug_num and self.region_rate_plug_num[(dest, rate)] > 0:
+                        if region == dest:
+                            distance = 0
+                        else:
+                            distance = min(distance, self.trip_distance_matrix[region, dest])
+            self.distance_to_nearest_charger_vec[region] = distance
         self.trip_request_matrix = torch.zeros((num_regions, num_regions))
         
         self.reward_df = reward_query.get_reward_df()
@@ -1732,7 +1742,8 @@ class MarkovDecisionProcess:
                 mask[:num_regions] = 0
             else:
                 ## Check if battery is enough
-                mask[:num_regions] *= battery >= (self.battery_per_step * self.trip_distance_matrix[origin,:]).round()
+                ### If battery is enough to go to the nearest charging location
+                mask[:num_regions] *= battery >= (self.battery_per_step * (self.trip_distance_matrix[origin,:] + self.distance_to_nearest_charger_vec)).round()
                 ## Check if trip has requests
                 if eta > 0:
                     mask[:num_regions] *= self.trip_request_matrix[origin,:] > 0
