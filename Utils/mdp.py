@@ -28,7 +28,7 @@ class State:
 
 ## This module is a child-class of State that is used to decribe car types
 class Car(State):
-    def __init__(self, id, dest, curr_region, battery, is_filled, type = "general", charged_rate = 0, battery_per_step = 1, time_to_dest = 0):
+    def __init__(self, id, dest, curr_region, battery, is_filled, type = "general", charged_rate = 0, battery_per_step = 1, time_to_dest = 0, unplug_time = 0):
         super().__init__(id)
         assert type in ["general", "idling", "charged", "assigned"]
         self.id = id
@@ -41,6 +41,7 @@ class Car(State):
         self.battery_p_step = battery_per_step
         self.charged_rate = charged_rate
         self.time_to_dest = time_to_dest
+        self.unplug_time = unplug_time
     
     def get_dest(self):
         if len(self.all_stops) == 0:
@@ -70,6 +71,9 @@ class Car(State):
     
     def get_charged_rate(self):
         return self.charged_rate
+    
+    def get_unplug_time(self):
+        return self.unplug_time
     
 #    def set_charged_rate(self, rate):
 #        self.charged_rate = rate
@@ -107,10 +111,11 @@ class Trip(State):
 
 ## This module is a child-class of State that is used to decribe plug types
 class Plug(State):
-    def __init__(self, id, region, rate):
+    def __init__(self, id, region, rate, eta):
         super().__init__(id)
         self.region = region
         self.rate = rate
+        self.eta = eta
     
     def get_region(self):
         return self.region
@@ -314,7 +319,7 @@ class Reward:
 
 ### This module implements the MDP process that does not allow interruptions of actions
 class MarkovDecisionProcess:
-    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, charging_cost_inflation = 1, battery_per_step = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed", max_rerouting_distance = None):
+    def __init__(self, map, trip_demands, reward_query, time_horizon, connection_patience, pickup_patience, num_battery_levels, battery_jump, charging_rates, charging_cost_inflation = 1, battery_per_step = 1, charging_time = 1, battery_offset = 1, use_charging_curve = True, force_charging = False, total_revenue_benchmark = None, region_battery_car_fname = "region_battery_car.tsv", region_rate_plug_fname = "region_rate_plug.tsv", normalize_by_tripnums = False, max_tracked_eta = None, battery_cutoff = None, car_deployment_type = "fixed", max_rerouting_distance = None, original_state = False):
         self.map = map
         self.trip_demands = trip_demands
         self.reward_query = reward_query
@@ -328,6 +333,7 @@ class MarkovDecisionProcess:
         self.battery_jump = battery_jump
         self.charging_cost_inflation = charging_cost_inflation
         self.battery_per_step = battery_per_step
+        self.charging_time = charging_time
         self.use_charging_curve = use_charging_curve
         self.force_charging = force_charging
         self.total_revenue_benchmark = total_revenue_benchmark
@@ -339,6 +345,11 @@ class MarkovDecisionProcess:
         self.normalize_by_tripnums = normalize_by_tripnums
         self.max_tracked_eta = max_tracked_eta
         self.max_rerouting_distance = max_rerouting_distance
+        self.original_state = original_state
+        if self.original_state:
+            self.type_lst = ["general"]
+        else:
+            self.type_lst = ["general", "assigned"]
         if battery_cutoff is None:
             battery_cutoff = list(range(1, self.num_battery_levels))
         self.battery_cutoff = battery_cutoff
@@ -352,6 +363,7 @@ class MarkovDecisionProcess:
         ## Auxiliary variables
         self.regions = self.map.get_regions()
         num_regions = len(self.regions)
+        self.num_regions = num_regions
         self.trip_distance_matrix = torch.zeros((num_regions, num_regions))
         self.distance_to_nearest_charger_vec = torch.zeros(num_regions)
         for origin in self.regions:
@@ -382,14 +394,19 @@ class MarkovDecisionProcess:
         if max_rerouting_distance is None:
             self.max_rerouting_distance = int(torch.max(self.trip_distance_matrix))
         self.num_charging_rates = len(self.charging_rates)
-        self.num_car_states = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
-        self.num_car_states_train = len(self.regions) * (2 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
+        if not self.original_state:
+            self.num_car_states = len(self.regions) * (2 * self.pickup_patience + 1 * self.max_travel_time + 2) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
+            self.num_car_states_train = len(self.regions) * (1 * self.pickup_patience + 2 * self.max_travel_time + 2) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
+            self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
+        else:
+            self.num_car_states = len(self.regions) * (self.pickup_patience + self.max_travel_time + 1) * self.num_battery_levels + len(self.regions) * self.num_battery_levels * self.num_charging_rates
+            self.num_car_states_train = len(self.regions) * (self.pickup_patience + self.max_travel_time + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
+            self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_trip_states = len(self.regions) * len(self.regions) * (self.connection_patience + 1)
         self.num_trip_reduced_states = len(self.regions) * 2 * (self.connection_patience + 1)
-        self.num_plug_states = len(self.regions) * self.num_charging_rates
+        self.num_plug_states = len(self.regions) * self.num_charging_rates * (self.charging_time + 1)
         self.num_total_states = self.num_car_states + self.num_trip_states + self.num_plug_states
         self.num_total_states_train = self.num_car_states_train + self.num_trip_states + self.num_plug_states
-        self.num_car_reduced_states = len(self.regions) * (self.max_tracked_eta + 1 + self.max_tracked_eta + 1) * self.num_binned_battery + len(self.regions) * self.num_binned_battery * self.num_charging_rates
         self.num_total_reduced_states = self.num_car_reduced_states + self.num_trip_reduced_states + self.num_plug_states
         ## TODO: Fix it!
         self.num_total_local_states = len(self.regions) * (self.connection_patience + 1) + len(self.regions) + self.num_binned_battery + 1 + self.pickup_patience #len(self.regions) #len(self.regions) * (self.connection_patience + 1) + 3
@@ -482,11 +499,19 @@ class MarkovDecisionProcess:
                 curr_perc = min(curr_perc, 100)
                 next_battery = int(round(curr_perc / 100 * (self.num_battery_levels - 1)))
                 self.next_battery_after_charge[(rate, battery)] = next_battery
+        tmp = {}
+        for rate in self.charging_rates:
+            for battery in range(self.num_battery_levels):
+                next_battery = battery
+                for _ in range(self.charging_time):
+                    next_battery = self.next_battery_after_charge[(rate, next_battery)]
+                tmp[(rate, battery)] = next_battery
+        self.next_battery_after_charge = tmp
     
     def get_next_battery(self, rate, curr_battery):
         if self.use_charging_curve:
             return self.next_battery_after_charge[(rate, curr_battery)]
-        return min(curr_battery + rate, self.num_battery_levels - 1)
+        return min(curr_battery + rate * self.charging_time, self.num_battery_levels - 1)
     
     ## Get the length of states
     def get_state_len(self, state_reduction = False, model = "policy", use_region = True, has_local = True, remove_trip = False):
@@ -500,8 +525,8 @@ class MarkovDecisionProcess:
             num_total_reduced_states = self.num_total_reduced_states
         if model == "policy":
             if not use_region:
-                return num_total_reduced_states + self.num_total_local_states
-            return num_total_reduced_states + self.num_total_local_states_region
+                return num_total_reduced_states #+ self.num_total_local_states
+            return num_total_reduced_states #+ self.num_total_local_states_region
         return num_total_reduced_states
     
     def get_state_counts_norm(self):
@@ -583,9 +608,21 @@ class MarkovDecisionProcess:
             self.state_counts += self.region_battery_car_map
             self.reduced_state_counts += self.region_battery_car_reduced_map
             self.passenger_carrying_cars = torch.zeros(self.time_horizon)
+            self.rerouting_cars = torch.zeros(self.time_horizon)
+            self.idling_cars = torch.zeros(self.time_horizon)
+            self.charging_cars = torch.zeros(self.time_horizon)
+            self.charging_cars_region = torch.zeros((self.time_horizon, self.num_regions))
         else:
             self.passenger_carrying_cars = self.passenger_carrying_cars_next_day
+            self.charging_cars = self.charging_cars_next_day
+            self.rerouting_cars = self.rerouting_cars_next_day
+            self.idling_cars = self.idling_cars_next_day
+            self.charging_cars_region = self.charging_cars_region_next_day
         self.passenger_carrying_cars_next_day = torch.zeros(self.time_horizon)
+        self.charging_cars_next_day = torch.zeros(self.time_horizon)
+        self.rerouting_cars_next_day = torch.zeros(self.time_horizon)
+        self.idling_cars_next_day = torch.zeros(self.time_horizon)
+        self.charging_cars_region_next_day = torch.zeros((self.time_horizon, self.num_regions))
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         self.reset_timestamp(seed = seed)
         self.max_battery_per_region = self.max_battery_per_region_init.copy()
@@ -655,6 +692,19 @@ class MarkovDecisionProcess:
             cnt += state_counts[curr_id]
         return float(cnt)
     
+    ## Get number of trip requests per region
+    def get_num_trip_requests_region_lst(self, region, state_counts = None):
+        if state_counts is None:
+            state_counts = self.state_counts
+        ret = [0] * self.num_regions
+        for dest in self.regions:
+            cnt = 0
+            for lc in range(self.connection_patience + 1):
+                curr_id = self.state_to_id["trip"][(region, dest, 0)]
+                cnt += state_counts[curr_id]
+            ret[dest] = float(cnt)
+        return ret
+    
     ## Get number of trip requests with o-d
     def get_num_active_trip_requests_od(self, state_counts = None):
         if state_counts is None:
@@ -677,27 +727,38 @@ class MarkovDecisionProcess:
         return trip_times
     
     ## Get number of cars close to each region
-    def get_num_cars_region(self, region, state_counts = None):
+    def get_num_cars_near_region(self, region, state_counts = None):
         if state_counts is None:
             state_counts = self.state_counts
         cnt = 0
         for eta in range(self.pickup_patience):
             for battery in range(self.num_battery_levels):
-                for type in ["general", "assigned"]:
+                for type in self.type_lst:
                     curr_id = self.state_to_id["car"][(type, region, eta, battery)]
                     cnt += state_counts[curr_id]
         return float(cnt)
     
-    ## Get number of charging cars close to each region
-    def get_num_charging_cars_region(self, region, state_counts = None):
+    def get_num_cars_region(self, region, state_counts = None):
         if state_counts is None:
             state_counts = self.state_counts
         cnt = 0
         for battery in range(self.num_battery_levels):
-            for rate in self.charging_rates:
-                curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+            for type in self.type_lst:
+                curr_id = self.state_to_id["car"][(type, region, 0, battery)]
                 cnt += state_counts[curr_id]
         return float(cnt)
+    
+    ## Get number of charging cars close to each region
+    def get_num_charging_cars_region(self, region, t, state_counts = None):
+        return float(self.charging_cars_region[t, region])
+#        if state_counts is None:
+#            state_counts = self.state_counts
+#        cnt = 0
+#        for battery in range(self.num_battery_levels):
+#            for rate in self.charging_rates:
+#                curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+#                cnt += state_counts[curr_id]
+#        return float(cnt)
     
     ## Get number of abandoned trip requests
     ## Note that it only makes sense to be called right before transition across time
@@ -712,7 +773,7 @@ class MarkovDecisionProcess:
         for dest in self.regions:
             for eta in range(1, self.pickup_patience + self.max_travel_time + 1):
                 for battery in range(self.num_battery_levels):
-                    for type in ["general", "assigned"]:
+                    for type in self.type_lst:
                         curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
                         cnt += state_counts[curr_id]
         return float(cnt)
@@ -724,7 +785,7 @@ class MarkovDecisionProcess:
         cnt = 0
         for dest in self.regions:
             for battery in range(self.num_battery_levels):
-                for type in ["general", "assigned"]:
+                for type in self.type_lst:
                     curr_id = self.state_to_id["car"][(type, dest, 0, battery)]
                     cnt += state_counts[curr_id]
         return float(cnt)
@@ -759,7 +820,7 @@ class MarkovDecisionProcess:
         for dest in self.regions:
             for eta in range(0, self.pickup_patience + self.max_travel_time + 1):
                 for battery in range(battery_range[0], battery_range[1]):
-                    for type in ["general", "assigned"]:
+                    for type in self.type_lst:
                         curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
                         cnt += state_counts[curr_id]
         for region in self.regions:
@@ -778,18 +839,19 @@ class MarkovDecisionProcess:
         for dest in self.regions:
             for eta in range(0, self.pickup_patience + self.max_travel_time + 1):
                 for battery in range(self.num_battery_levels):
-                    for type in ["general", "assigned"]:
-                        curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
-                        cnt = state_counts[curr_id]
-                        curr_level = int(battery / self.num_battery_levels * levels)
-                        cnt_lst[curr_level] += int(cnt)
-        for region in self.regions:
-            for battery in range(self.num_battery_levels):
-                for rate in self.charging_rates:
-                    curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
-                    cnt = state_counts[curr_id]
-                    curr_level = int(battery / self.num_battery_levels * levels)
-                    cnt_lst[curr_level] += int(cnt)
+                    for type in self.type_lst:
+                        if (type, dest, eta, battery) in self.state_to_id["car"]:
+                            curr_id = self.state_to_id["car"][(type, dest, eta, battery)]
+                            cnt = state_counts[curr_id]
+                            curr_level = int(battery / self.num_battery_levels * levels)
+                            cnt_lst[curr_level] += int(cnt)
+#        for region in self.regions:
+#            for battery in range(self.num_battery_levels):
+#                for rate in self.charging_rates:
+#                    curr_id = self.state_to_id["car"][("charged", region, battery, rate)]
+#                    cnt = state_counts[curr_id]
+#                    curr_level = int(battery / self.num_battery_levels * levels)
+#                    cnt_lst[curr_level] += int(cnt)
         return cnt_lst
     
     ## Get the state counts (cloned version)
@@ -816,7 +878,8 @@ class MarkovDecisionProcess:
             local_state_counts = self.get_local_state(car)
         else:
             local_state_counts = self.get_local_state_region(region)
-        ret = torch.cat([reduced_state_counts, local_state_counts])
+#        ret = torch.cat([reduced_state_counts, local_state_counts])
+        ret = reduced_state_counts.clone()
         return ret #(reduced_state_counts.to_sparse(), local_state_counts)
     
     ## Get the status of an unassigned car
@@ -980,17 +1043,19 @@ class MarkovDecisionProcess:
         self.state_to_id["plug"] = {}
         for region in self.regions:
             for rate in self.charging_rates:
-                plug = Plug(curr_id, region, rate)
-                ## Set the number of available plugs
-                if (region, rate) in self.region_rate_plug_num:
-                    plug_num = self.region_rate_plug_num[(region, rate)]
-                else:
-                    plug_num = 0
-                plug.set(plug_num)
-                self.state_counts[curr_id] = plug_num
-                self.state_to_id["plug"][(region, rate)] = curr_id
-                self.state_dict[curr_id] = plug
-                curr_id += 1
+                for eta in range(self.charging_time + 1):
+                    plug = Plug(curr_id, region, rate, eta)
+                    ## Set the number of available plugs
+                    if (region, rate) in self.region_rate_plug_num:
+                        plug_num = self.region_rate_plug_num[(region, rate)]
+                    else:
+                        plug_num = 0
+                    plug.set(plug_num)
+                    if eta == 0:
+                        self.state_counts[curr_id] = plug_num
+                    self.state_to_id["plug"][(region, rate, eta)] = curr_id
+                    self.state_dict[curr_id] = plug
+                    curr_id += 1
         full_car_state_range_begin = curr_id
         ## Define car states -- General type
         self.state_to_id["car"] = {}
@@ -1006,22 +1071,23 @@ class MarkovDecisionProcess:
                     curr_id += 1
         if self.car_deployment_type == "random":
             self.region_battery_car_distribution = self.region_battery_car_distribution / np.sum(self.region_battery_car_distribution)
-        ## Define car states -- Assigned type
-        for dest in self.regions:
-            for battery in range(self.num_battery_levels):
-                for eta in range(self.pickup_patience + self.max_travel_time + 1):
-                    car = Car(curr_id, dest, None, battery, None, type = "assigned", time_to_dest = eta)
-                    self.state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
-                    self.state_dict[curr_id] = car
-                    curr_id += 1
+        if not self.original_state:
+            ## Define car states -- Assigned type
+            for dest in self.regions:
+                for battery in range(self.num_battery_levels):
+                    for eta in range(self.pickup_patience + 1):
+                        car = Car(curr_id, dest, None, battery, None, type = "assigned", time_to_dest = eta)
+                        self.state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
+                        self.state_dict[curr_id] = car
+                        curr_id += 1
         ## Define car states -- Charged type
-        for region in self.regions:
-            for battery in range(self.num_battery_levels):
-                for rate in self.charging_rates:
-                    car = Car(curr_id, region, region, battery, None, type = "charged", charged_rate = rate)
-                    self.state_to_id["car"][("charged", region, battery, rate)] = curr_id
-                    self.state_dict[curr_id] = car
-                    curr_id += 1
+#        for region in self.regions:
+#            for battery in range(self.num_battery_levels):
+#                for rate in self.charging_rates:
+#                    car = Car(curr_id, region, region, battery, None, type = "charged", charged_rate = rate)
+#                    self.state_to_id["car"][("charged", region, battery, rate)] = curr_id
+#                    self.state_dict[curr_id] = car
+#                    curr_id += 1
         full_car_state_range_end = curr_id
         self.full_car_state_range = (full_car_state_range_begin, full_car_state_range_end)
         ## Populate state counts for initial car deployment
@@ -1063,22 +1129,23 @@ class MarkovDecisionProcess:
                     self.car_train_state_to_id["car"][("general", dest, eta, battery)] = curr_id
                     self.car_train_state_dict[curr_id] = car
                     curr_id += 1
-        ## Define car states -- Assigned type
-        for dest in self.regions:
-            for battery in range(self.num_binned_battery):
-                for eta in range(self.pickup_patience + self.max_travel_time + 1):
-                    car = Car(curr_id, dest, None, battery, None, type = "assigned", time_to_dest = eta)
-                    self.car_train_state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
-                    self.car_train_state_dict[curr_id] = car
-                    curr_id += 1
+        if not self.original_state:
+            ## Define car states -- Assigned type
+            for dest in self.regions:
+                for battery in range(self.num_binned_battery):
+                    for eta in range(self.pickup_patience + self.max_travel_time + 1):
+                        car = Car(curr_id, dest, None, battery, None, type = "assigned", time_to_dest = eta)
+                        self.car_train_state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
+                        self.car_train_state_dict[curr_id] = car
+                        curr_id += 1
         ## Define car states -- Charged type
-        for region in self.regions:
-            for battery in range(self.num_binned_battery):
-                for rate in self.charging_rates:
-                    car = Car(curr_id, region, region, battery, None, type = "charged", charged_rate = rate)
-                    self.car_train_state_to_id["car"][("charged", region, battery, rate)] = curr_id
-                    self.car_train_state_dict[curr_id] = car
-                    curr_id += 1
+#        for region in self.regions:
+#            for battery in range(self.num_binned_battery):
+#                for rate in self.charging_rates:
+#                    car = Car(curr_id, region, region, battery, None, type = "charged", charged_rate = rate)
+#                    self.car_train_state_to_id["car"][("charged", region, battery, rate)] = curr_id
+#                    self.car_train_state_dict[curr_id] = car
+#                    curr_id += 1
         ## Populate state counts for initial car deployment
         for region in self.regions:
             idx = 0
@@ -1109,24 +1176,25 @@ class MarkovDecisionProcess:
                     car = self.state_dict[full_id]
                     self.reduced_state_dict[car] = curr_id
                     curr_id += 1
-        ## Define car states -- Assigned type
-        for dest in self.regions:
-            for battery in range(self.num_binned_battery):
-                for eta in range(self.max_tracked_eta + 1):
-                    self.reduced_state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
-                    full_id = self.state_to_id["car"][("assigned", dest, eta, battery)]
-                    car = self.state_dict[full_id]
-                    self.reduced_state_dict[car] = curr_id
-                    curr_id += 1
+        if not self.original_state:
+            ## Define car states -- Assigned type
+            for dest in self.regions:
+                for battery in range(self.num_binned_battery):
+                    for eta in range(self.pickup_patience + 1):
+                        self.reduced_state_to_id["car"][("assigned", dest, eta, battery)] = curr_id
+                        full_id = self.state_to_id["car"][("assigned", dest, eta, battery)]
+                        car = self.state_dict[full_id]
+                        self.reduced_state_dict[car] = curr_id
+                        curr_id += 1
         ## Define car states -- Charged type
-        for region in self.regions:
-            for battery in range(self.num_binned_battery):
-                for rate in self.charging_rates:
-                    self.reduced_state_to_id["car"][("charged", region, battery, rate)] = curr_id
-                    full_id = self.state_to_id["car"][("charged", region, battery, rate)]
-                    car = self.state_dict[full_id]
-                    self.reduced_state_dict[car] = curr_id
-                    curr_id += 1
+#        for region in self.regions:
+#            for battery in range(self.num_binned_battery):
+#                for rate in self.charging_rates:
+#                    self.reduced_state_to_id["car"][("charged", region, battery, rate)] = curr_id
+#                    full_id = self.state_to_id["car"][("charged", region, battery, rate)]
+#                    car = self.state_dict[full_id]
+#                    self.reduced_state_dict[car] = curr_id
+#                    curr_id += 1
         car_pos = curr_id
         self.state_counts_norm[plug_pos:car_pos] = self.num_total_cars
         ## Populate state counts for initial car deployment
@@ -1182,6 +1250,8 @@ class MarkovDecisionProcess:
     
     ## Atomic state transitions for nothing action within timestamp
     def transit_nothing_within_timestamp(self, car_id = None):
+        if self.original_state:
+            return True
         if car_id is None:
             id = self.select_feasible_car(None, None, "nothing")
         else:
@@ -1250,24 +1320,49 @@ class MarkovDecisionProcess:
                 stag_time -= 1
         ## Book-keeping the number of passenger-carrying cars
         if action_fulfilled:
-            terminal_ts = self.curr_ts + max(trip_time, 1)
-            self.passenger_carrying_cars[self.curr_ts:min(terminal_ts, self.time_horizon)] += 1
+            terminal_ts = self.curr_ts + eta + max(trip_time, 1)
+            start_ts = self.curr_ts + eta
+            if start_ts < self.time_horizon:
+                self.passenger_carrying_cars[start_ts:min(terminal_ts, self.time_horizon)] += 1
+            else:
+                start_ts -= self.time_horizon
             if terminal_ts > self.time_horizon:
+                start_ts = max(start_ts, 0)
                 terminal_ts -= self.time_horizon
-                self.passenger_carrying_cars_next_day[:terminal_ts] += 1
+                self.passenger_carrying_cars_next_day[start_ts:terminal_ts] += 1
         ## Update car states
         if origin != dest or action_fulfilled:
             new_eta = eta + max(trip_time, 1)
             new_battery = battery - int(round(self.battery_per_step * trip_distance))
+            terminal_ts = self.curr_ts + max(trip_time, 1)
         else:
             new_eta = eta
             new_battery = battery
+            terminal_ts = self.curr_ts + 1
+        terminal_ts_tmp = terminal_ts
+        ## Book keeping the number of rerouting cars and idling cars
+        if not action_fulfilled:
+            if origin != dest:
+                self.rerouting_cars[self.curr_ts:min(terminal_ts, self.time_horizon)] += 1
+                if terminal_ts > self.time_horizon:
+                    terminal_ts -= self.time_horizon
+                    self.rerouting_cars_next_day[:terminal_ts] += 1
+            else:
+                terminal_ts_tmp = terminal_ts
+                self.idling_cars[self.curr_ts:min(terminal_ts, self.time_horizon)] += 1
+                if terminal_ts > self.time_horizon:
+                    terminal_ts -= self.time_horizon
+                    self.idling_cars_next_day[:terminal_ts] += 1
         new_eta_train = min(new_eta, self.max_tracked_eta)
         curr_car_train_state = ("general", dest, min(eta, self.max_tracked_eta), self.get_battery_pos(battery))
-        target_car_train_state = ("assigned", dest, new_eta_train, self.get_battery_pos(new_battery))
+        if self.original_state or new_eta > self.pickup_patience:
+            target_car_train_state = ("general", dest, new_eta_train, self.get_battery_pos(new_battery))
+            target_car_state = ("general", dest, new_eta, new_battery)
+        else:
+            target_car_train_state = ("assigned", dest, new_eta_train, self.get_battery_pos(new_battery))
+            target_car_state = ("assigned", dest, new_eta, new_battery)
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
-        target_car_state = ("assigned", dest, new_eta, new_battery)
         target_car_id = self.state_to_id["car"][target_car_state]
 #        if new_eta <= self.max_tracked_eta:
         target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
@@ -1300,20 +1395,33 @@ class MarkovDecisionProcess:
             return False
         car = self.state_dict[id]
         region = car.get_dest()
-        plug_id = self.state_to_id["plug"][(region, rate)]
+        plug_id = self.state_to_id["plug"][(region, rate, 0)]
+        target_plug_id = self.state_to_id["plug"][(region, rate, self.charging_time)]
         if self.state_counts[plug_id] == 0:
             return False
         battery = car.get_battery()
         next_battery = self.get_next_battery(rate, battery)
         next_battery = min(next_battery, self.num_battery_levels - 1)
         reduced_id = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
-        target_car_state = ("charged", region, battery, rate)
-        curr_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
-        target_car_train_state = ("charged", region, self.get_battery_pos(battery), rate)
+        if self.original_state or self.charging_time > self.pickup_patience:
+            target_car_state = ("general", region, self.charging_time, next_battery)
+            target_car_train_state = ("general", region, self.charging_time, self.get_battery_pos(next_battery))
+        else:
+            target_car_state = ("assigned", region, self.charging_time, next_battery)
+            target_car_train_state = ("assigned", region, self.charging_time, self.get_battery_pos(next_battery))
+        curr_car_train_state = ("general", region, 0, self.get_battery_pos(battery))
         target_car_id = self.state_to_id["car"][target_car_state]
         target_car_id_reduced = self.reduced_state_to_id["car"][target_car_train_state]
         curr_car_train_id = self.car_train_state_to_id["car"][curr_car_train_state]
         target_car_train_id = self.car_train_state_to_id["car"][target_car_train_state]
+        ## Book-keeping the number of charging cars
+        terminal_ts = self.curr_ts + self.charging_time
+        self.charging_cars[self.curr_ts:min(terminal_ts, self.time_horizon)] += 1
+        self.charging_cars_region[self.curr_ts:min(terminal_ts, self.time_horizon), region] += 1
+        if terminal_ts > self.time_horizon:
+            terminal_ts -= self.time_horizon
+            self.charging_cars_next_day[:terminal_ts] += 1
+            self.charging_cars_region_next_day[:terminal_ts, region] += 1
         ## Update states
         self.state_counts[id] -= 1
         self.reduced_state_counts[reduced_id] -= 1
@@ -1323,6 +1431,8 @@ class MarkovDecisionProcess:
         self.car_train_state_counts[target_car_train_id] += 1
         self.state_counts[plug_id] -= 1
         self.reduced_state_counts[plug_id] -= 1
+        self.state_counts[target_plug_id] += 1
+        self.reduced_state_counts[target_plug_id] += 1
         ## Update payoff
         atomic_payoff = self.reward_query.get_charging_reward(region, rate, self.curr_ts) * (next_battery - battery) / rate * self.charging_cost_inflation
         self.payoff_curr_ts += atomic_payoff
@@ -1364,6 +1474,15 @@ class MarkovDecisionProcess:
                     if self.state_counts[curr_id] > 0:
                         low_battery_car_ids.append((curr_id, dest))
         return low_battery_car_ids
+    
+    def get_all_idling_car_ids(self):
+        idling_car_ids = []
+        for dest in self.regions:
+            for battery in range(self.num_battery_levels):
+                curr_id = self.state_to_id["car"][("general", dest, 0, battery)]
+                if self.state_counts[curr_id] > 0:
+                    idling_car_ids.append((curr_id, dest))
+        return idling_car_ids
     
     def get_charging_actions(self, region):
         action_lst = []
@@ -1477,7 +1596,6 @@ class MarkovDecisionProcess:
                 for battery in range(self.num_battery_levels):
                     car_id_curr = self.state_to_id["car"][("general", dest, eta, battery)]
 #                    if eta <= self.pickup_patience:
-                    car_id_assigned = self.state_to_id["car"][("assigned", dest, eta, battery)]
                     car_curr = self.state_dict[car_id_curr]
                     eta_next = min(eta - 1, self.max_tracked_eta)
                     next_state = ("general", dest, eta - 1, battery)
@@ -1487,55 +1605,89 @@ class MarkovDecisionProcess:
                     car_id_next = self.state_to_id["car"][next_state]
 #                    if eta - 1 <= self.max_tracked_eta:
                     car_id_next_reduced = self.reduced_state_to_id["car"][next_car_train_state]
-                    self.reduced_state_counts_map[car_id_next_reduced] += [car_id_curr, car_id_assigned]
+                    self.reduced_state_counts_map[car_id_next_reduced] += [car_id_curr]
 #                    else:
 #                        ## Reduced states does not keep track of cars far away for now
 #                        self.reduced_state_counts_map[car_id_next_reduced] += [car_id_curr]
-                    if eta <= self.pickup_patience:
-                        self.state_counts_map[car_id_next] += [car_id_curr, car_id_assigned]
-                        self.car_train_state_counts_map[car_train_id_next] += [car_id_curr, car_id_assigned]
-                    else:
-                        self.state_counts_map[car_id_next] += [car_id_curr, car_id_assigned]
-                        self.car_train_state_counts_map[car_train_id_next] += [car_id_curr]
+                    self.state_counts_map[car_id_next] += [car_id_curr]
+                    self.car_train_state_counts_map[car_train_id_next] += [car_id_curr]
+                    if not self.original_state and eta <= self.pickup_patience:
+                        car_id_assigned = self.state_to_id["car"][("assigned", dest, eta, battery)]
+                        self.reduced_state_counts_map[car_id_next_reduced] += [car_id_assigned]
+                        if eta <= self.pickup_patience:
+                            self.state_counts_map[car_id_next] += [car_id_assigned]
+                            self.car_train_state_counts_map[car_train_id_next] += [car_id_assigned]
+                        else:
+                            self.state_counts_map[car_id_next] += [car_id_assigned]
                         
         ## Gather idling cars
         for region in self.regions:
             for battery in range(self.num_battery_levels):
-                car_id_curr = self.state_to_id["car"][("assigned", region, 0, battery)]
                 car_id_general = self.state_to_id["car"][("general", region, 0, battery)]
                 car_id_general_reduced = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
                 car_id_general_train = self.car_train_state_to_id["car"][("general", region, 0, self.get_battery_pos(battery))]
-                self.state_counts_map[car_id_general] += [car_id_curr, car_id_general]
-                self.reduced_state_counts_map[car_id_general_reduced] += [car_id_curr, car_id_general]
-                self.car_train_state_counts_map[car_id_general_train] += [car_id_curr, car_id_general]
-        ## Gather charged cars
-        for region in self.regions:
-            for battery in range(self.num_battery_levels):
-                for rate in self.charging_rates:
-                    car_id_curr = self.state_to_id["car"][("charged", region, battery, rate)]
-                    next_battery = battery
-                    ## charged cars gain power
-                    car_curr = self.state_dict[car_id_curr]
-#                    next_battery += rate
-                    next_battery = self.get_next_battery(rate, battery)
-                    next_battery = min(next_battery, self.num_battery_levels - 1)
-                    curr_action_id = self.action_desc_to_id[("charge", region, rate)]
-                    car_id_general = self.state_to_id["car"][("general", region, 0, next_battery)]
-                    car_id_general_reduced = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(next_battery))]
-                    car_id_general_train = self.car_train_state_to_id["car"][("general", region, 0, self.get_battery_pos(next_battery))]
+                self.state_counts_map[car_id_general] += [car_id_general]
+                self.reduced_state_counts_map[car_id_general_reduced] += [car_id_general]
+                self.car_train_state_counts_map[car_id_general_train] += [car_id_general]
+                if not self.original_state:
+                    car_id_curr = self.state_to_id["car"][("assigned", region, 0, battery)]
                     self.state_counts_map[car_id_general] += [car_id_curr]
                     self.reduced_state_counts_map[car_id_general_reduced] += [car_id_curr]
                     self.car_train_state_counts_map[car_id_general_train] += [car_id_curr]
+        ## Gather charged cars
+#        for region in self.regions:
+#            for battery in range(self.num_battery_levels):
+#                for rate in self.charging_rates:
+#                    for eta in range(1, self.charging_time + 1):
+#                        car_id_curr = self.state_to_id["car"][("charged", region, eta, battery, rate)]
+#                        ## charged cars gain power
+#                        car_curr = self.state_dict[car_id_curr]
+#    #                    next_battery += rate
+#                        next_battery = battery #self.get_next_battery(rate, battery)
+#                        next_battery = min(next_battery, self.num_battery_levels - 1)
+#                        curr_action_id = self.action_desc_to_id[("charge", region, rate)]
+#                        if eta == 1:
+#                            car_id_general = self.state_to_id["car"][("general", region, 0, next_battery)]
+#                            car_id_general_reduced = self.reduced_state_to_id["car"][("general", region, 0, self.get_battery_pos(next_battery))]
+#                            car_id_general_train = self.car_train_state_to_id["car"][("general", region, 0, self.get_battery_pos(next_battery))]
+#                        else:
+#                            car_id_general = self.state_to_id["car"][("charged", region, eta - 1, next_battery, rate)]
+#                            car_id_general_reduced = self.reduced_state_to_id["car"][("charged", region, eta - 1, self.get_battery_pos(next_battery), rate)]
+#                            car_id_general_train = self.car_train_state_to_id["car"][("charged", region, eta - 1, self.get_battery_pos(next_battery), rate)]
+#                        self.state_counts_map[car_id_general] += [car_id_curr]
+#                        self.reduced_state_counts_map[car_id_general_reduced] += [car_id_curr]
+#                        self.car_train_state_counts_map[car_id_general_train] += [car_id_curr]
+#                        ## TODO: Update charging plugs
+#                        if eta == 1:
+#                            plug_id = self.state_to_id["plug"][(region, rate)]
+#                            plug_id_reduced = self.reduced_state_to_id["plug"][(region, rate)]
+#                            self.state_counts_map[plug_id] += [car_id_curr]
+#                            self.reduced_state_counts_map[plug_id_reduced] += [car_id_curr]
+#        for region in self.regions:
+#            for rate in self.charging_rates:
+#                plug_id = self.state_to_id["plug"][(region, rate)]
+#                plug_id_reduced = self.reduced_state_to_id["plug"][(region, rate)]
+#                self.state_counts_map[plug_id] += [plug_id]
+#                self.reduced_state_counts_map[plug_id_reduced] += [plug_id_reduced]
+                            
         ## Reset charging plugs
         for region in self.regions:
             for rate in self.charging_rates:
-                plug_id = self.state_to_id["plug"][(region, rate)]
-                if (region, rate) in self.region_rate_plug_num:
-                    plug_num = self.region_rate_plug_num[(region, rate)]
-                else:
-                    plug_num = 0
-                self.plug_tracking_map[plug_id] = plug_num
-                self.plug_tracking_reduced_map[plug_id] = plug_num
+                for eta in range(self.charging_time):
+                    plug_id = self.state_to_id["plug"][(region, rate, eta)]
+                    plug_id_curr = self.state_to_id["plug"][(region, rate, eta + 1)]
+                    if eta == 0:
+                        self.state_counts_map[plug_id] += [plug_id_curr, plug_id]
+                        self.reduced_state_counts_map[plug_id] += [plug_id_curr, plug_id]
+                    else:
+                        self.state_counts_map[plug_id] += [plug_id_curr]
+                        self.reduced_state_counts_map[plug_id] += [plug_id_curr]
+#                    if (region, rate) in self.region_rate_plug_num:
+#                        plug_num = self.region_rate_plug_num[(region, rate)]
+#                    else:
+#                        plug_num = 0
+#                    self.plug_tracking_map[plug_id] = plug_num
+#                    self.plug_tracking_reduced_map[plug_id] = plug_num
         ## Clean state counts map
 #        max_len = 0
 #        for i in range(len(self.state_counts_map)):
@@ -1593,7 +1745,8 @@ class MarkovDecisionProcess:
         else:
             trip_arrivals_map = 0
             trip_arrivals_reduced_map = 0
-        state_counts_new = self.plug_tracking_map + trip_arrivals_map + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
+#        state_counts_new = self.plug_tracking_map + trip_arrivals_map + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
+        state_counts_new = trip_arrivals_map + torch.sum(state_counts_aug[self.state_counts_map], dim = 1).reshape((-1,))[:-1]
         ## Update state counts
         self.state_counts = state_counts_new.clone()
         
@@ -1601,7 +1754,8 @@ class MarkovDecisionProcess:
         self.trip_request_matrix = self.update_trip_request_matrix()
 
 #        reduced_state_counts_aug = torch.cat((self.reduced_state_counts, torch.tensor([0])))
-        reduced_state_counts_new = self.plug_tracking_reduced_map + trip_arrivals_reduced_map + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
+#        reduced_state_counts_new = self.plug_tracking_reduced_map + trip_arrivals_reduced_map + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
+        reduced_state_counts_new = trip_arrivals_reduced_map + torch.sum(state_counts_aug[self.reduced_state_counts_map], dim = 1).reshape((-1,))[:-1]
         ## Update reduced state counts
         self.reduced_state_counts = reduced_state_counts_new.clone()
         
@@ -1613,7 +1767,7 @@ class MarkovDecisionProcess:
         self.available_existing_car_types = self.get_all_available_existing_car_types()
         ## Increment timestamp by 1
         self.curr_ts += 1
-    
+        
     ## Get the local state information given a car
     def get_local_state(self, car):
         dest, eta, battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
@@ -1662,7 +1816,7 @@ class MarkovDecisionProcess:
             dest, eta, battery = car.get_dest(), car.get_time_to_dest(), car.get_battery()
             if action.get_type() == "charged":
                 rate = action.get_rate()
-                plug_id = self.state_to_id["plug"][(dest, rate)]
+                plug_id = self.state_to_id["plug"][(dest, rate, 0)]
                 return eta == 0 and state_counts[plug_id] > 0
             new_dest = action.get_dest()
             trip_distance = self.map.distance(dest, new_dest)
@@ -1674,6 +1828,8 @@ class MarkovDecisionProcess:
                 else:
                     ## Idle is always feasible
                     return eta == 0
+#            if dest == new_dest and eta == 0:
+#                return True
             return eta <= self.pickup_patience and battery >= min_battery_needed
         ## If not in the state reduction scheme
         action = self.all_actions[action_id]
@@ -1750,6 +1906,7 @@ class MarkovDecisionProcess:
                 else:
                     ## Not reroute if distance is too long
                     mask[:num_regions] *= ((self.trip_request_matrix[origin,:] > 0) + ((self.trip_request_matrix[origin,:] == 0) * (self.trip_distance_matrix[origin,:] <= self.max_rerouting_distance))) > 0
+#                    mask[origin] = 1
             ## Check charge action
             if not self.action_is_potentially_feasible(num_regions, reduced, state_counts = state_counts, car_id = car_id):
                 mask[num_regions] = 0
@@ -1822,7 +1979,7 @@ class MarkovDecisionProcess:
         for car_type in self.state_to_id["car"]:
             id = self.state_to_id["car"][car_type]
             car = self.state_dict[id]
-            if car_type[0] == "general" and car_type[2] <= self.pickup_patience:
+            if (car_type[0] == "general" and car_type[2] <= self.pickup_patience) or (car_type[0] == "charged" and car_type[2] <= self.pickup_patience):
                 ret.append(id)
                 state_is_available_car[id] = 1
         return ret, state_is_available_car

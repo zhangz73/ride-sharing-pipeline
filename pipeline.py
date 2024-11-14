@@ -53,14 +53,14 @@ def evaluate_batch_single(solver, markov_decision_process, time_horizon, num_tri
         for random_eval_round in tqdm(range(randomized_eval_time), leave = False):
             for day in range(eval_days):
                 if solver_type != "LP-AugmentedGraph":
-                    _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, log_policy = False)
+                    _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, log_policy = False)
                 else:
-                    _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars, random_eval_round = random_eval_round)
+                    _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars = solver.evaluate(return_action = True, seed = seed_lst[i * randomized_eval_time + random_eval_round], day_num = day, full_knowledge = lp_assume_full_knowledge, fractional_cars = lp_eval_fractional_cars, random_eval_round = random_eval_round)
                 if len(payoff_lst) > 0:
                     curr_payoff = float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor / randomized_eval_time #float(payoff_lst[-1].data)
                     payoff += curr_payoff
                 if solver_type != "LP-AugmentedGraph" or not lp_eval_fractional_cars:
-                    df_table = report_factory.get_table(markov_decision_process, action_lst, passenger_carrying_cars, detailed = True)
+                    df_table = report_factory.get_table(markov_decision_process, action_lst, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars, detailed = True)
                     df_table["trial"] = i
                     df_table["t"] += day * time_horizon
                     if df_table_all is None:
@@ -224,7 +224,7 @@ def main(args, json_name = ""):
     ## Evaluation
     ## TODO: Implement it!!!
     
-JSON_NAME = "300car_10region_3000charger_5min_halfcharged_nyc_combo_fullday_ppo" #"100car_5region_500charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_4charger_15min_fullycharged_nyc_combo_fullday_slowchargers_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
+JSON_NAME = "1car_2region_ppo" #"300car_10region_3000charger_5min_halfcharged_nyc_combo_fullday_ppo" #"100car_5region_500charger_5min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"12car_4region_4charger_15min_fullycharged_nyc_combo_fullday_slowchargers_ppo" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"50car_5region_250charger_5min_fullycharged_nyc_combo_fullday_lp-augmented" #"12car_4region_48charger_15min_fullycharged_nyc_combo_fullday_ppo" #"100car_10region_1000charger_5min_fullycharged_nyc_combo_fullday_ppo" #"1car_2region_ppo" #"st-stc_12car4region48chargers_xi=1" #"12car_4region_2charger_15min_fullycharged_work_nyc_combo_ppo" #"1car_2region_ppo" #"100car_4region_400charger_15min_fullycharged_nyc_ppo" #"10car_5region_d-closest" #"12car_4region_48charger_15min_demandScale2_fullycharged_nyc_d-closest" #"12car_4region_2charger_15min_fullycharged_workair_nyc_ppo" #"200car_4region_nyc_ppo" #"100car_3region_ppo" # "1car_3region_patience_ppo" #"1car_3region_dp" #
 
 with open(f"Args/{JSON_NAME}.json", "r") as f:
     args = json.load(f)

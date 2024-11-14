@@ -20,6 +20,7 @@
         "battery_jump": 0.3,
         "force_charging": true,
         "use_charging_curve": false,
+        "original_state": true,
         "total_revenue_benchmark": 3,
         "normalize_by_tripnums": true,
         "charging_rates": [
@@ -58,7 +59,7 @@
         "policy_retrain": true,
         "descriptor": "PPO",
         "dir": ".",
-        "ts_per_network": 1,
+        "ts_per_network": 5,
         "embedding_dim": 5,
         "num_itr": 20,
         "num_episodes": 300,

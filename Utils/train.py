@@ -291,58 +291,69 @@ class PPO_Solver(Solver):
             tmp = []
             payoff_prev = 0
             data_traj[episode_start + episode] = {}
+            curr_state_lst = []
+            next_state_lst = []
             for t in range(self.time_horizon * self.network_horizon_repeat):
-                data_traj[episode_start + episode][t] = {"state_counts": deque([]), "next_state_counts": deque([]), "payoff": deque([]), "atomic_payoff": deque([]), "action_id": deque([]), "ts": deque([]), "next_ts": deque([]), "day_num": deque([])}
+                data_traj[episode_start + episode][t] = {"state_counts": deque([]), "next_state_counts": deque([]), "payoff": deque([]), "atomic_payoff": deque([]), "action_id": deque([]), "ts": deque([]), "next_ts": deque([]), "day_num": deque([]), "term_val": deque([])}
             for day in range(self.num_days):
-                curr_state_lst, next_state_lst, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
-                tmp = state_action_advantage_lst
+                curr_state_lst_single, next_state_lst_single, state_action_advantage_lst, payoff_val, discounted_payoff, payoff_raw, total_revenue = self.evaluate(train = True, return_data = True, debug = False, debug_dir = None, lazy_removal = self.lazy_removal, markov_decision_process = self.markov_decision_process_lst[0], day_num = day)
+                with torch.no_grad():
+                    curr_term_val = 0#self.value_model((0, next_state_lst[-1][:self.value_input_dim]))
+                tmp += state_action_advantage_lst
                 total_payoff += discounted_payoff * self.gamma ** (self.time_horizon * day) #discounted_payoff / self.num_days #payoff_val / self.num_days
 #                total_payoff += payoff_val * self.gamma ** day
                 single_day_payoffs[day] += payoff_val - payoff_prev
                 payoff_prev = payoff_val
                 single_day_payoffs_raw[episode, day] = payoff_raw
                 single_day_total_revenue[episode, day] = total_revenue
-                ## Indent starts
-                state_num = len(tmp)
-                ## Collect trajectory data
-                payoff = 0
-                if state_num > 0:
-                    final_payoff = tmp[-1][4].clone()
-                curr_t = self.time_horizon
-                curr_day = self.num_days
-                cum_ts = 0
-                total_ts = self.num_days * self.time_horizon
-                record_num = 0
-                for i in range(state_num - 1, -1, -1):
-                    tup = tmp[i]
-                    curr_state_counts = curr_state_lst[i]
-                    next_state_counts = next_state_lst[i]
-                    _, action_id, _, t, curr_payoff, next_t, atomic_payoff, day_num = tup
-                    offset = self.get_offset(day_num) * self.time_horizon
-                    if self.use_avg_value:
-                        next_cum_ts = total_ts - (day_num * self.time_horizon + t)
-                        payoff = (atomic_payoff + payoff * cum_ts) / next_cum_ts
-                        cum_ts = next_cum_ts
+                curr_state_lst += curr_state_lst_single
+                next_state_lst += next_state_lst_single
+            ## Indent starts
+            state_num = len(tmp)
+            ## Collect trajectory data
+            payoff = 0
+            if state_num > 0:
+                final_payoff = tmp[-1][4].clone()
+            curr_t = self.time_horizon
+            curr_day = self.num_days
+            cum_ts = 0
+            cum_steps = 0
+            total_ts = self.num_days * self.time_horizon
+            record_num = 0
+            for i in range(state_num - 1, -1, -1):
+                tup = tmp[i]
+                curr_state_counts = curr_state_lst[i]
+                next_state_counts = next_state_lst[i]
+                _, action_id, _, t, curr_payoff, next_t, atomic_payoff, day_num, rev_atomic_step = tup
+                offset = self.get_offset(day_num) * self.time_horizon
+                if self.use_avg_value:
+                    next_cum_ts = total_ts - (day_num * self.time_horizon + t)
+                    next_cum_steps = (next_cum_ts - 1) * self.num_cars + rev_atomic_step
+                    payoff = (atomic_payoff + payoff * cum_steps) / next_cum_steps
+                    cum_steps = next_cum_steps
+                    cum_ts = next_cum_ts
+                else:
+                    if t != curr_t: #day_num != curr_day: #
+                        payoff = atomic_payoff + self.gamma * payoff
+                        curr_t = t
                     else:
-                        if t != curr_t: #day_num != curr_day: #
-                            payoff = atomic_payoff + self.gamma * payoff
-                            curr_t = t
-                        else:
-                            payoff = atomic_payoff + payoff
-                    if day_num < self.useful_days and curr_state_counts is not None:
-                        lens = len(curr_state_counts)
-                        if next_state_counts is None and i < state_num - 1:
-                            next_state_counts = tmp[i + 1][0]
-                            assert next_state_counts is not None
-                        data_traj[episode_start + episode][t + offset]["next_state_counts"].appendleft(next_state_counts.reshape((1, lens)))
-                        data_traj[episode_start + episode][t + offset]["payoff"].appendleft(payoff)
-                        data_traj[episode_start + episode][t + offset]["state_counts"].appendleft(curr_state_counts.reshape((1, lens)))
-                        data_traj[episode_start + episode][t + offset]["action_id"].appendleft(action_id)
-                        data_traj[episode_start + episode][t + offset]["ts"].appendleft(t)
-                        data_traj[episode_start + episode][t + offset]["next_ts"].appendleft(next_t)
-                        data_traj[episode_start + episode][t + offset]["day_num"].appendleft(day_num)
-                        data_traj[episode_start + episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
-                        record_num += 1
+                        payoff = atomic_payoff + payoff
+                if day_num < self.useful_days and curr_state_counts is not None:
+                    lens = len(curr_state_counts)
+                    if next_state_counts is None and i < state_num - 1:
+                        next_state_counts = tmp[i + 1][0]
+                        assert next_state_counts is not None
+                    data_traj[episode_start + episode][t + offset]["next_state_counts"].appendleft(next_state_counts.reshape((1, lens)))
+                    data_traj[episode_start + episode][t + offset]["payoff"].appendleft(payoff)
+                    data_traj[episode_start + episode][t + offset]["state_counts"].appendleft(curr_state_counts.reshape((1, lens)))
+                    data_traj[episode_start + episode][t + offset]["action_id"].appendleft(action_id)
+                    data_traj[episode_start + episode][t + offset]["ts"].appendleft(t)
+                    data_traj[episode_start + episode][t + offset]["next_ts"].appendleft(next_t)
+                    data_traj[episode_start + episode][t + offset]["day_num"].appendleft(day_num)
+                    data_traj[episode_start + episode][t + offset]["atomic_payoff"].appendleft(atomic_payoff)
+                    data_traj[episode_start + episode][t + offset]["term_val"].appendleft(curr_term_val)
+                    record_num += 1
+            ## Indent ends
             for t in range(self.time_horizon):
                 if len(data_traj[episode_start + episode][t]["state_counts"]) > 0:
                     data_traj[episode_start + episode][t]["state_counts"] = torch.cat(list(data_traj[episode_start + episode][t]["state_counts"]), dim = 0)
@@ -353,6 +364,7 @@ class PPO_Solver(Solver):
                     data_traj[episode_start + episode][t]["ts"] = torch.tensor(data_traj[episode_start + episode][t]["ts"])
                     data_traj[episode_start + episode][t]["next_ts"] = torch.tensor(data_traj[episode_start + episode][t]["next_ts"])
                     data_traj[episode_start + episode][t]["day_num"] = torch.tensor(data_traj[episode_start + episode][t]["day_num"])
+                    data_traj[episode_start + episode][t]["term_val"] = torch.tensor(data_traj[episode_start + episode][t]["term_val"])
                 else:
                     data_traj[episode_start + episode][t]["state_counts"] = []
             ############
@@ -362,7 +374,7 @@ class PPO_Solver(Solver):
         total_payoff /= norm_factor
         data_traj_combo = {}
         for t in range(self.time_horizon * self.network_horizon_repeat):
-            data_traj_combo[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": []}
+            data_traj_combo[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": [], "term_val": []}
             for episode in range(num_episodes):
                 if len(data_traj[episode_start + episode][t]["state_counts"]) > 0:
                     for key in data_traj_combo[t]:
@@ -395,7 +407,7 @@ class PPO_Solver(Solver):
                 ## Obtain simulated data from each episode
                 data_traj_all = {}
                 for t in range(self.time_horizon * self.network_horizon_repeat):
-                    data_traj_all[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": []}
+                    data_traj_all[t] = {"state_counts": [], "next_state_counts": [], "payoff": [], "atomic_payoff": [], "action_id": [], "ts": [], "next_ts": [], "day_num": [], "term_val": []}
                 print("\tGathering data...")
                 if self.n_cpu == 1:
                     data_traj_all, tup, single_day_payoffs, single_day_payoffs_raw, single_day_total_revenue = self.get_data_single(self.num_episodes)
@@ -443,6 +455,8 @@ class PPO_Solver(Solver):
                 np.save(f"Logs/single_day_total_revenue_{label}_itr={itr+1}.npy", single_day_total_revenue)
                 if itr == self.num_itr:
                     break
+                g_est = payoff_val / self.time_horizon
+                g_est_step = g_est / self.num_cars
                     
                 ## Update models
                 ## Update value models
@@ -456,7 +470,8 @@ class PPO_Solver(Solver):
                         if len(data_traj_all[t]["state_counts"]) > 0:
                             batch_idx = torch.from_numpy(np.random.choice(len(data_traj_all[t]["state_counts"]), size = min(self.value_batch, len(data_traj_all[t]["state_counts"])), replace = False))
                             value_dct[t]["state_counts"] = data_traj_all[t]["state_counts"][batch_idx,:]
-                            value_dct[t]["payoff"] = data_traj_all[t]["payoff"][batch_idx]
+                            term_vals = data_traj_all[t]["term_val"][batch_idx]
+                            value_dct[t]["payoff"] = data_traj_all[t]["payoff"][batch_idx] - g_est_step #- (self.time_horizon - t) * g_est + term_vals
                     total_value_loss = self.get_value_loss(value_dct, update_value_scale = value_itr == 0 and self.value_retrain)
                     value_curr_arr.append(float(total_value_loss.data))
                     total_value_loss.backward()
@@ -503,6 +518,9 @@ class PPO_Solver(Solver):
                                     action_id_lst = policy_dct[(t, next_t, day_num)]["action_id"].to(device = self.device)
                                     atomic_payoff_lst = policy_dct[(t, next_t, day_num)]["atomic_payoff"].to(device = self.device)
                                     advantage = self.get_advantage(curr_state_counts_lst, next_state_counts_lst, action_id_lst, t, next_t, atomic_payoff_lst, day_num = day_num)
+#                                    if next_t > t:
+#                                        advantage += g_est
+                                    advantage -= g_est_step
                                     ## TODO: Fix it!!!
                                     ratio, ratio_clipped = self.get_ratio(curr_state_counts_lst, action_id_lst, t, clipped = True, eps = eps, day_num = day_num)
                                     loss_curr = -torch.min(ratio * advantage, ratio_clipped * advantage)
@@ -658,10 +676,10 @@ class PPO_Solver(Solver):
                     seed = seed_lst[i]
                 else:
                     seed = None
-                _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars = self.evaluate(return_action = True, seed = seed, day_num = day)
+                _, _, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars = self.evaluate(return_action = True, seed = seed, day_num = day)
                 if len(payoff_lst) > 0:
                     payoff += float(payoff_lst[-1].data - payoff_lst[0].data) / norm_factor
-                df_table = report_factory.get_table(self.markov_decision_process, action_lst, passenger_carrying_cars, detailed = True)
+                df_table = report_factory.get_table(self.markov_decision_process, action_lst, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars, detailed = True)
                 df_table["trial"] = i
                 df_table["t"] += self.time_horizon * day
                 if df_table_all is None:
@@ -716,6 +734,7 @@ class PPO_Solver(Solver):
                 selected_idx_for_state_data = set(np.random.choice(num_available_cars - 1, size = curr_car_batch, replace = False))
             else:
                 selected_idx_for_state_data = set([])
+            rev_atomic_step = self.num_cars
             for car_idx in tqdm(range(num_available_cars), leave = False):
                 ## Perform state transitions
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx], remove_trip = self.remove_trip)#.to(device = self.device)
@@ -792,7 +811,7 @@ class PPO_Solver(Solver):
 #                                tup = state_action_advantage_lst[-1]
 #                                tup_new = (tup[0], tup[1], None, tup[3], tup[4], tup[5], tup[6], tup[7])
 #                                state_action_advantage_lst[-1] = tup_new
-                        state_action_advantage_lst.append((None, action_id, None, t, curr_payoff, next_t, payoff - curr_payoff, day_num))
+                        state_action_advantage_lst.append((None, action_id, None, t, curr_payoff, next_t, payoff - curr_payoff, day_num, rev_atomic_step))
                         curr_state_lst.append(curr_state_counts)
                         next_state_lst.append(next_state_counts)
                     atomic_payoff_lst.append(payoff - curr_payoff)
@@ -816,6 +835,7 @@ class PPO_Solver(Solver):
 #                            if action.get_type() in ["pickup", "rerouting"]:
 #                                print(action.get_origin(), action.get_dest(), curr_payoff)
 #                        model_value_lst.append(curr_value)
+                rev_atomic_step -= 1
             if not transit_applied:
                 if return_action:
                     curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
@@ -842,11 +862,14 @@ class PPO_Solver(Solver):
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
             return curr_state_lst, next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff, payoff_raw, total_revenue
         passenger_carrying_cars = markov_decision_process.passenger_carrying_cars
+        rerouting_cars = markov_decision_process.rerouting_cars
+        charging_cars = markov_decision_process.charging_cars
+        idling_cars = markov_decision_process.idling_cars
 #        print("total cars", total_cars)
 #        print("total trips", total_trips)
 #        print("payoff", float(payoff_lst[-1].data))
         #return value_loss.cpu(), policy_loss.cpu(), payoff_lst, action_lst
-        return None, None, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars
+        return None, None, payoff_lst, action_lst, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars
 
 class D_Closest_Car_Solver(Solver):
     def __init__(self, markov_decision_process = None, d = 1, num_days = 1, useful_days = 1, gamma = 1):
@@ -877,9 +900,11 @@ class D_Closest_Car_Solver(Solver):
                     any_action_applied = True
                     curr_state_counts_full = self.markov_decision_process.get_state_counts(deliver = True)
                     action_lst_ret.append((curr_state_counts_full, action, t, selected_car_id))
-            ## Charge all cars at low battery levels
-            low_battery_car_ids = self.markov_decision_process.get_all_low_battery_car_ids()
-            for tup in low_battery_car_ids:
+#            ## Charge all cars at low battery levels
+#            low_battery_car_ids = self.markov_decision_process.get_all_low_battery_car_ids()
+            ## Charge all idling cars
+            idling_car_ids = self.markov_decision_process.get_all_idling_car_ids()
+            for tup in idling_car_ids: #low_battery_car_ids:
                 car_id, region = tup
                 action_lst = self.markov_decision_process.get_charging_actions(region)
                 for action in action_lst:
@@ -900,7 +925,10 @@ class D_Closest_Car_Solver(Solver):
         atomic_payoff_lst = atomic_payoff_lst[1:] - atomic_payoff_lst[:-1]
         discounted_payoff = torch.sum(atomic_payoff_lst * discount_lst)
         passenger_carrying_cars = self.markov_decision_process.passenger_carrying_cars
-        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars
+        rerouting_cars = self.markov_decision_process.rerouting_cars
+        idling_cars = self.markov_decision_process.idling_cars
+        charging_cars = self.markov_decision_process.charging_cars
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars
 
 ## This module constructs a corresponding solver given parameters
 class SolverFactory:
@@ -1062,8 +1090,11 @@ class ReportFactory:
             self.plot_bar([str(x) for x in range(num_regions)], y_arr, "Region", "% Charging Cars", "", f"region_charging_frac_{suffix}", dir = "TablePlots")
 #            self.plot_stacked(df_table["t"], y_lst, label_lst = label_lst, xlabel = "Time Steps", ylabel = "% Cars", title = title, figname = f"region_charging_distribution_{suffix}")
     
-    def get_table(self, markov_decision_process, action_lst, passenger_carrying_cars, detailed = False):
+    def get_table(self, markov_decision_process, action_lst, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars, detailed = False):
         passenger_carrying_cars = passenger_carrying_cars.numpy()
+        rerouting_cars = rerouting_cars.numpy()
+        idling_cars = idling_cars.numpy()
+        charging_cars = charging_cars.numpy()
         prev_t = -1
         begin = False
         num_active_requests_begin, num_traveling_cars_begin, num_idling_cars_begin, num_charging_cars_begin = 0, 0, 0, 0
@@ -1090,6 +1121,7 @@ class ReportFactory:
         num_trip_requests_dct = {}
         num_cars_dct = {}
         charging_car_dct = {}
+        num_total_cars = markov_decision_process.num_total_cars
         for i in range(num_regions):
             num_trip_requests_dct[i] = []
             num_cars_dct[i] = []
@@ -1125,10 +1157,10 @@ class ReportFactory:
                         id = origin * num_regions + dest
                         trip_time = max(int(trip_time_mat[t, id]), 1)
                         passenger_carrying_cars_arr[t:(t + trip_time)] += num_fulfilled_requests_vec[id]
-                num_traveling_cars_end = markov_decision_process.get_num_traveling_cars(curr_state_counts)
-                num_idling_cars_end = markov_decision_process.get_num_idling_cars(curr_state_counts)
-                num_charging_cars_end = markov_decision_process.get_num_charging_cars(curr_state_counts)
-                num_total_cars = num_traveling_cars_end + num_idling_cars_end + num_charging_cars_end
+                num_traveling_cars_end = passenger_carrying_cars[t] + rerouting_cars[t] #markov_decision_process.get_num_traveling_cars(curr_state_counts)
+                num_idling_cars_end = num_total_cars - num_traveling_cars_end - charging_cars[t] #idling_cars[t] #markov_decision_process.get_num_idling_cars(curr_state_counts)
+                num_charging_cars_end = charging_cars[t] #markov_decision_process.get_num_charging_cars(curr_state_counts)
+                num_total_cars = markov_decision_process.num_total_cars #num_traveling_cars_end + num_idling_cars_end + num_charging_cars_end
                 if num_active_requests_begin > 0:
                     frac_requests_fulfilled = (num_active_requests_begin - num_active_requests_end) / num_active_requests_begin
                 else:
@@ -1142,7 +1174,7 @@ class ReportFactory:
 #                num_high_battery_cars = markov_decision_process.get_num_cars_w_battery(curr_state_counts, "H")
                 for region in range(num_regions):
                     if detailed:
-                        num_charging_cars_region = markov_decision_process.get_num_charging_cars_region(region, state_counts = curr_state_counts)
+                        num_charging_cars_region = markov_decision_process.get_num_charging_cars_region(region, t, state_counts = curr_state_counts)
                     else:
                         num_charging_cars_region = 0
                     charging_car_dct[region].append(num_charging_cars_region)

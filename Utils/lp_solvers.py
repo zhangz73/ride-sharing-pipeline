@@ -158,6 +158,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         self.charging_rates = self.markov_decision_process.charging_rates
         self.num_charging_rates = len(self.charging_rates)
         self.battery_per_step = self.markov_decision_process.battery_per_step
+        self.charging_time = self.markov_decision_process.charging_time
         ## Get vectors
         ### trip rewards T x R^2
         self.trip_rewards = self.markov_decision_process.reward_query.get_wide_reward(self.time_horizon, self.num_regions)
@@ -231,30 +232,45 @@ class LP_On_AugmentedGraph(LP_Solver):
     ##   - Rerouting flow T x B x R^2
     ##   - Charging flow T x \Delta x B x R
     def construct_x(self):
-        travel_flow_len = self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.num_regions
+        travel_flow_len = self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1)
+        reroute_flow_len = self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.num_regions
         charging_flow_len = self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.num_charging_rates
         self.rerouting_flow_begin = travel_flow_len
-        self.charging_flow_begin = travel_flow_len * 2
+        self.charging_flow_begin = self.rerouting_flow_begin + reroute_flow_len
+        pass_len = self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.pickup_patience
+        self.pass_begin = self.charging_flow_begin + charging_flow_len
         trip_demand_extra_len = self.adjusted_time_horizon * self.num_regions * self.num_regions
         charging_facility_extra_len = self.adjusted_time_horizon * self.num_regions * self.num_charging_rates
-        self.trip_demand_extra_begin = self.charging_flow_begin + charging_flow_len
+        self.trip_demand_extra_begin = self.pass_begin + pass_len
         self.charging_facility_extra_begin = self.trip_demand_extra_begin + trip_demand_extra_len
         ## Add dummy variables for number of requests at time t but taken at time s
-        slack_request_patience_len = self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.patience_time + 1)
+        slack_request_patience_len = self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
         self.slack_request_patience_begin = self.charging_facility_extra_begin + charging_facility_extra_len
-        self.x_len = travel_flow_len * 2 + charging_flow_len + trip_demand_extra_len + charging_facility_extra_len + slack_request_patience_len
+        self.x_len = travel_flow_len + reroute_flow_len + charging_flow_len + pass_len + trip_demand_extra_len + charging_facility_extra_len + slack_request_patience_len
         self.y_len = self.num_regions * self.num_charging_rates
 #        self.x = np.zeros(self.x_len)
     
-    def get_x_entry(self, entry_type, t, b, origin = None, dest = None, region = None, rate_idx = None):
-        assert entry_type in ["passenger-carry", "reroute", "charge"]
+    def get_x_entry(self, entry_type, t, b, origin = None, dest = None, region = None, rate_idx = None, lp = 0, lc = 0):
+        assert entry_type in ["passenger-carry", "reroute", "charge", "pass", "slack"]
+        assert lp >= 0 and lp <= self.pickup_patience
+        if entry_type in ["reroute", "charge"]:
+            assert lp == 0
         if entry_type == "charge":
             assert region is not None and rate_idx is not None
             ans = t * self.num_battery_levels * self.num_regions * self.num_charging_rates + b * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
-            return self.charging_flow_begin + ans
-        ans = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
-        if entry_type == "reroute":
+            return int(self.charging_flow_begin + ans)
+        elif entry_type == "pass":
+            ans = t * self.num_battery_levels * self.num_regions * self.pickup_patience + b * self.num_regions * self.pickup_patience + region * self.pickup_patience + lp - 1
+            return int(self.pass_begin + ans)
+        elif entry_type == "passenger-carry":
+            ans = t * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1) + b * self.num_regions * self.num_regions * (self.pickup_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) + dest * (self.pickup_patience + 1) + lp
+            return int(ans)
+        elif entry_type == "reroute":
+            ans = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
             ans += self.rerouting_flow_begin
+            return int(ans)
+        else: ## if entry_type == "slack":
+            ans = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + dest * (self.pickup_patience + 1) * (self.connection_patience + 1) + lp * (self.connection_patience + 1) + lc
         return int(ans)
     
     def reset_x_infer(self, strict = True, x_copy = None):
@@ -270,8 +286,21 @@ class LP_On_AugmentedGraph(LP_Solver):
             ## Charge: t, \delta, region
             travel_len = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_battery_levels * self.num_regions
-            x_travel = np.array([[x_copy[:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.adjusted_time_horizon * 2)]).sum(axis = 2)
-            x_travel = x_travel[:self.adjusted_time_horizon,:] + x_travel[self.adjusted_time_horizon:,:]
+            x_travel = np.array([[x_copy[self.rerouting_flow_begin:self.charging_flow_begin][(t * travel_len):((t + 1) * travel_len)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.adjusted_time_horizon)]).sum(axis = 2)
+#            for t in range(self.adjusted_time_horizon):
+#                for lp in range(self.pickup_patience + 1):
+#                    if self.num_days == 1:
+#                        t_new = min(t + lp, self.adjusted_time_horizon)
+#                    else:
+#                        t_new = (t + lp) % self.adjusted_time_horizon
+#                    for lc in range(self.connection_patience + 1):
+#                        slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + lp * (self.connection_patience + 1) + lc
+#                        slack_end = self.slack_request_patience_begin + (t + 1) * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+#                        slack_step = (self.pickup_patience + 1) * (self.connection_patience + 1)
+#                        x_travel[(t_new * self.num_regions * self.num_regions):((t_new + 1) * self.num_regions * self.num_regions)] += x_copy[slack_begin:slack_end:slack_step]
+            for lp in range(self.pickup_patience + 1):
+                x_travel += np.array([[x_copy[:self.rerouting_flow_begin][(t * travel_len):((t + 1) * travel_len)][(i * (self.pickup_patience + 1) + lp)::((self.num_regions ** 2) * (self.pickup_patience + 1))] for i in range(self.num_regions ** 2)] for t in range(self.adjusted_time_horizon)]).sum(axis = 2)
+            # x_travel = x_travel[:self.adjusted_time_horizon,:] + x_travel[self.adjusted_time_horizon:,:]
             x_travel = x_travel.flatten()
             x_charge = np.array([[x_copy[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.adjusted_time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
         self.x_travel = x_travel #x_travel.round().astype(int)
@@ -289,30 +318,38 @@ class LP_On_AugmentedGraph(LP_Solver):
             ## Travel: t, origin, dest
             ## Charge: t, \delta, region
             travel_len = self.adjusted_time_horizon * self.num_regions * self.num_regions
-            travel_len_total = (self.patience_time + 1) * travel_len
+            travel_len_total = (self.pickup_patience + 1) * travel_len
             travel_len_single = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_battery_levels * self.num_regions
             x_travel = np.zeros(travel_len_total)
             x_travel[:travel_len] = np.array([[x_copy[self.rerouting_flow_begin:self.charging_flow_begin][(t * travel_len_single):((t + 1) * travel_len_single)][i::(self.num_regions ** 2)] for i in range(self.num_regions ** 2)] for t in range(self.adjusted_time_horizon)]).sum(axis = 2).flatten()
-            for eta in range(self.patience_time + 1):
-                x_travel[(eta * travel_len):((eta + 1) * travel_len)] += x_copy[self.slack_request_patience_begin:][eta::(1 * (self.patience_time + 1))]
+            for eta in range(self.pickup_patience + 1):
+                for lc in range(self.connection_patience + 1):
+                    x_travel[(eta * travel_len):((eta + 1) * travel_len)] += x_copy[self.slack_request_patience_begin:][(eta * (self.connection_patience + 1) + lc)::((self.pickup_patience + 1) * (self.connection_patience + 1))]
             x_charge = np.array([[x_copy[self.charging_flow_begin:self.trip_demand_extra_begin][(t * charge_len):((t + 1) * charge_len)][i::(self.num_regions)] for i in range(self.num_regions)] for t in range(self.adjusted_time_horizon * self.num_charging_rates)]).sum(axis = 2).flatten()
         self.x_travel = x_travel #x_travel.round().astype(int)
         self.x_charge = x_charge #x_charge.round().astype(int)
     
     def describe_x(self, fname = "lp_debug.txt"):
-        eps = 0.1
+        eps = 0.01
         with open(fname, "w") as f:
             for entry_type in ["passenger-carry", "reroute"]:
                 for t in range(self.adjusted_time_horizon):
                     for b in range(self.num_battery_levels):
                         for origin in range(self.num_regions):
                             for dest in range(self.num_regions):
-                                x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
-                                #if self.x[x_entry] >= eps and (entry_type == "passenger-carry" or origin != dest):
-                                if self.x[x_entry] >= eps:
-                                    val = self.x[x_entry]
-                                    f.write(f"{entry_type}, t = {t}, b = {b}, origin = {origin}, dest = {dest}, val = {val}\n")
+                                if entry_type == "reroute":
+                                    x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest)
+                                    #if self.x[x_entry] >= eps and (entry_type == "passenger-carry" or origin != dest):
+                                    if self.x[x_entry] >= eps:
+                                        val = self.x[x_entry]
+                                        f.write(f"{entry_type}, t = {t}, b = {b}, origin = {origin}, dest = {dest}, val = {val}\n")
+                                else:
+                                    for lp in range(self.pickup_patience + 1):
+                                        x_entry = self.get_x_entry(entry_type, t, b, origin = origin, dest = dest, lp = lp)
+                                        if self.x[x_entry] >= eps:
+                                            val = self.x[x_entry]
+                                            f.write(f"{entry_type}, t = {t}, b = {b}, origin = {origin}, dest = {dest}, eta = {lp}, val = {val}\n")
             for t in range(self.adjusted_time_horizon):
                 for b in range(self.num_battery_levels):
                     for region in range(self.num_regions):
@@ -321,6 +358,16 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 if self.x[x_entry] >= eps:
                                     val = self.x[x_entry]
                                     f.write(f"charge, t = {t}, b = {b}, region = {region}, rate = {self.charging_rates[rate_idx]}, val = {val}\n")
+            f.write("============\n")
+            for t in range(self.adjusted_time_horizon):
+                for origin in range(self.num_regions):
+                    for dest in range(self.num_regions):
+                        for lp in range(self.pickup_patience + 1):
+                            for lc in range(self.connection_patience + 1):
+                                x_entry = self.get_x_entry("slack", t, b = None, origin = origin, dest = dest, lp = lp, lc = lc)
+                                if self.x[x_entry] >= eps:
+                                    val = self.x[x_entry]
+                                    f.write(f"slack, t = {t}, origin = {origin}, dest = {dest}, lp = {lp}, lc = {lc}, val = {val}\n")
     
     def describe_y(self, fname = "lp_debug.txt"):
         with open(fname, "a") as f:
@@ -331,15 +378,18 @@ class LP_On_AugmentedGraph(LP_Solver):
                         val = self.y[pos]
                         f.write(f"Charging Station, region = {region}, rate = {self.charging_rates[rate_idx]}, val = {val}\n")
     
-    def get_flow_conserv_entry(self, t, b, region):
-        return int(t * self.num_battery_levels * self.num_regions + b * self.num_regions + region)
+    def get_flow_conserv_entry(self, t, b, region, lp = 0):
+        assert lp >= 0 and lp <= self.pickup_patience
+        return int(t * self.num_battery_levels * self.num_regions * (self.pickup_patience + 1) + b * self.num_regions * (self.pickup_patience + 1) + region * (self.pickup_patience + 1) + lp)
     
     def construct_obj(self):
         self.c = np.zeros(self.x_len)
         for t in range(self.adjusted_time_horizon):
             for b in range(self.num_battery_levels):
-                begin = t * self.num_battery_levels * self.num_regions ** 2 + b * self.num_regions ** 2
-                self.c[begin:(begin + self.num_regions ** 2)] = self.trip_rewards[t + self.start_ts,:] * self.gamma ** t
+                ## self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1)
+                for l in range(self.pickup_patience + 1):
+                    begin = t * self.num_battery_levels * self.num_regions ** 2 * (self.pickup_patience + 1) + b * self.num_regions ** 2 * (self.pickup_patience + 1) + l
+                    self.c[begin:(begin + self.num_regions ** 2 * (self.pickup_patience + 1)):(self.pickup_patience + 1)] = self.trip_rewards[t + self.start_ts,:] * self.gamma ** t
         for t in range(self.adjusted_time_horizon):
             for rate_idx in range(self.num_charging_rates):
                 for b in range(self.num_battery_levels):
@@ -354,7 +404,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         # self.c2 += -27 #-13.36 #-0.1
 
     def construct_trip_demand_matrix_single(self, t_lo, t_hi):
-        trip_demand_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions)
+        trip_demand_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.pickup_patience + 1))
         slack_request_patience_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions)
         slack_request_patience_lst = []
         trip_demand_lst = []
@@ -362,37 +412,38 @@ class LP_On_AugmentedGraph(LP_Solver):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     slack_request_patience_vec = np.zeros(self.x_len)
-                    trip_demand_vec = np.zeros(self.x_len)
-                    begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
-                    end = begin + self.num_battery_levels * self.num_regions * self.num_regions
                     pos = t * self.num_regions * self.num_regions + origin * self.num_regions + dest
-                    trip_demand_vec[begin:end:(self.num_regions ** 2)] = 1
-                    slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.patience_time + 1) + origin * self.num_regions * (self.patience_time + 1) + dest * (self.patience_time + 1)
-                    slack_terminal = self.slack_request_patience_begin + (self.adjusted_time_horizon) * self.num_regions * self.num_regions * (self.patience_time + 1)
-                    if self.num_days == 1:
-                        end_1_t = min(self.patience_time, t) + 1
-                        end_2_t = min(self.patience_time + 1, self.adjusted_time_horizon - t)
-                        slack_end = slack_begin + end_1_t
-                        slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
-                        slack_lst_1 = np.arange(slack_begin, slack_end)
-                        slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.patience_time + 1) + 1))
-                    else:
-                        end_1_t = self.patience_time + 1 #min(self.patience_time, t) + 1
-                        end_2_t = self.patience_time + 1
-                        slack_end = slack_begin + end_1_t
-                        slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.patience_time + 1)
-                        slack_lst_1 = np.arange(slack_begin, slack_end)
-                        slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.patience_time + 1) + 1))
-                        for i in range(len(slack_lst_2)):
-                            if slack_lst_2[i] > slack_terminal:
-                                slack_lst_2[i] -= self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.patience_time + 1)
-                    trip_demand_vec[slack_lst_1] = -1
-                    
+                    for lp in range(self.pickup_patience + 1):
+                        trip_demand_vec = np.zeros(self.x_len)
+                        begin = t * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) + dest * (self.pickup_patience + 1) + lp
+                        end = begin + self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1)
+                        trip_demand_vec[begin:end:(self.num_regions ** 2 * (self.pickup_patience + 1))] = 1
+                        ## Slack: self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+                        slack_begin = self.slack_request_patience_begin + t * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + dest * (self.pickup_patience + 1) * (self.connection_patience + 1) + lp * (self.connection_patience + 1)
+                        slack_terminal = self.slack_request_patience_begin + (self.adjusted_time_horizon) * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+                        if self.num_days == 1:
+                            end_1_t = self.connection_patience + 1 #min(self.connection_patience, t) + 1
+                            end_2_t = min(self.connection_patience + 1, self.adjusted_time_horizon - t)
+                            slack_end = slack_begin + end_1_t
+                            slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+                            slack_lst_1 = np.arange(slack_begin, slack_end)
+                            slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + 1))
+                        else:
+                            end_1_t = self.connection_patience + 1 #self.connection_patience + 1 #self.patience_time + 1 #min(self.patience_time, t) + 1
+                            end_2_t = self.connection_patience + 1 #self.patience_time + 1
+                            slack_end = slack_begin + end_1_t
+                            slack_end_2 = slack_begin + end_2_t * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+                            slack_lst_1 = np.arange(slack_begin, slack_end)
+                            slack_lst_2 = np.arange(slack_begin, slack_end_2, (self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1) + 1))
+                            for i in range(len(slack_lst_2)):
+                                if slack_lst_2[i] > slack_terminal:
+                                    slack_lst_2[i] -= self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.pickup_patience + 1) * (self.connection_patience + 1)
+                        trip_demand_vec[slack_lst_1] = -1
+                        slack_request_patience_vec[slack_lst_2] = 1
+                        trip_demand_vec = csr_matrix(trip_demand_vec)
+                        trip_demand_lst.append(trip_demand_vec)
                     slack_request_patience_vec[self.trip_demand_extra_begin + pos] = 1
-                    slack_request_patience_vec[slack_lst_2] = 1
                     slack_request_patience_vec = csr_matrix(slack_request_patience_vec)
-                    trip_demand_vec = csr_matrix(trip_demand_vec)
-                    trip_demand_lst.append(trip_demand_vec)
                     slack_request_patience_lst.append(slack_request_patience_vec)
 #                    trip_demand_mat[pos, begin:end:(self.num_regions ** 2)] = 1
 #                    trip_demand_mat[pos, self.trip_demand_extra_begin + pos] = 1
@@ -430,7 +481,7 @@ class LP_On_AugmentedGraph(LP_Solver):
         results = Parallel(n_jobs = self.n_cpu)(delayed(self.construct_trip_demand_matrix_single)(
             i * batch_size, min((i + 1) * batch_size, self.adjusted_time_horizon)
         ) for i in range(self.n_cpu))
-        trip_demand_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions)
+        trip_demand_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions * (self.pickup_patience + 1))
         slack_request_patience_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_regions)
         slack_request_patience_lst = []
         trip_demand_lst = []
@@ -444,11 +495,16 @@ class LP_On_AugmentedGraph(LP_Solver):
         slack_request_patience_mat = vstack(slack_request_patience_lst)
         ### Charging facility
         print("\t\tConstructing charging facility matrix...")
-#        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
+        charging_facility_mat = np.zeros((self.time_horizon * self.num_regions * self.num_charging_rates, self.x_len))
         charging_facility_target = np.zeros(self.adjusted_time_horizon * self.num_regions * self.num_charging_rates)
         charging_facility_lst = []
         charging_facility_lst2 = []
         for t in tqdm(range(self.adjusted_time_horizon), leave = False):
+            if self.num_days == 1:
+                t_lst = np.arange(t, min(t + self.charging_time, self.adjusted_time_horizon))
+            else:
+                t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + self.charging_time)]
+            t_lst = np.array(t_lst)
             for region in range(self.num_regions):
                 for rate_idx in range(self.num_charging_rates):
                     charging_facility_vec = np.zeros(self.x_len)
@@ -459,7 +515,9 @@ class LP_On_AugmentedGraph(LP_Solver):
                     charging_facility_vec[begin:end:(self.num_regions)] = 1
                     charging_facility_vec = csr_matrix(charging_facility_vec)
                     charging_facility_lst.append(charging_facility_vec)
-#                    charging_facility_mat[pos, self.charging_facility_extra_begin + pos] = 1
+                    pos_lst = t_lst * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
+                    charging_facility_mat[pos_lst, begin:end:(self.num_regions)] = 1
+                    charging_facility_mat[pos, self.charging_facility_extra_begin + pos] = 1
 #                    charging_facility_mat[pos, begin:end:(self.num_regions)] = 1
                     if self.charging_capacity_as_var:
                         charging_facility_vec2 = np.zeros(self.y_len)
@@ -469,7 +527,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                         charging_facility_lst2.append(charging_facility_vec2)
                     else:
                         charging_facility_target[pos] = self.charging_facility_num[region, rate_idx]
-        charging_facility_mat = vstack(charging_facility_lst)
+#        charging_facility_mat = vstack(charging_facility_lst)
+        charging_facility_mat = csr_matrix(charging_facility_mat)
         if self.charging_capacity_as_var:
             charging_facility_mat2 = vstack(charging_facility_lst2)
         ### Total flows
@@ -478,27 +537,43 @@ class LP_On_AugmentedGraph(LP_Solver):
         for t in tqdm(range(self.adjusted_time_horizon), leave = False):
             passenger_len = self.num_battery_levels * self.num_regions * self.num_regions
             charge_len = self.num_charging_rates * self.num_battery_levels * self.num_regions
+            pass_len = self.num_battery_levels * self.num_regions * self.pickup_patience
 #            total_flow_mat[t, (t * passenger_len):((t + 1) * passenger_len)] = 1
 #            total_flow_mat[t, (self.rerouting_flow_begin + t * passenger_len):(self.rerouting_flow_begin + (t + 1) * passenger_len)] = 1
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
                     trip_time = int(max(self.travel_time[t + self.start_ts, origin * self.num_regions + dest], 1))
                     trip_time2 = 1
+                    end_time_1 = t + max(trip_time + self.pickup_patience, 1)
                     if self.num_days == 1:
-                        t_lst = np.arange(t, min(t + trip_time, self.adjusted_time_horizon))
+                        t_lst = np.arange(t, min(end_time_1, self.adjusted_time_horizon))
                         t_lst2 = np.arange(t, min(t + trip_time2, self.adjusted_time_horizon))
                     else:
-                        t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + trip_time)]
+                        t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, end_time_1)]
                         t_lst2 = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + trip_time2)]
                     for b in range(self.num_battery_levels):
-                        passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
-                        reroute_begin = self.rerouting_flow_begin + passenger_begin
+                        passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1) + b * self.num_regions * self.num_regions * (self.pickup_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) + dest * (self.pickup_patience + 1)
+                        reroute_begin = self.rerouting_flow_begin + t * self.num_battery_levels * self.num_regions * self.num_regions + b * self.num_regions * self.num_regions + origin * self.num_regions + dest
                         total_flow_mat[t_lst, passenger_begin] = 1
                         if origin != dest:
                             total_flow_mat[t_lst, reroute_begin] = 1
                         else:
                             total_flow_mat[t_lst2, reroute_begin] = 1
-            total_flow_mat[t, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
+                    for lp in range(1, self.pickup_patience + 1):
+                        trip_time = int(max(self.travel_time[(t + self.start_ts + lp) % self.time_horizon, origin * self.num_regions + dest], 1))
+                        if self.num_days == 1:
+                            t_lst = np.arange(min(t + lp, self.adjusted_time_horizon), min(t + lp + trip_time, self.adjusted_time_horizon))
+                        else:
+                            t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t + lp, t + lp + trip_time)]
+                        for b in range(self.num_battery_levels):
+                            passenger_begin = t * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1) + b * self.num_regions * self.num_regions * (self.pickup_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) + dest * (self.pickup_patience + 1) + lp
+                            total_flow_mat[t_lst, passenger_begin] = 1
+            if self.num_days == 1:
+                t_lst = np.arange(t, min(t + self.charging_time, self.adjusted_time_horizon))
+            else:
+                t_lst = [x if x < self.time_horizon else x - self.time_horizon for x in np.arange(t, t + self.charging_time)]
+            total_flow_mat[t_lst, (self.charging_flow_begin + t * charge_len):(self.charging_flow_begin + (t + 1) * charge_len)] = 1
+            total_flow_mat[t, (self.pass_begin + t * pass_len):(self.pass_begin + (t+1) * pass_len)] = 1
         total_flow_mat = csr_matrix(total_flow_mat)
             
         total_flow_target = np.ones(self.adjusted_time_horizon) * self.num_total_cars
@@ -553,7 +628,7 @@ class LP_On_AugmentedGraph(LP_Solver):
     ##   - Charging at each rate
     ##
     def construct_flow_conservation_battery_feasibility_matrix(self):
-        flow_conservation_target = np.zeros(self.adjusted_time_horizon * self.num_battery_levels * self.num_regions)
+        flow_conservation_target = np.zeros(self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * (self.pickup_patience + 1))
         row_lst = []
         col_lst = []
         val_lst = []
@@ -572,35 +647,55 @@ class LP_On_AugmentedGraph(LP_Solver):
                 ## Populate traveling flows
                 for origin in range(self.num_regions):
                     for dest in range(self.num_regions):
-                        trip_time = max(self.travel_time[t + self.start_ts, origin * self.num_regions + dest], 1)
+                        ## Populate trip fulfilling flows
+                        for lp in range(self.pickup_patience + 1):
+                            trip_time = max(self.travel_time[(t + self.start_ts + lp) % self.time_horizon, origin * self.num_regions + dest], 1)
+                            battery_cost = self.battery_consumption[origin * self.num_regions + dest]
+                            passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest, lp = lp)
+                            start_row = self.get_flow_conserv_entry(t, b, origin, lp = lp)
+                            start_row_filled = False
+                            if b >= battery_cost:
+                                row_lst += [start_row]
+                                col_lst += [passenger_pos]
+                                val_lst += [1]
+                                start_row_filled = True
+                                end_time = t + max(lp + trip_time - self.pickup_patience, 1)
+                                if end_time >= self.time_horizon and self.num_days > 1:
+                                    end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest, lp = min(self.pickup_patience, lp + trip_time - 1))
+                                elif end_time < self.adjusted_time_horizon:
+                                    end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest, lp = min(self.pickup_patience, lp + trip_time - 1))
+                                else:
+                                    end_row = None
+                                if end_row is not None:
+                                    row_lst += [end_row]
+                                    col_lst += [passenger_pos]
+                                    val_lst += [-1]
+                            else:
+                                battery_feasible_col_lst.append(passenger_pos)
+                        ## Populate rerouting flows
+                        trip_time = max(self.travel_time[min(t + self.start_ts, self.time_horizon - 1), origin * self.num_regions + dest], 1)
                         battery_cost = self.battery_consumption[origin * self.num_regions + dest]
-                        passenger_pos = self.get_x_entry("passenger-carry", t, b, origin = origin, dest = dest)
-                        reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest)
-                        start_row = self.get_flow_conserv_entry(t, b, origin)
+                        reroute_pos = self.get_x_entry("reroute", t, b, origin = origin, dest = dest, lp = 0)
+                        start_row = self.get_flow_conserv_entry(t, b, origin, lp = 0)
                         start_row_filled = False
                         if b >= battery_cost:
-                            row_lst += [start_row, start_row]
-                            col_lst += [passenger_pos, reroute_pos]
-                            val_lst += [1, 1]
+                            row_lst += [start_row]
+                            col_lst += [reroute_pos]
+                            val_lst += [1]
                             start_row_filled = True
-                            end_time = t + trip_time
+                            end_time = t + max(trip_time - self.pickup_patience, 1)
                             if end_time >= self.time_horizon and self.num_days > 1:
-                                end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest)
+                                end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b - battery_cost, dest, lp = min(self.pickup_patience, trip_time - 1))
                             elif end_time < self.adjusted_time_horizon:
-                                end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest)
+                                end_row = self.get_flow_conserv_entry(end_time, b - battery_cost, dest, lp = min(self.pickup_patience, trip_time - 1))
                             else:
                                 end_row = None
                             if end_row is not None:
                                 if origin != dest:
-                                    row_lst += [end_row, end_row]
-                                    col_lst += [passenger_pos, reroute_pos]
-                                    val_lst += [-1, -1]
-                                else:
                                     row_lst += [end_row]
-                                    col_lst += [passenger_pos]
+                                    col_lst += [reroute_pos]
                                     val_lst += [-1]
                         else:
-                            battery_feasible_col_lst.append(passenger_pos)
                             if origin != dest:
                                 battery_feasible_col_lst.append(reroute_pos)
                         if origin == dest:
@@ -610,40 +705,58 @@ class LP_On_AugmentedGraph(LP_Solver):
                                 val_lst += [1]
                             end_time_reroute = t + 1
                             if end_time_reroute >= self.time_horizon and self.num_days > 1:
-                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest)
+                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute - self.time_horizon, b, dest, lp = 0)
                             elif end_time_reroute < self.adjusted_time_horizon:
-                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest)
+                                end_row_reroute = self.get_flow_conserv_entry(end_time_reroute, b, dest, lp = 0)
                             else:
                                 end_row_reroute = None
                             if end_row_reroute is not None:
                                 row_lst += [end_row_reroute]
                                 col_lst += [reroute_pos]
                                 val_lst += [-1]
-                ## Populate charging flows
                 for region in range(self.num_regions):
+                    ## Populate charging flows
                     for rate_idx in range(self.num_charging_rates):
                         start_charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
                         rate = self.charging_rates[rate_idx]
-                        end_time = t + 1
+                        end_time = t + self.charging_time
                         ## TODO: Adapt it to incorporate charging curves
                         end_battery = self.markov_decision_process.get_next_battery(rate, b) #min(b + rate, self.num_battery_levels - 1)
                         charge_pos = self.get_x_entry("charge", t, b, region = region, rate_idx = rate_idx)
-                        start_row = self.get_flow_conserv_entry(t, b, region)
+                        start_row = self.get_flow_conserv_entry(t, b, region, lp = 0)
                         row_lst += [start_row]
                         col_lst += [charge_pos]
                         val_lst += [1]
                         if end_time >= self.time_horizon and self.num_days > 1:
-                            end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, end_battery, region)
+                            end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, end_battery, region, lp = min(self.charging_time - 1, self.pickup_patience))
                         elif end_time < self.adjusted_time_horizon:
-                            end_row = self.get_flow_conserv_entry(end_time, end_battery, region)
+                            end_row = self.get_flow_conserv_entry(end_time, end_battery, region, lp = min(self.charging_time - 1, self.pickup_patience))
                         else:
                             end_row = None
                         if end_row is not None:
                             row_lst += [end_row]
                             col_lst += [charge_pos]
                             val_lst += [-1]
+                    ## Populate pass flows
+                    for lp in range(1, self.pickup_patience + 1):
+                        pass_pos = self.get_x_entry("pass", t, b, region = region, lp = lp)
+                        start_row = self.get_flow_conserv_entry(t, b, region, lp = lp)
+                        row_lst += [start_row]
+                        col_lst += [pass_pos]
+                        val_lst += [1]
+                        end_time = t + 1
+                        if end_time >= self.time_horizon and self.num_days > 1:
+                            end_row = self.get_flow_conserv_entry(end_time - self.time_horizon, b, region, lp = lp - 1)
+                        elif end_time < self.adjusted_time_horizon:
+                            end_row = self.get_flow_conserv_entry(end_time, b, region, lp = lp - 1)
+                        else:
+                            end_row = None
+                        if end_row is not None:
+                            row_lst += [end_row]
+                            col_lst += [pass_pos]
+                            val_lst += [-1]
         ## Construct flow_conservation_mat row by row
-        flow_conservation_mat = csr_matrix((val_lst, (row_lst, col_lst)), shape = (self.adjusted_time_horizon * self.num_battery_levels * self.num_regions, self.x_len))
+        flow_conservation_mat = csr_matrix((val_lst, (row_lst, col_lst)), shape = (self.adjusted_time_horizon * self.num_battery_levels * self.num_regions * (self.pickup_patience + 1), self.x_len))
         ## Construct battery feasibility matrix
         battery_feasible_constraints_cnt = len(battery_feasible_col_lst)
         battery_feasible_val_lst = np.ones(battery_feasible_constraints_cnt)
@@ -695,16 +808,19 @@ class LP_On_AugmentedGraph(LP_Solver):
         for t in range(self.time_horizon):
             for origin in range(self.num_regions):
                 for dest in range(self.num_regions):
+                    trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
                     ## Passenger-Carry
+                    for lp in range(self.pickup_patience + 1):
+                        begin = t * self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1) + origin * self.num_regions * (self.pickup_patience + 1) + dest * (self.pickup_patience + 1) + lp
+                        end = begin + self.num_battery_levels * self.num_regions * self.num_regions * (self.pickup_patience + 1)
+                        if self.num_days > 1:
+                            idx_lst = np.arange(t + lp, t + trip_time + lp) % self.time_horizon
+                        else:
+                            idx_lst = np.arange(min(t + lp, self.time_horizon), min(t + trip_time + lp, self.time_horizon))
+                        status_mat[0, idx_lst] += np.sum(self.x[begin:end:((self.num_regions ** 2)*(self.pickup_patience + 1))])
+                    ## Reroute
                     begin = t * self.num_battery_levels * self.num_regions * self.num_regions + origin * self.num_regions + dest
                     end = begin + self.num_battery_levels * self.num_regions * self.num_regions
-                    trip_time = int(max(self.travel_time[t, origin * self.num_regions + dest], 1))
-                    if self.num_days > 1:
-                        idx_lst = np.arange(t, t + trip_time) % self.time_horizon
-                    else:
-                        idx_lst = np.arange(t, min(t + trip_time, self.time_horizon))
-                    status_mat[0, idx_lst] += np.sum(self.x[begin:end:(self.num_regions ** 2)])
-                    ## Reroute
                     begin = self.rerouting_flow_begin + begin
                     end = self.rerouting_flow_begin + end
                     if origin != dest:
@@ -718,7 +834,11 @@ class LP_On_AugmentedGraph(LP_Solver):
                 for rate_idx in range(self.num_charging_rates):
                     begin = self.charging_flow_begin + t * self.num_battery_levels * self.num_regions * self.num_charging_rates + region * self.num_charging_rates + rate_idx
                     end = begin + self.num_battery_levels * self.num_regions * self.num_charging_rates
-                    status_mat[2, t] += np.sum(self.x[begin:end:(self.num_regions * self.num_charging_rates)])
+                    if self.num_days > 1:
+                        idx_lst = np.arange(t, t + self.charging_time) % self.time_horizon
+                    else:
+                        idx_lst = np.arange(t, min(t + self.charging_time, self.time_horizon))
+                    status_mat[2, idx_lst] += np.sum(self.x[begin:end:(self.num_regions * self.num_charging_rates)])
         ## Normalize by number of cars
         status_mat /= self.num_total_cars
         return status_mat
@@ -798,10 +918,11 @@ class LP_On_AugmentedGraph(LP_Solver):
         if full_knowledge and random_eval_round == 0:
             obj_val_normalized = self.train()
 
-        x_copy = self.cap_flow_with_demands(cap_demand = fractional_cars)
         if fractional_cars:
+            x_copy = self.cap_flow_with_demands(cap_demand = fractional_cars)
             obj_val_normalized = np.sum(self.c * x_copy) / self.total_revenue
             return None, None, torch.tensor([0, obj_val_normalized]), None, torch.tensor(obj_val_normalized), None
+        x_copy = self.x.copy()
         
         init_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
         action_lst_ret = []
@@ -821,11 +942,18 @@ class LP_On_AugmentedGraph(LP_Solver):
                 car_id = available_car_ids[car_idx]
                 dest, eta, battery = markov_decision_process.get_car_info(car_id)
                 action_assigned = False
-                travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery, 0, strict = strict)
+                travel_x_ids, charge_x_ids = self.get_relevant_x(t, dest, battery, eta, strict = strict)
                 curr_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
 #                if return_action:
                 curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
                 curr_payoff = markov_decision_process.get_payoff_curr_ts().clone()
+                trip_requests_num_lst = markov_decision_process.get_num_trip_requests_region_lst(dest)
+                sorted_region_lst = []
+                for i in range(self.num_regions):
+                    if trip_requests_num_lst[i] > 0:
+                        sorted_region_lst = [i] + sorted_region_lst
+                    else:
+                        sorted_region_lst = sorted_region_lst + [i]
                 if eta == 0:
                     for i in range(len(charge_x_ids)):
                         x_id = charge_x_ids[i]
@@ -843,26 +971,57 @@ class LP_On_AugmentedGraph(LP_Solver):
                                     break
                 if not action_assigned:
                     travel_x_ids, charge_x_ids = self.get_relevant_x(t + eta, dest, battery, 0, strict = strict)
-                    for i in range(len(travel_x_ids)):
-                        x_id = travel_x_ids[i]
-                        if self.x_travel[x_id] > 0:
-                            action_prob = min(self.x_travel[x_id], 1)
-                            rv = np.random.binomial(n = 1, p = action_prob)
-#                            rv = int(round(action_prob))
-                            if rv == 1:
-                                action_id = markov_decision_process.query_reduced_action(("travel", i % self.num_regions))
-                                action = self.all_actions_reduced[action_id]
-                                action_success = markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
-                                if action_success:
-                                    action_assigned = True
-                                    self.x_travel[x_id] -= 1
-                                    break
+                    if len(travel_x_ids) > 0:
+                        for i in sorted_region_lst:
+                            x_id = travel_x_ids[i]
+                            if self.x_travel[x_id] > 0:
+                                action_prob = min(self.x_travel[x_id], 1)
+                                rv = np.random.binomial(n = 1, p = action_prob)
+    #                            rv = int(round(action_prob))
+                                if rv == 1:
+                                    action_id = markov_decision_process.query_reduced_action(("travel", i % self.num_regions))
+                                    action = self.all_actions_reduced[action_id]
+                                    action_success = markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
+                                    if action_success:
+                                        action_assigned = True
+                                        self.x_travel[x_id] -= 1
+                                        break
+#                if not action_assigned:
+#                    travel_x_ids, charge_x_ids = self.get_relevant_x((t + eta) % self.adjusted_time_horizon, dest, battery, 0, strict = strict)
+#                    travel_options = np.zeros(self.num_regions + 1)
+#                    for i in range(len(travel_x_ids)):
+#                        x_id = travel_x_ids[i]
+#                        if self.x_travel[x_id] > 0:
+#                            travel_options[i] += self.x_travel[x_id]
+#                    while not action_assigned and np.sum(travel_options) > 0:
+#                        if np.sum(travel_options[:-1]) < 1:
+#                            travel_options[-1] = 1 - np.sum(travel_options[:-1])
+#                        travel_probs = travel_options / np.sum(travel_options)
+##                            action_prob = min(self.x_travel[x_id], 1)
+##                            rv = np.random.binomial(n = 1, p = action_prob)
+##                            rv = int(round(action_prob))
+#                        action_num = np.random.choice(self.num_regions + 1, size = 1, p = travel_probs)[0]
+#                        if action_num == self.num_regions:
+#                            break
+#                        x_id = travel_x_ids[action_num]
+##                            if rv == 1:
+##                                action_id = markov_decision_process.query_reduced_action(("travel", i % self.num_regions))
+#                        action_id = markov_decision_process.query_reduced_action(("travel", action_num))
+#                        action = self.all_actions_reduced[action_id]
+#                        action_success = markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
+#                        if action_success:
+#                            action_assigned = True
+#                            self.x_travel[x_id] -= 1
+#                            travel_options[action_num] -= 1
+#                            break
+#                        else:
+#                            travel_options[action_num] = 0
                 if not action_assigned:
                     action_id = markov_decision_process.query_reduced_action(("nothing"))
                     action = self.all_actions_reduced[action_id]
                     markov_decision_process.transit_within_timestamp(action, reduced = True, car_id = car_id)
-                if car_idx == num_available_cars - 1:
-                    markov_decision_process.transit_across_timestamp()
+#                if car_idx == num_available_cars - 1:
+#                    markov_decision_process.transit_across_timestamp()
                 next_state_counts = markov_decision_process.get_state_counts(state_reduction = self.state_reduction, car_id = available_car_ids[car_idx])#.to(device = self.device)
                 full_next_state_counts = markov_decision_process.get_state_counts(deliver = True)
                 payoff = markov_decision_process.get_payoff_curr_ts().clone()
@@ -880,8 +1039,8 @@ class LP_On_AugmentedGraph(LP_Solver):
                 action_lst_ret.append((curr_state_counts_full, action, t, car_id))
             curr_state_counts_full = markov_decision_process.get_state_counts(deliver = True)
             action_lst_ret.append((curr_state_counts_full, None, t, None))
-            if num_available_cars == 0:
-                markov_decision_process.transit_across_timestamp()
+#            if num_available_cars == 0:
+            markov_decision_process.transit_across_timestamp()
             curr_payoff = markov_decision_process.get_payoff_curr_ts(deliver = True)
             payoff_lst.append(curr_payoff)
             discount_lst.append(self.gamma ** t)
@@ -893,5 +1052,8 @@ class LP_On_AugmentedGraph(LP_Solver):
             final_payoff = float(markov_decision_process.get_payoff_curr_ts(deliver = True))
             return curr_state_lst, next_state_lst, full_state_lst, full_next_state_lst, state_action_advantage_lst, final_payoff, discounted_payoff, None, None
         passenger_carrying_cars = self.markov_decision_process.passenger_carrying_cars
+        rerouting_cars = self.markov_decision_process.rerouting_cars
+        idling_cars = self.markov_decision_process.idling_cars
+        charging_cars = self.markov_decision_process.charging_cars
         payoff_lst = torch.tensor([init_payoff] + payoff_lst)
-        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars
+        return None, None, payoff_lst, action_lst_ret, discounted_payoff, passenger_carrying_cars, rerouting_cars, idling_cars, charging_cars

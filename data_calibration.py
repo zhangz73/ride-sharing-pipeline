@@ -72,21 +72,36 @@ else:
 #        [236, 263, 262, 237, 141, 140], ## Upper East
 #        [229, 233, 170, 137], ## Midtown East
 #    ]
+#    LOCATIONS_ID_OF_INTEREST = [
+##        [132], ## JFK Airport
+#        ## Workplace
+#        [244, 120], ## Hudson Heights
+#        [152, 166], ## Columbia University
+#        [75], ## Upper East
+#        [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
+#        [125, 211, 144, 148, 232, 231, 45, 209, 13, 261, 87, 12, 88], ## Downtown
+#        ## Restarants
+#        [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
+#        ## Residential
+#        [128, 127, 243], ## Inwood
+#        [116, 42, 41, 74], ## Harlem
+#        [24, 151, 238, 239, 143, 142, 50, 48], ## Upper + Midtown West
+#        [236, 263, 262, 237, 141, 140, 229, 233, 170, 137], ## Upper + Midtown East
+#    ]
     LOCATIONS_ID_OF_INTEREST = [
-#        [132], ## JFK Airport
-        ## Workplace
-        [244, 120], ## Hudson Heights
-        [152, 166], ## Columbia University
-        [75], ## Upper East
-        [163, 230, 161, 162, 100, 186, 164, 90, 234, 246, 68], ## Midtown Lower
-        [125, 211, 144, 148, 232, 231, 45, 209, 13, 261, 87, 12, 88], ## Downtown
-        ## Restarants
-        [158, 249, 113, 114, 79, 4, 107, 224], ## West + East Village
         ## Residential
-        [128, 127, 243], ## Inwood
-        [116, 42, 41, 74], ## Harlem
-        [24, 151, 238, 239, 143, 142, 50, 48], ## Upper + Midtown West
-        [236, 263, 262, 237, 141, 140, 229, 233, 170, 137], ## Upper + Midtown East
+        [120, 127, 128, 243, 244],
+        [41, 42, 74, 116, 152, 166],
+        [24, 151, 238, 239],
+        [48, 50, 142, 143],
+        [75, 140, 141, 236, 237, 262, 263],
+        [107, 137, 170, 224, 229, 233],
+        ## Workplace
+        [161, 162, 163, 230],
+        [68, 90, 100, 164, 186, 234, 246],
+        [4, 58, 79, 113, 114, 249],
+        ## Restaurants
+        [12, 13, 45, 87, 88, 125, 144, 148, 209, 211, 231, 232, 261]
     ]
 LOCATION_MAP = {}
 for i in range(len(LOCATIONS_ID_OF_INTEREST)):
@@ -96,12 +111,12 @@ for i in range(len(LOCATIONS_ID_OF_INTEREST)):
 
 ## Time of interest
 TIME_RANGE = (0, 24) #(2, 14) #(8, 20)
-TIME_FREQ = 5 #15 # E.g. 5 minutes per decision epoch
+TIME_FREQ = 1 #5 #15 # E.g. 5 minutes per decision epoch
 PACK_SIZE = 40
 MAX_MILES = 149
 TOTAL_CARS_ORIG = 5000
-TOTAL_CARS_NEW = 300 #300 #12#50 #200
-CHARGING_RATE = 0.505 #1.515 #0.833 #[0.128, 0.833]
+TOTAL_CARS_NEW = 500 #300 #300 #12#50 #200
+CHARGING_RATE = 0.101 #0.505 #1.515 #0.833 #[0.128, 0.833]
 NUM_BATTERY_LEVELS = 132 #264
 SCALE_DEMAND_UP = 1
 NUM_PLUGS = len(LOCATIONS_ID_OF_INTEREST) * TOTAL_CARS_NEW #int(TOTAL_CARS_NEW + TOTAL_CARS_NEW ** 0.5)
@@ -109,7 +124,7 @@ NUM_PLUGS = (NUM_PLUGS // len(LOCATIONS_ID_OF_INTEREST)) * len(LOCATIONS_ID_OF_I
 CHARGING_RATE_DIS = 5 * TIME_FREQ #int(round(5/3 * TIME_FREQ)) #10 * TIME_FREQ #int(round(2.5 * TIME_FREQ)) #[2, 10] * TIME_FREQ
 CAR_DEPLOYMENT = "fixed" #"uniform"
 NUM_REGIONS = len(LOCATIONS_ID_OF_INTEREST)
-SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_fullycharged_nyc_combo_fullday"
+SCENARIO_NAME = f"{TOTAL_CARS_NEW}car{len(LOCATIONS_ID_OF_INTEREST)}region{NUM_PLUGS}chargers{TIME_FREQ}mins_v2_halfcharged_nyc_combo_fullday"
 
 ## Compute time horizon
 TIME_HORIZON = int((TIME_RANGE[1] - TIME_RANGE[0] + 1) * 60 / TIME_FREQ)
@@ -227,8 +242,8 @@ def get_region_battery_car_df():
                 num_lst.append(TOTAL_CARS_NEW / len(LOCATIONS_ID_OF_INTEREST) / NUM_BATTERY_LEVELS / 0.6)
         else:
             region_lst.append(region)
-            battery_lst.append(NUM_BATTERY_LEVELS - 1)
-            #battery_lst.append(NUM_BATTERY_LEVELS // 2)
+#            battery_lst.append(NUM_BATTERY_LEVELS - 1)
+            battery_lst.append(NUM_BATTERY_LEVELS // 2)
             if region == len(LOCATIONS_ID_OF_INTEREST) - 1:
                 curr_car = TOTAL_CARS_NEW - car_cnt
             else:
